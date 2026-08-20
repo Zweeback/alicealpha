@@ -1,0 +1,8 @@
+{
+  "kind": "no-runnable-visual",
+  "project": "Alice Alpha",
+  "stage": "SHIP",
+  "next_acceptance_gate": "Import the actual v0.1 web source, then capture the verified runtime",
+  "runtime_verified": false,
+  "accent": "#60a5fa"
+}

@@ -1,5 +1,12 @@
 # Alice Alpha
 
+## Current visual
+
+![Alice Alpha current visual status](docs/status/current.png)
+
+> Status evidence only: the README references v0.1 web files that are not present in this repository yet.
+
+
 **Status:** active vertical slice · v0.1  
 **Type:** Companion AI / local-first prototype  
 **Canonical repo:** `Zweeback/alicealpha`
