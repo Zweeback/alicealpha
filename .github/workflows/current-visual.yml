@@ -1,12 +1,9 @@
-name: Current visual
+name: Current visual status
 
 on:
   push:
     branches: ["infra/current-visual"]
     paths:
-      - "index.html"
-      - "css/**"
-      - "js/**"
       - "docs/status/current.json"
       - ".github/workflows/current-visual.yml"
   workflow_dispatch:
@@ -15,40 +12,51 @@ permissions:
   contents: write
 
 jobs:
-  capture:
+  status-card:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: "22"
-      - name: Install browser
-        run: npx --yes playwright@1.55.0 install --with-deps chromium
-      - name: Serve Alice
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check pillow==11.3.0
+      - name: Render honest status evidence
+        shell: python
         run: |
-          python3 -m http.server 8080 > /tmp/alice-http.log 2>&1 &
-          for attempt in {1..30}; do
-            curl --fail --silent http://127.0.0.1:8080/ >/dev/null && exit 0
-            sleep 1
-          done
-          cat /tmp/alice-http.log
-          exit 1
-      - name: Capture real runtime
-        run: |
-          mkdir -p docs/status
-          npx --yes playwright@1.55.0 screenshot \
-            --browser chromium \
-            --viewport-size "1600,900" \
-            --wait-for-timeout 2500 \
-            http://127.0.0.1:8080/ docs/status/current.png
-      - name: Commit current screenshot
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
+          import json, textwrap
+          root = Path("docs/status")
+          data = json.loads((root / "current.json").read_text())
+          image = Image.new("RGB", (1600, 900), "#0b1020")
+          draw = ImageDraw.Draw(image)
+          regular = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+          bold = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+          font = lambda size, strong=False: ImageFont.truetype(bold if strong else regular, size)
+          accent = data["accent"]
+          draw.rectangle((0, 0, 1600, 16), fill=accent)
+          draw.text((104, 86), "CURRENT VISUAL STATUS", font=font(28, True), fill=accent)
+          draw.text((104, 150), data["project"], font=font(66, True), fill="#f8fafc")
+          draw.rounded_rectangle((104, 252, 364, 308), 18, fill="#182033")
+          draw.text((132, 266), data["stage"], font=font(24, True), fill="#cbd5e1")
+          draw.text((104, 374), "NO RUNNABLE VISUAL YET", font=font(48, True), fill="#f8fafc")
+          draw.multiline_text((104, 446), "The README describes a v0.1 frontend, but the referenced source files are absent.\nThis image is status evidence — not concept art.", font=font(27), fill="#94a3b8", spacing=14)
+          draw.text((104, 590), "NEXT ACCEPTANCE GATE", font=font(23, True), fill=accent)
+          y = 638
+          for line in textwrap.wrap(data["next_acceptance_gate"], 68):
+              draw.text((104, y), line, font=font(34, True), fill="#e2e8f0")
+              y += 48
+          draw.line((104, 800, 1496, 800), fill="#263249", width=2)
+          draw.text((104, 828), "STATUS EVIDENCE · NOT A RUNTIME SCREENSHOT", font=font(20, True), fill="#64748b")
+          image.save(root / "current.png", optimize=True)
+      - name: Commit status image
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- docs/status/current.png
-          git diff --cached --quiet || git commit -m "docs: refresh Alice runtime screenshot"
+          git diff --cached --quiet || git commit -m "docs: refresh Alice visual status"
           git push
       - uses: actions/upload-artifact@v4
         with:
-          name: current-visual
+          name: current-visual-status
           path: docs/status/current.png
