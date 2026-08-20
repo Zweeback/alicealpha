@@ -1,0 +1,54 @@
+name: Current visual
+
+on:
+  push:
+    branches: ["infra/current-visual"]
+    paths:
+      - "index.html"
+      - "css/**"
+      - "js/**"
+      - "docs/status/current.json"
+      - ".github/workflows/current-visual.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install browser
+        run: npx --yes playwright@1.55.0 install --with-deps chromium
+      - name: Serve Alice
+        run: |
+          python3 -m http.server 8080 > /tmp/alice-http.log 2>&1 &
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:8080/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/alice-http.log
+          exit 1
+      - name: Capture real runtime
+        run: |
+          mkdir -p docs/status
+          npx --yes playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size "1600,900" \
+            --wait-for-timeout 2500 \
+            http://127.0.0.1:8080/ docs/status/current.png
+      - name: Commit current screenshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- docs/status/current.png
+          git diff --cached --quiet || git commit -m "docs: refresh Alice runtime screenshot"
+          git push
+      - uses: actions/upload-artifact@v4
+        with:
+          name: current-visual
+          path: docs/status/current.png
