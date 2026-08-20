@@ -1,5 +1,12 @@
 # Alice Alpha
 
+## Current visual
+
+![Alice Alpha current runtime](docs/status/current.png)
+
+> Automatically captured from the current `index.html` runtime.
+
+
 **Status:** active vertical slice · v0.1  
 **Type:** Companion AI / local-first prototype  
 **Canonical repo:** `Zweeback/alicealpha`
