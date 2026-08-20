@@ -1,8 +1,8 @@
 {
-  "kind": "runtime-screenshot",
+  "kind": "no-runnable-visual",
   "project": "Alice Alpha",
   "stage": "SHIP",
-  "entrypoint": "index.html",
-  "viewport": "1600x900",
-  "runtime_verified": true
+  "next_acceptance_gate": "Import the actual v0.1 web source, then capture the verified runtime",
+  "runtime_verified": false,
+  "accent": "#60a5fa"
 }
