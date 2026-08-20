@@ -1,0 +1,8 @@
+{
+  "kind": "runtime-screenshot",
+  "project": "Alice Alpha",
+  "stage": "SHIP",
+  "entrypoint": "index.html",
+  "viewport": "1600x900",
+  "runtime_verified": true
+}
