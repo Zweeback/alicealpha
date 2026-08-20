@@ -2,9 +2,9 @@
 
 ## Current visual
 
-![Alice Alpha current runtime](docs/status/current.png)
+![Alice Alpha current visual status](docs/status/current.png)
 
-> Automatically captured from the current `index.html` runtime.
+> Status evidence only: the README references v0.1 web files that are not present in this repository yet.
 
 
 **Status:** active vertical slice · v0.1  
