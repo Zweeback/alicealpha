@@ -78,7 +78,7 @@ Every memory carries a SHA-256 hash, source and status. A model tool may only pr
 - `server/alicePrompt.js` — persona contract and tool schemas
 - `tests/` — memory, safety, persona and protocol tests
 - `docs/REALTIME_ARCHITECTURE.md` — exact communication architecture
-- `docs/ORCHESTRATION.md` — GitHub/Codespaces and external research/script worker boundaries
+- `docs/ORCHESTRATION.md` — GitHub/Codespaces and external research/source worker boundaries
 - `docs/CONNECTOR_AUDIT.md` — tested connector reachability and authorization status
 - `server/sourceArtifact.js` — provenance and credential boundary for external research/library records
 - `design-qa.md` — evidence-based visual acceptance status

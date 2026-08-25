@@ -1,7 +1,7 @@
 # Alice design QA
 
 - source visual truth path: `/workspace/scratch/8ba017262a37/generated_images/exec-75fbebcd-cd78-4b4f-acbd-57862c154b9e.png`
-- implementation screenshot path: unavailable
+- implementation screenshot path: unavailable; deployed implementation is `https://alicealpha.onrender.com`
 - viewport: target source 1680 × 941 px; implementation viewport unavailable
 - source pixels: 1680 × 941
 - implementation pixels: unavailable
@@ -12,7 +12,7 @@
 
 - [P0] Browser-rendered implementation evidence is unavailable
   Location: complete experience.
-  Evidence: the source visual was opened and inspected, but this environment has no installed Chromium and the attempted Playwright browser download was blocked by the network policy. There is therefore no valid implementation screenshot to place in the same comparison input.
+  Evidence: the source visual was opened and inspected and the deployed implementation passes HTTP smoke tests. This environment has no installed Chromium, the attempted Playwright browser download was blocked by the network policy, and Opera Browser Connector reported that browser AI access is not enabled. There is therefore no valid implementation screenshot to place in the same comparison input.
   Impact: typography, spacing, colors, asset quality, copy, responsive behavior and WebGL composition cannot be accepted from source code alone.
   Fix: deploy a reachable preview, capture desktop and mobile renders in the same first-contact state, combine each with the source visual and run the comparison again.
 
@@ -36,11 +36,12 @@ Not performed because the mandatory full-view implementation evidence is absent.
 
 - automated unit contracts for persona, memory, realtime event parsing and performance plans
 - production compilation
+- public HTTP 200 responses for the app shell, web manifest, service worker and health endpoint
 - browser camera, microphone, WebRTC, WebXR and controller interactions remain unexecuted in this headless environment
 
 **Console errors checked**
 
-Not available without a browser runtime.
+Not available without a connected browser runtime. Opera Browser Connector was present but not connected to an Opera session with “Allow AI connection” enabled.
 
 **Comparison history**
 
@@ -63,4 +64,3 @@ Not available without a browser runtime.
 - tune hair silhouette, facial proportions, garment seams and physically based materials after the final rig is selected
 
 final result: blocked
-
