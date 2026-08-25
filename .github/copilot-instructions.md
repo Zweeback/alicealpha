@@ -13,4 +13,4 @@ Follow `AGENTS.md` and preserve the server/core/XR boundaries.
 - Add or update tests for protocol, memory, persona or safety contract changes.
 - Run `npm run test:run` and `npm run build` before proposing a pull request.
 
-External work from Jules, Gemini, NotebookLM, SuperGrok, DigiBib or ScriptDB must conform to `docs/ORCHESTRATION.md` and retain provenance.
+External work from Jules, Gemini, NotebookLM, SuperGrok, DigiBib, ScriptDB or library portals must conform to `docs/ORCHESTRATION.md` and retain provenance. ScriptDB is a library/form/database source, never a screenplay source.

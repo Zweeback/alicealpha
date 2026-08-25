@@ -17,8 +17,8 @@
 
 - [x] Codespaces devcontainer with forwarded ports and Copilot guidance
 - [ ] provenance-envelope validator for external code, research and scene artifacts
-- [ ] authenticated ScriptDB scene-packet adapter with rights metadata
-- [ ] cited research-ingestion queue for Gemini, NotebookLM, SuperGrok and DigiBib handoffs
+- [ ] authenticated ScriptDB library-record/form adapter with access and rights metadata
+- [ ] cited research-ingestion queue for Gemini, NotebookLM, SuperGrok, DigiBib and library-portal handoffs
 - [ ] replace procedural body with a licensed, optimized humanoid GLB/VRM rig
 - [ ] facial blendshape retargeting and phoneme/viseme timing
 - [ ] encrypted account sync and browser-memory migration

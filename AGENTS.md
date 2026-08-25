@@ -19,6 +19,7 @@ Alice v0.2 is an embodied WebXR vertical slice. Keep these layers separate:
 - AI emits semantic performance cues; local code owns interpolation and physical limits.
 - Any animatronic output must be interruptible and retain `safe_hold` behavior.
 - Keep a working local fallback and label it honestly as non-model behavior.
+- Treat ScriptDB, DigiBib and library portals as licensed research/data sources. Keep card numbers, passwords, tokens and portal session data out of prompts and artifacts.
 
 ## Do not
 

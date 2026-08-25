@@ -75,6 +75,8 @@ Every memory carries a SHA-256 hash, source and status. A model tool may only pr
 - `tests/` — memory, safety, persona and protocol tests
 - `docs/REALTIME_ARCHITECTURE.md` — exact communication architecture
 - `docs/ORCHESTRATION.md` — GitHub/Codespaces and external research/script worker boundaries
+- `docs/CONNECTOR_AUDIT.md` — tested connector reachability and authorization status
+- `server/sourceArtifact.js` — provenance and credential boundary for external research/library records
 - `design-qa.md` — evidence-based visual acceptance status
 
 ## Honest limits
@@ -83,6 +85,6 @@ Every memory carries a SHA-256 hash, source and status. A model tool may only pr
 - Browser camera tracking is intentionally coarse; raw video is not sent to the model by this implementation.
 - GitHub Pages can host the offline/PWA client, but live AI requires the Node server on a host with `OPENAI_API_KEY`.
 - Relationship continuity currently persists in browser storage; account synchronization and encrypted remote storage remain future work.
-- GitHub is connected for source control. Copilot, Codespaces, Jules, Gemini, NotebookLM, SuperGrok, DigiBib and ScriptDB have defined handoff contracts but are not callable connectors in this session.
+- GitHub is connected for source control. Codespaces and Copilot are configured at repository level. Jules, Gemini, NotebookLM, SuperGrok, DigiBib and ScriptDB have defined handoff contracts but are not callable connectors in this session.
 
 The older `aliceneu` repository should not be developed in parallel. Migrate useful material here and archive or redirect it afterward.
