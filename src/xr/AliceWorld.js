@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { calculatePerspectiveFrame } from './framing.js';
 
 const cyan = new THREE.Color('#39d9e6');
 const amber = new THREE.Color('#d99a36');
@@ -257,6 +258,8 @@ export class AliceWorld {
     this.scene.add(this.lab);
     this.alice = createAlice();
     this.scene.add(this.alice.root);
+    this.alice.root.updateMatrixWorld(true);
+    this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
 
     this.placementRing = new THREE.Mesh(
       new THREE.RingGeometry(0.36, 0.39, 64),
@@ -393,10 +396,28 @@ export class AliceWorld {
   }
 
   resize = () => {
-    const width = this.canvas.clientWidth || innerWidth;
-    const height = this.canvas.clientHeight || innerHeight;
-    this.camera.aspect = width / Math.max(1, height);
+    const width = this.canvas.clientWidth || globalThis.innerWidth || 1;
+    const height = this.canvas.clientHeight || globalThis.innerHeight || 1;
+    const size = this.desktopBounds.getSize(new THREE.Vector3());
+    const center = this.desktopBounds.getCenter(new THREE.Vector3());
+    const frame = calculatePerspectiveFrame({
+      viewportWidth: width,
+      viewportHeight: height,
+      verticalFovDegrees: this.camera.fov,
+      boundsWidth: size.x,
+      boundsHeight: size.y,
+      boundsDepth: size.z,
+      padding: 1.2,
+      minimumDistance: 3.35,
+    });
+
+    this.camera.aspect = frame.aspect;
     this.camera.updateProjectionMatrix();
+    if (this.mode === 'desktop') {
+      const targetY = center.y + size.y * 0.035;
+      this.camera.position.set(center.x, targetY, center.z + frame.distance);
+      this.camera.lookAt(center.x, targetY, center.z);
+    }
     this.renderer.setSize(width, height, false);
   };
 

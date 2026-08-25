@@ -24,4 +24,13 @@ describe('AlicePersona fallback', () => {
     expect(response.dialogueAct).toBe('support');
     expect(response.reply).not.toMatch(/nur mich|verlass mich nicht|brauchst nur mich/i);
   });
+
+  it('labels question answers as local fallback instead of faking model reasoning', async () => {
+    const alice = new AlicePersona(new MemoryStore(storage()));
+    const response = await alice.respond('Wie funktioniert die Live-Anbindung?');
+
+    expect(response.dialogueAct).toBe('question');
+    expect(response.reply).toMatch(/Live-KI-Kanal.*nicht verbunden/i);
+    expect(response.reply).not.toMatch(/mehr Kontext|eigentliche Kern|technische Seite/i);
+  });
 });
