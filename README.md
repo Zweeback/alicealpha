@@ -1,58 +1,88 @@
 # Alice Alpha
 
-**Status:** active vertical slice · v0.1  
-**Type:** Companion AI / local-first prototype  
-**Canonical repo:** `Zweeback/alicealpha`
+**Status:** active embodied vertical slice · v0.2  
+**Type:** Companion AI / WebXR / Realtime Voice  
+**Canonical repository:** `Zweeback/alicealpha`
 
-Alice Alpha is the active prototype of Alice OS: Presence, German chat, persistent memory with provenance, Tribunal, graph view and backend settings. The core is model-independent; the current v0.1 backend is local only.
+Alice Alpha is a live German 3D persona for desktop, mobile AR and VR. The cloud model handles language, conversational intent and high-level performance direction. The local Three.js runtime renders gaze, facial motion, gestures and body movement smoothly at device frame rate.
 
-## Run
+## What works
+
+- live speech-to-speech conversation over WebRTC using OpenAI Realtime
+- procedural full-body 3D Alice with gaze, blink, mouth, posture and six gesture families
+- camera-derived user presence and coarse expression; raw camera frames stay in the browser
+- immersive WebXR AR placement and a VR laboratory
+- explicit, provenance-aware memory Tribunal: `candidate → confirmed | rejected`
+- browser speech/text fallback when the cloud channel is unavailable
+- optional Web Serial performance-plan bridge for a later animatronic body
+- installable PWA shell and responsive, menu-free German interface
+
+## Runtime
+
+Node.js 22 or newer is recommended.
 
 ```bash
-python3 -m http.server 8080
-# open http://localhost:8080
+npm install
+npm run build
+npm run server
+# open http://localhost:8787
 ```
 
-`Alice-OS-v0.1.html` is also provided as a standalone snapshot.
+Development uses two processes:
 
-## Current capabilities
+```bash
+npm run server
+npm run dev
+# open the Vite URL; /api is proxied to port 8787
+```
 
-| Area | v0.1 |
-| --- | --- |
-| Presence | Avatar state, emotion and modes |
-| Chat | German UI, hints, memory pin, browser STT hook |
-| Memory | Confirmed entries with hash/source provenance |
-| Tribunal | Confirm / correct / reject candidate memories |
-| Graph | Core / runtime / presence / data + memory nodes |
-| Settings | Local backend active; cloud backends declared but not wired |
+GitHub Codespaces is configured in `.devcontainer/devcontainer.json`. It installs dependencies, forwards Vite on `5173` and the Realtime server on `8787`, and offers GitHub Copilot/Copilot Chat when those services are enabled for the signed-in GitHub account.
 
-## Architecture rule
+`OPENAI_API_KEY` belongs in `.env.local` or the deployment host's secret store. It is used only by `server/index.js` and is never bundled into the browser.
 
-`Observation → Retrieval → Response → Candidate → Tribunal → Persist`
+Optional environment variables:
 
-Only confirmed memories are allowed back into persistent context.
+```dotenv
+OPENAI_REALTIME_MODEL=gpt-realtime-2.1
+OPENAI_REALTIME_VOICE=marin
+PORT=8787
+```
 
-## Honesty / non-claims
+## Live control loop
 
-- No cloud LLM is connected in v0.1.
-- Memory is stored in this browser's `localStorage`.
-- Grok, ChatGPT, Gemini and other backends are planned adapters, not the core.
+`Microphone → WebRTC model → transcript/audio + tool calls → AliceWorld → 60/90 FPS embodiment`
+
+The model calls `drive_avatar` with dialogue act, emotion, gesture, gaze, intensity and duration. It never controls bones frame by frame. The renderer interpolates high-level cues locally and uses the real return-audio energy for mouth motion.
+
+Camera presence is reduced locally to a small observation such as horizontal position, distance and visible expression. It is explicitly treated as uncertain context, not as an emotional diagnosis.
+
+## Memory rule
+
+`Observation → Response → Candidate → Tribunal → Persist`
+
+Every memory carries a SHA-256 hash, source and status. A model tool may only propose a candidate. A second tool may confirm or reject it after the user gives an explicit decision.
 
 ## Repository map
 
-- `index.html` — modular application entry
-- `Alice-OS-v0.1.html` — standalone snapshot
-- `css/alice.css` — UI styling
-- `js/core.js` — model-independent core and local reply kernel
-- `js/memory.js` — local memory/provenance persistence
-- `js/app.js` — UI/application wiring
-- `ROADMAP.md` — next milestones
-- `AGENTS.md` — rules for human/AI contributors
+- `src/App.jsx` — minimal embodied experience wiring
+- `src/xr/AliceWorld.js` — Three.js/WebXR body and animation runtime
+- `src/core/realtime.js` — browser WebRTC and Realtime event boundary
+- `src/core/vision.js` — local MediaPipe camera presence
+- `src/core/memory.js` — provenance-aware local memory and Tribunal
+- `src/core/animatronic.js` — Web Serial safety bridge
+- `server/index.js` — secret-holding Realtime session endpoint
+- `server/alicePrompt.js` — persona contract and tool schemas
+- `tests/` — memory, safety, persona and protocol tests
+- `docs/REALTIME_ARCHITECTURE.md` — exact communication architecture
+- `docs/ORCHESTRATION.md` — GitHub/Codespaces and external research/script worker boundaries
+- `design-qa.md` — evidence-based visual acceptance status
 
-## Next milestone
+## Honest limits
 
-v0.2: real backend adapter, account-backed persistence, Drive/GitHub provenance sources, TTS and richer presence assets.
+- The current character mesh is procedural, not yet the final sculpted/rigged Alice asset.
+- Browser camera tracking is intentionally coarse; raw video is not sent to the model by this implementation.
+- GitHub Pages can host the offline/PWA client, but live AI requires the Node server on a host with `OPENAI_API_KEY`.
+- Relationship continuity currently persists in browser storage; account synchronization and encrypted remote storage remain future work.
+- GitHub is connected for source control. Copilot, Codespaces, Jules, Gemini, NotebookLM, SuperGrok, DigiBib and ScriptDB have defined handoff contracts but are not callable connectors in this session.
 
-## Portfolio status
-
-Keep this repository as the canonical Alice implementation. The older `aliceneu` repository should not be developed in parallel; migrate useful material here and archive/redirect it afterward.
+The older `aliceneu` repository should not be developed in parallel. Migrate useful material here and archive or redirect it afterward.

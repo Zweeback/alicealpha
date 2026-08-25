@@ -1,0 +1,19 @@
+{
+  "name": "Alice Persona Core",
+  "short_name": "Alice",
+  "description": "Eine verkörperte Alice für AR, VR und räumliche Präsenz.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070b0d",
+  "theme_color": "#070b0d",
+  "icons": [
+    {
+      "src": "./alice-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
