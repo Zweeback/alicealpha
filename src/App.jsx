@@ -15,7 +15,7 @@ const labels = {
   listening: 'Ich höre zu',
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
-  offline: 'Privater Basismodus',
+  offline: 'Basismodus · keine Live-KI',
   error: 'Verbindung unterbrochen',
 };
 
@@ -264,7 +264,18 @@ export default function App() {
     setHintVisible(false);
     setUserCaption(text);
     await ensureCamera();
-    if (realtimeRef.current?.connected) realtimeRef.current.sendText(text);
+    const realtime = realtimeRef.current;
+    if (realtimeAvailable && realtime && !realtime.connected) {
+      setPhase('connecting');
+      try {
+        await realtime.connect();
+        realtime.sendPresence(presenceRef.current);
+        setPhase('connected');
+      } catch {
+        setRealtimeAvailable(false);
+      }
+    }
+    if (realtime?.connected) realtime.sendText(text);
     else await runLocalTurn(text);
   };
 
@@ -291,7 +302,9 @@ export default function App() {
       {hintVisible && (
         <div className="first-contact">
           <p>Berühre Alice. Danach kannst du einfach sprechen.</p>
-          <small>Kamera und Mikrofon beginnen erst nach deiner Berührung.</small>
+          <small>{realtimeAvailable
+            ? 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
+            : 'Lokaler Basismodus: Der Live-KI-Kanal ist nicht verbunden.'}</small>
         </div>
       )}
 
