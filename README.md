@@ -4,6 +4,8 @@
 **Type:** Companion AI / WebXR / Realtime Voice  
 **Canonical repository:** `Zweeback/alicealpha`
 
+**Public full-stack preview:** [alicealpha.onrender.com](https://alicealpha.onrender.com)
+
 Alice Alpha is a live German 3D persona for desktop, mobile AR and VR. The cloud model handles language, conversational intent and high-level performance direction. The local Three.js runtime renders gaze, facial motion, gestures and body movement smoothly at device frame rate.
 
 ## What works
@@ -39,6 +41,8 @@ npm run dev
 GitHub Codespaces is configured in `.devcontainer/devcontainer.json`. It installs dependencies, forwards Vite on `5173` and the Realtime server on `8787`, and offers GitHub Copilot/Copilot Chat when those services are enabled for the signed-in GitHub account.
 
 `OPENAI_API_KEY` belongs in `.env.local` or the deployment host's secret store. It is used only by `server/index.js` and is never bundled into the browser.
+
+The Render preview is deployed from `main` in Frankfurt. Until `OPENAI_API_KEY` is entered directly in the Render service's secret environment, it intentionally reports `realtime: false` and uses the browser fallback; the key is never copied through GitHub or the public client. GitHub Pages remains an optional manual workflow because a static host cannot run the secret-holding session endpoint.
 
 Optional environment variables:
 

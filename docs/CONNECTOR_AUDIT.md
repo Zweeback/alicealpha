@@ -6,13 +6,23 @@ Method: read-only identity, workspace or resource-list calls. No messages, proje
 ## Directly reachable in this session
 
 - Core/code: GitHub, OpenAI Developers
-- Cloud/deployment: Vercel, Render, Railway, Replit, DigitalOcean, AppDeploy
+- Cloud/deployment: Vercel, Render, Railway, Replit, DigitalOcean, AppDeploy. Render now hosts the public full-stack preview.
 - Data/memory: Supabase, Neon Postgres, Basic Memory Cloud
 - Collaboration/knowledge: Google Drive, SharePoint, Slack, Notion
 - Design/media: Figma, OpenArt, Cloudinary, Descript
 - Operations: Honeycomb
 
 `reachable` means the connector accepted a read-only call. It does not mean Alice has been deployed there or that a suitable project/database already exists.
+
+## Deployment result
+
+- Render service: `https://alicealpha.onrender.com`
+- Git source: `Zweeback/alicealpha`, branch `main`
+- region/plan: Frankfurt/free
+- build/start: `npm ci && npm run build` / `npm run server`
+- external health probe: `ok: true`, model `gpt-realtime-2.1`, `realtime: false`
+- Realtime remains false until `OPENAI_API_KEY` is entered directly in Render's secret environment. Automated transfer was rejected by the security boundary and was not bypassed.
+- GitHub Pages is manual-only. Automatic initialization was rejected by GitHub's integration permissions, and Pages cannot host the live session endpoint anyway.
 
 ## Connector present but authorization still required
 
