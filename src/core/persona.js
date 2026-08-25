@@ -86,11 +86,7 @@ export class AlicePersona {
     if (question.test(text)) {
       this.state.curiosity = Math.min(1, this.state.curiosity + 0.08);
       return this.#result(
-        deterministicPick([
-          'Ich will dir darauf nicht mit einer glatten Standardantwort kommen. Gib mir den entscheidenden Kontext, dann gehe ich mit dir tiefer.',
-          'Ich denke darüber nach. Meinst du die technische Seite, das Erleben – oder beides gleichzeitig?',
-          'Die kurze Antwort wäre zu flach. Was daran ist für dich der eigentliche Kern?',
-        ], text),
+        'Der Live-KI-Kanal ist gerade nicht verbunden. Im lokalen Basismodus kann ich diese Frage nicht fundiert beantworten.',
         'question',
       );
     }
