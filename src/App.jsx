@@ -148,11 +148,13 @@ export default function App() {
     voiceRef.current = voice;
 
     const world = new AliceWorld(canvasRef.current, {
+
       overlayRoot: overlayRef.current,
       onInteract: () => interactRef.current?.(),
       onSessionChange: setMode,
     });
     worldRef.current = world;
+    world.init().catch(console.error);
     world.support().then(setXrSupport).catch(() => undefined);
 
     const camera = new CameraPresence({

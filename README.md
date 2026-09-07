@@ -83,9 +83,13 @@ Every memory carries a SHA-256 hash, source and status. A model tool may only pr
 - `server/sourceArtifact.js` — provenance and credential boundary for external research/library records
 - `design-qa.md` — evidence-based visual acceptance status
 
+## Avatar Asset Look Target
+
+The intended asset look for Alice is **towel-Alice (red hair, blue eyes, white towel, photoreal)**, referencing concepts from Grok Imagine. When the asset is ready, drop it as `alice.glb` or `alice.vrm` in the `public/` directory.
+
 ## Honest limits
 
-- The current character mesh is procedural, not yet the final sculpted/rigged Alice asset.
+- The current character mesh is procedural (with a GLB/VRM loader fallback), not yet the final sculpted/rigged Alice asset.
 - Browser camera tracking is intentionally coarse; raw video is not sent to the model by this implementation.
 - GitHub Pages can host the offline/PWA client, but live AI requires the Node server on a host with `OPENAI_API_KEY`.
 - Relationship continuity currently persists in browser storage; account synchronization and encrypted remote storage remain future work.
