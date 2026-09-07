@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
+import { getGLTFLoader } from './loader.js';
 
 const cyan = new THREE.Color('#39d9e6');
 const amber = new THREE.Color('#d99a36');
@@ -78,7 +79,7 @@ function makeArm(side, materials) {
   return { shoulder, elbow, hand };
 }
 
-function createAlice() {
+function createProceduralAlice() {
   const root = new THREE.Group();
   const materials = {
     skin: new THREE.MeshStandardMaterial({ color: '#efbca9', roughness: 0.68, metalness: 0 }),
@@ -220,6 +221,96 @@ function createAlice() {
   };
 }
 
+
+async function createAlice() {
+  const root = new THREE.Group();
+  const state = {
+    root,
+    isProcedural: true,
+    headPivot: new THREE.Group(),
+    eyeRigs: [],
+    browLeft: new THREE.Group(),
+    browRight: new THREE.Group(),
+    mouth: new THREE.Group(),
+    chestCore: new THREE.Group(),
+    arms: {
+      left: { shoulder: new THREE.Group(), elbow: new THREE.Group() },
+      right: { shoulder: new THREE.Group(), elbow: new THREE.Group() }
+    },
+    vrm: null,
+    gltf: null,
+  };
+
+  const useProcedural = new URLSearchParams(window.location.search).get('procedural') === '1' || import.meta.env?.VITE_AVATAR_FALLBACK === 'procedural';
+
+  if (!useProcedural) {
+    try {
+      const loader = getGLTFLoader();
+
+      // Try to load VRM first, then GLB
+      let assetUrl = '/alice.vrm';
+      let gltf = null;
+      try {
+        const response = await fetch(assetUrl, { method: 'HEAD' });
+        if (!response.ok) throw new Error('VRM not found');
+        gltf = await loader.loadAsync(assetUrl);
+      } catch (err) {
+        assetUrl = '/alice.glb';
+        gltf = await loader.loadAsync(assetUrl);
+      }
+
+      state.gltf = gltf;
+      const model = gltf.scene || gltf.scenes[0];
+      root.add(model);
+      state.isProcedural = false;
+
+      // Check if VRM exists
+      if (gltf.userData.vrm) {
+        state.vrm = gltf.userData.vrm;
+        const vrm = state.vrm;
+
+        // Disable frustum culling for VRM
+        model.traverse((obj) => {
+          if (obj.isMesh) obj.frustumCulled = false;
+        });
+
+        // Map VRM bones to state objects so we can rotate them (if VRM uses standard bone names, they're available via humanBones)
+        if (vrm.humanoid) {
+          const getBone = (boneName) => vrm.humanoid.getRawBoneNode(boneName) || new THREE.Group();
+          state.headPivot = getBone('head');
+          state.arms.left.shoulder = getBone('leftShoulder');
+          state.arms.left.elbow = getBone('leftLowerArm');
+          state.arms.right.shoulder = getBone('rightShoulder');
+          state.arms.right.elbow = getBone('rightLowerArm');
+          state.chestCore = getBone('spine'); // Roughly equivalent
+        }
+      } else {
+        // Basic GLB fallback bone mapping (assuming Mixamo-like names)
+        model.traverse((obj) => {
+          if (obj.isMesh) obj.frustumCulled = false;
+          const name = obj.name.toLowerCase();
+          if (name.includes('head')) state.headPivot = obj;
+          else if (name.includes('leftshoulder')) state.arms.left.shoulder = obj;
+          else if (name.includes('leftforearm') || name.includes('leftlowerarm')) state.arms.left.elbow = obj;
+          else if (name.includes('rightshoulder')) state.arms.right.shoulder = obj;
+          else if (name.includes('rightforearm') || name.includes('rightlowerarm')) state.arms.right.elbow = obj;
+          else if (name.includes('spine')) state.chestCore = obj;
+        });
+      }
+
+      return state;
+    } catch (err) {
+      console.warn('Failed to load GLB/VRM, falling back to procedural Alice:', err);
+    }
+  }
+
+  // Procedural fallback
+  const proceduralState = createProceduralAlice();
+  state.isProcedural = true;
+  state.root.add(proceduralState.root);
+  return proceduralState;
+}
+
 export class AliceWorld {
   constructor(canvas, { overlayRoot, onInteract = () => {}, onSessionChange = () => {} } = {}) {
     this.canvas = canvas;
@@ -256,10 +347,10 @@ export class AliceWorld {
 
     this.lab = createLab();
     this.scene.add(this.lab);
-    this.alice = createAlice();
-    this.scene.add(this.alice.root);
-    this.alice.root.updateMatrixWorld(true);
-    this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
+    this.alice = null;
+
+
+
 
     this.placementRing = new THREE.Mesh(
       new THREE.RingGeometry(0.36, 0.39, 64),
@@ -274,6 +365,14 @@ export class AliceWorld {
     this.resize();
     this.renderer.setAnimationLoop(this.#render);
   }
+  async init() {
+    this.alice = await createAlice();
+    this.scene.add(this.alice.root);
+    this.alice.root.updateMatrixWorld(true);
+    this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
+    this.resize();
+  }
+
 
   #addLights() {
     this.scene.add(new THREE.HemisphereLight('#d9f4f5', '#111318', 2.1));
@@ -398,8 +497,8 @@ export class AliceWorld {
   resize = () => {
     const width = this.canvas.clientWidth || globalThis.innerWidth || 1;
     const height = this.canvas.clientHeight || globalThis.innerHeight || 1;
-    const size = this.desktopBounds.getSize(new THREE.Vector3());
-    const center = this.desktopBounds.getCenter(new THREE.Vector3());
+    const size = this.desktopBounds ? this.desktopBounds.getSize(new THREE.Vector3()) : new THREE.Vector3(1.5, 1.8, 1);
+    const center = this.desktopBounds ? this.desktopBounds.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0.9, 0);
     const frame = calculatePerspectiveFrame({
       viewportWidth: width,
       viewportHeight: height,
@@ -441,8 +540,9 @@ export class AliceWorld {
   }
 
   #animate(time, delta) {
+    if (!this.alice) return;
     const seconds = time / 1000;
-    const { headPivot, eyeRigs, browLeft, browRight, mouth, chestCore, arms, root } = this.alice;
+    const { headPivot, eyeRigs, browLeft, browRight, mouth, chestCore, arms, root, isProcedural, vrm } = this.alice;
     const xrCamera = this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera;
     const userX = this.mode === 'desktop' ? this.presence.x * 0.22 + this.pointer.x * 0.08 : 0;
     const userY = this.mode === 'desktop' ? this.presence.y * 0.14 + this.pointer.y * 0.05 : 0;
@@ -456,26 +556,45 @@ export class AliceWorld {
     const blinkPhase = seconds % 4.7;
     const naturalBlink = blinkPhase > 4.55 ? Math.max(0.08, 1 - (blinkPhase - 4.55) * 10) : 1;
     const blink = Math.min(naturalBlink, 1 - (this.presence.blink || 0) * 0.55);
-    eyeRigs.forEach(({ group, white }) => {
-      group.rotation.y = damp(group.rotation.y, targetYaw * 0.75, 10, delta);
-      group.rotation.x = damp(group.rotation.x, targetPitch * 0.7, 10, delta);
-      white.scale.y = damp(white.scale.y, 0.72 * blink, 22, delta);
-    });
+    // @ts-ignore
+    if (isProcedural && eyeRigs) {
+      eyeRigs.forEach(({ group, white }) => {
+        group.rotation.y = damp(group.rotation.y, targetYaw * 0.75, 10, delta);
+        group.rotation.x = damp(group.rotation.x, targetPitch * 0.7, 10, delta);
+        white.scale.y = damp(white.scale.y, 0.72 * blink, 22, delta);
+      });
+    }
 
     const elapsed = this.performance ? time - this.performanceStartedAt : 0;
     const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
     const speaking = timedPerformance || this.speechEnergy > 0.035;
     const syntheticEnergy = timedPerformance ? 0.2 + Math.abs(Math.sin(elapsed * 0.022)) * 0.52 : 0;
     const speechEnergy = Math.max(this.speechEnergy, syntheticEnergy);
-    mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
-    mouth.scale.x = damp(mouth.scale.x, this.presence.expression === 'smile' ? 1.35 : 1.15, 8, delta);
-    chestCore.scale.setScalar(1 + (speaking ? speechEnergy * 0.15 : Math.sin(seconds * 1.4) * 0.025));
+    if (isProcedural && mouth) {
+      mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
+      mouth.scale.x = damp(mouth.scale.x, this.presence.expression === 'smile' ? 1.35 : 1.15, 8, delta);
+    }
+    if (vrm) {
+      const expressionManager = vrm.expressionManager;
+      if (expressionManager) {
+        expressionManager.setValue('aa', speaking ? speechEnergy : 0);
+        expressionManager.setValue('blink', 1 - blink);
+        expressionManager.setValue('happy', this.presence.expression === 'smile' ? 1 : 0);
+        expressionManager.update();
+      }
+      vrm.update(delta);
+    }
+    if (chestCore && isProcedural) {
+      chestCore.scale.setScalar(1 + (speaking ? speechEnergy * 0.15 : Math.sin(seconds * 1.4) * 0.025));
+    }
 
     const curious = this.presence.expression === 'curious' || this.performance?.dialogue_act === 'question' || this.performance?.emotion === 'curious';
-    browLeft.rotation.z = damp(browLeft.rotation.z, curious ? -0.12 : 0, 7, delta);
-    browRight.rotation.z = damp(browRight.rotation.z, curious ? 0.12 : 0, 7, delta);
-    browLeft.position.y = damp(browLeft.position.y, curious ? 0.025 : 0, 7, delta);
-    browRight.position.y = damp(browRight.position.y, curious ? 0.025 : 0, 7, delta);
+    if (isProcedural && browLeft && browRight) {
+      browLeft.rotation.z = damp(browLeft.rotation.z, curious ? -0.12 : 0, 7, delta);
+      browRight.rotation.z = damp(browRight.rotation.z, curious ? 0.12 : 0, 7, delta);
+      browLeft.position.y = damp(browLeft.position.y, curious ? 0.025 : 0, 7, delta);
+      browRight.position.y = damp(browRight.position.y, curious ? 0.025 : 0, 7, delta);
+    }
 
     this.#animateGesture(arms, delta, speaking);
     root.rotation.z = Math.sin(seconds * 0.55) * 0.008;
