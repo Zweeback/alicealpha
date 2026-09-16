@@ -262,6 +262,18 @@ async function createAlice() {
       state.gltf = gltf;
       const model = gltf.scene || gltf.scenes[0];
       root.add(model);
+      // TripoSR slice detection (dark edge-on slice fallback)
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const isSlice = size.z < 0.1 || (size.z / Math.max(size.x, size.y)) < 0.15;
+      if (isSlice) {
+        root.remove(model);
+        throw new Error("Model appears to be a flat slice (TripoSR artifact), falling back to procedural");
+      }
+
+      // Fix potential camera-facing issues by ensuring rotation is reset
+      model.rotation.set(0, 0, 0);
+
       state.isProcedural = false;
 
       // Check if VRM exists

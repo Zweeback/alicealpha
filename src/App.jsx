@@ -118,9 +118,14 @@ export default function App() {
         setCaption('Ich bin da. Sprich einfach mit mir.');
         setPhase('connected');
         return;
-      } catch {
-        setRealtimeAvailable(false);
-        setCaption('Der Live-Kanal ist nicht erreichbar. Ich bleibe im Basismodus bei dir.');
+      } catch (error) {
+        setPhase('error');
+        if (error.message && error.message.includes('webrtc-unavailable')) {
+          setCaption('Mikrofon-Zugriff verweigert.');
+        } else {
+          setCaption('Der Live-Kanal ist nicht erreichbar. Mikrofon-Zugriff verweigert oder Fehler.');
+        }
+        return;
       }
     }
     if (realtime?.connected) {
@@ -214,7 +219,9 @@ export default function App() {
     fetch('/api/health')
       .then((response) => response.ok ? response.json() : null)
       .then((health) => {
-        const available = Boolean(health?.realtime);
+        // Client diagnostics: also require WebRTC capability
+        const canWebRTC = Boolean(globalThis.RTCPeerConnection && navigator.mediaDevices?.getUserMedia);
+        const available = Boolean(health?.realtime) && canWebRTC;
         setRealtimeAvailable(available);
         setPhase(available ? 'ready' : 'offline');
       })
