@@ -108,6 +108,8 @@ export class VoiceChannel {
 
   #preferredVoice() {
     const voices = globalThis.speechSynthesis?.getVoices?.() || [];
+    // Sort to make the selection deterministic
+    voices.sort((a, b) => a.name.localeCompare(b.name));
     const german = voices.filter((voice) => voice.lang?.toLowerCase().startsWith('de'));
     return german.find((voice) => /female|katja|anna|petra|amala|seraphina|vicki/i.test(voice.name)) || german[0] || null;
   }
