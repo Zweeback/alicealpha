@@ -1,0 +1,35 @@
+name: Alice character contract
+
+on:
+  pull_request:
+    paths:
+      - 'public/ALICE_CHARACTER_MANIFEST.json'
+      - 'public/alice_v2.glb'
+      - 'public/alice_v2.vrm'
+      - 'scripts/validate-character-manifest.mjs'
+      - 'tests/character-manifest.test.js'
+      - 'package.json'
+      - '.github/workflows/alice-character-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/ALICE_CHARACTER_MANIFEST.json'
+      - 'public/alice_v2.glb'
+      - 'public/alice_v2.vrm'
+      - 'scripts/validate-character-manifest.mjs'
+      - 'tests/character-manifest.test.js'
+      - 'package.json'
+      - '.github/workflows/alice-character-contract.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run validate:character
+      - run: npm run test:run -- tests/character-manifest.test.js
