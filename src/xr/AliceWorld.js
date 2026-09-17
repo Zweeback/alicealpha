@@ -241,63 +241,34 @@ async function createAlice() {
     gltf: null,
   };
 
-  const useProcedural = new URLSearchParams(window.location.search).get('procedural') === '1' || import.meta.env?.VITE_AVATAR_FALLBACK === 'procedural';
+  const params = new URLSearchParams(window.location.search);
+  const avatar = params.get('avatar');
+  const procedural = params.get('procedural');
+  const useProcedural = procedural === '1' || (avatar !== 'glb' && avatar !== 'vrm');
 
-  if (!useProcedural) {
+  if (!useProcedural && (avatar === 'glb' || avatar === 'vrm')) {
     try {
       const loader = getGLTFLoader();
-
-      // Try to load VRM first, then GLB
-      let assetUrl = '/alice.vrm';
-      let gltf = null;
-      try {
-        const response = await fetch(assetUrl, { method: 'HEAD' });
-        if (!response.ok) throw new Error('VRM not found');
-        gltf = await loader.loadAsync(assetUrl);
-      } catch (err) {
-        assetUrl = '/alice.glb';
-        gltf = await loader.loadAsync(assetUrl);
-      }
-
+      const gltf = await loader.loadAsync(avatar === 'vrm' ? '/alice.vrm' : '/alice.glb');
       state.gltf = gltf;
       const model = gltf.scene || gltf.scenes[0];
       root.add(model);
-      // TripoSR slice detection (dark edge-on slice fallback)
-      const box = new THREE.Box3().setFromObject(model);
-      const size = box.getSize(new THREE.Vector3());
-      const isSlice = size.z < 0.1 || (size.z / Math.max(size.x, size.y)) < 0.15;
-      if (isSlice) {
-        root.remove(model);
-        throw new Error("Model appears to be a flat slice (TripoSR artifact), falling back to procedural");
-      }
-
-      // Fix potential camera-facing issues by ensuring rotation is reset
       model.rotation.set(0, 0, 0);
-
       state.isProcedural = false;
-
-      // Check if VRM exists
       if (gltf.userData.vrm) {
         state.vrm = gltf.userData.vrm;
         const vrm = state.vrm;
-
-        // Disable frustum culling for VRM
-        model.traverse((obj) => {
-          if (obj.isMesh) obj.frustumCulled = false;
-        });
-
-        // Map VRM bones to state objects so we can rotate them (if VRM uses standard bone names, they're available via humanBones)
+        model.traverse((obj) => { if (obj.isMesh) obj.frustumCulled = false; });
         if (vrm.humanoid) {
-          const getBone = (boneName) => vrm.humanoid.getRawBoneNode(boneName) || new THREE.Group();
+          const getBone = (name) => vrm.humanoid.getRawBoneNode(name) || new THREE.Group();
           state.headPivot = getBone('head');
           state.arms.left.shoulder = getBone('leftShoulder');
           state.arms.left.elbow = getBone('leftLowerArm');
           state.arms.right.shoulder = getBone('rightShoulder');
           state.arms.right.elbow = getBone('rightLowerArm');
-          state.chestCore = getBone('spine'); // Roughly equivalent
+          state.chestCore = getBone('spine');
         }
       } else {
-        // Basic GLB fallback bone mapping (assuming Mixamo-like names)
         model.traverse((obj) => {
           if (obj.isMesh) obj.frustumCulled = false;
           const name = obj.name.toLowerCase();
@@ -309,13 +280,11 @@ async function createAlice() {
           else if (name.includes('spine')) state.chestCore = obj;
         });
       }
-
       return state;
     } catch (err) {
-      console.warn('Failed to load GLB/VRM, falling back to procedural Alice:', err);
+      console.warn('Failed to load selected avatar, falling back to procedural Alice:', err);
     }
   }
-
   // Procedural fallback
   const proceduralState = createProceduralAlice();
   state.isProcedural = true;
