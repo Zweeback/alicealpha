@@ -9,6 +9,10 @@ on:
       - 'scripts/validate-character-manifest.mjs'
       - 'tests/character-manifest.test.js'
       - 'package.json'
+      - 'src/core/characterAsset.js'
+      - 'src/xr/AliceWorld.js'
+      - 'src/App.jsx'
+      - 'tests/character-asset.test.js'
       - '.github/workflows/alice-character-contract.yml'
   push:
     branches: [main]
