@@ -79,6 +79,7 @@ Every memory carries a SHA-256 hash, source and status. A model tool may only pr
 - `tests/` — memory, safety, persona and protocol tests
 - `docs/REALTIME_ARCHITECTURE.md` — exact communication architecture
 - `docs/ORCHESTRATION.md` — GitHub/Codespaces and external research/source worker boundaries
+- `docs/CHARACTER_PIPELINE.md` — Alice v0.3 identity, asset validation and canonical promotion contract
 - `docs/CONNECTOR_AUDIT.md` — tested connector reachability and authorization status
 - `server/sourceArtifact.js` — provenance and credential boundary for external research/library records
 - `design-qa.md` — evidence-based visual acceptance status
