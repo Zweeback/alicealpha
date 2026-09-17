@@ -43,6 +43,7 @@ export default function App() {
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
   const [hintVisible, setHintVisible] = useState(true);
+  const [characterStatus, setCharacterStatus] = useState(null);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -157,6 +158,7 @@ export default function App() {
       overlayRoot: overlayRef.current,
       onInteract: () => interactRef.current?.(),
       onSessionChange: setMode,
+      onAssetDiagnostics: setCharacterStatus,
     });
     worldRef.current = world;
     world.init().catch(console.error);
@@ -295,7 +297,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>Persona Core · {sessionMode.toUpperCase()}</small></div>
+          <div><strong>Alice</strong><small>Persona Core · {sessionMode.toUpperCase()} · {characterStatus?.identityRevision || 'unversioned'} · {characterStatus?.canonical ? 'canonical' : characterStatus?.mode || 'loading'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
