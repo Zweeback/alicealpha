@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
+import { loadCharacterManifest, resolveCharacterAsset } from '../core/characterAsset.js';
 
 const cyan = new THREE.Color('#39d9e6');
 const amber = new THREE.Color('#d99a36');
@@ -241,15 +242,21 @@ async function createAlice() {
     gltf: null,
   };
 
-  const params = new URLSearchParams(window.location.search);
-  const avatar = params.get('avatar');
-  const procedural = params.get('procedural');
-  const useProcedural = procedural === '1' || (avatar !== 'glb' && avatar !== 'vrm');
+  const manifest = await loadCharacterManifest();
+  const selection = resolveCharacterAsset({ manifest, search: window.location.search });
+  state.assetDiagnostics = {
+    mode: selection.mode,
+    path: selection.path,
+    canonical: selection.canonical,
+    reason: selection.reason,
+    identityRevision: selection.identityRevision,
+    sourceReferenceSet: selection.sourceReferenceSet,
+  };
 
-  if (!useProcedural && (avatar === 'glb' || avatar === 'vrm')) {
+  if (selection.mode === 'glb' || selection.mode === 'vrm') {
     try {
       const loader = getGLTFLoader();
-      const gltf = await loader.loadAsync(avatar === 'vrm' ? '/alice.vrm' : '/alice.glb');
+      const gltf = await loader.loadAsync(selection.path);
       state.gltf = gltf;
       const model = gltf.scene || gltf.scenes[0];
       root.add(model);
@@ -283,21 +290,29 @@ async function createAlice() {
       return state;
     } catch (err) {
       console.warn('Failed to load selected avatar, falling back to procedural Alice:', err);
+      state.assetDiagnostics = {
+        ...state.assetDiagnostics,
+        mode: 'procedural',
+        canonical: false,
+        reason: 'asset-load-failed',
+        failedPath: selection.path,
+      };
     }
   }
   // Procedural fallback
   const proceduralState = createProceduralAlice();
-  state.isProcedural = true;
-  state.root.add(proceduralState.root);
+  proceduralState.isProcedural = true;
+  proceduralState.assetDiagnostics = state.assetDiagnostics;
   return proceduralState;
 }
 
 export class AliceWorld {
-  constructor(canvas, { overlayRoot, onInteract = () => {}, onSessionChange = () => {} } = {}) {
+  constructor(canvas, { overlayRoot, onInteract = () => {}, onSessionChange = () => {}, onAssetDiagnostics = () => {} } = {}) {
     this.canvas = canvas;
     this.overlayRoot = overlayRoot;
     this.onInteract = onInteract;
     this.onSessionChange = onSessionChange;
+    this.onAssetDiagnostics = onAssetDiagnostics;
     this.clock = new THREE.Clock();
     this.pointer = new THREE.Vector2();
     this.presence = { present: true, x: 0, y: 0, distance: 0.5, expression: 'neutral' };
@@ -348,6 +363,7 @@ export class AliceWorld {
   }
   async init() {
     this.alice = await createAlice();
+    this.onAssetDiagnostics(this.alice.assetDiagnostics || null);
     this.scene.add(this.alice.root);
     this.alice.root.updateMatrixWorld(true);
     this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
