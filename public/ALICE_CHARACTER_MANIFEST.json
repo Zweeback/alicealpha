@@ -4,8 +4,12 @@
   "identity_revision": "v2",
   "source_reference_set": {
     "id": "ALICE_SOURCE_REFSET_v2",
-    "status": "curation-in-progress",
-    "authority": "original-grok-video-frames"
+    "status": "curated-candidate",
+    "authority": "original-grok-video-frames",
+    "manifest": "/identity/ALICE_SOURCE_REFSET_v2.json",
+    "core_ref_count": 10,
+    "supporting_ref_count": 2,
+    "provisional_master": "15630_p15.jpg"
   },
   "canonical_asset": {
     "status": "pending",
