@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "character_id": "alice",
+  "identity_revision": "v2",
+  "source_reference_set": {
+    "id": "ALICE_SOURCE_REFSET_v2",
+    "status": "curation-in-progress",
+    "authority": "original-grok-video-frames"
+  },
+  "canonical_asset": {
+    "status": "pending",
+    "format": null,
+    "path": null,
+    "sha256": null,
+    "approved_at": null
+  },
+  "candidate_assets": {
+    "legacy_triposr_glb": {
+      "path": "/alice.glb",
+      "status": "rejected-as-canonical",
+      "reason": "single-view TripoSR result produced unusable flat-slice behavior in live preview"
+    }
+  },
+  "rig_contract": {
+    "required_humanoid_bones": [
+      "hips",
+      "spine",
+      "chest",
+      "neck",
+      "head",
+      "leftUpperArm",
+      "leftLowerArm",
+      "leftHand",
+      "rightUpperArm",
+      "rightLowerArm",
+      "rightHand",
+      "leftUpperLeg",
+      "leftLowerLeg",
+      "leftFoot",
+      "rightUpperLeg",
+      "rightLowerLeg",
+      "rightFoot"
+    ]
+  },
+  "face_contract": {
+    "required_expressions": [
+      "blink",
+      "jawOpen",
+      "smile"
+    ],
+    "required_visemes": [
+      "A",
+      "I",
+      "U",
+      "E",
+      "O"
+    ]
+  },
+  "geometry_contract": {
+    "height_m_range": [
+      1.4,
+      2.1
+    ],
+    "max_axis_ratio": 8,
+    "require_nonzero_depth": true
+  },
+  "fallback_policy": {
+    "mode": "procedural",
+    "must_be_observable": true,
+    "silent_identity_substitution": false
+  },
+  "provenance": {
+    "note": "Generated derivatives may be candidates, but original Grok/Alice frames remain the identity authority."
+  }
+}
