@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0.0",
+  "id": "ALICE_SOURCE_REFSET_v2",
+  "status": "curated-candidate",
+  "authority": "original-video-frames",
+  "notes": [
+    "Core refs contain only original extracted frames, no generated images.",
+    "Supporting refs are kept outside the core set because they may carry more identity drift or UI contamination.",
+    "Exact duplicate source clips were excluded from the core set."
+  ],
+  "core_refs": [
+    {"file":"15630_p15.jpg","source_video":"15630.mp4","extraction_percent":15,"sha256":"da13b8151a481301425603d19bdbb173e46fd681c458c9b0975c7f4f0ef822dd","role":"identity-core"},
+    {"file":"15630_p50.jpg","source_video":"15630.mp4","extraction_percent":50,"sha256":"f5adb1482c06ab0802b694e482cf9c0ed90bc4fa3be756b60fb2ff5e8468685a","role":"identity-core"},
+    {"file":"15630_p85.jpg","source_video":"15630.mp4","extraction_percent":85,"sha256":"0d2b56c224068490e76837007d2a2db754cd74630c5c43b9581ccc722f2f1ac1","role":"identity-core"},
+    {"file":"15632_p15.jpg","source_video":"15632.mp4","extraction_percent":15,"sha256":"d9f34528aa54b049857f98361fa987a8bcf24e731d22d2f3fc7f276216550b5d","role":"identity-core"},
+    {"file":"15632_p50.jpg","source_video":"15632.mp4","extraction_percent":50,"sha256":"a74e9beb7113f1dfa067889fc06ff31d23c9b500e40132af642a173587e7a2e5","role":"identity-core"},
+    {"file":"1000009947_p15.jpg","source_video":"1000009947.mp4","extraction_percent":15,"sha256":"7f0630b4fb186c2d1545f9ad9c5ec21f4f95b109bd7616ff5e136e5ab3268df2","role":"identity-core"},
+    {"file":"1000009947_p50.jpg","source_video":"1000009947.mp4","extraction_percent":50,"sha256":"e0be5b9deec9f57474b5a86d431f99cb28a214de9ea2215d270635a4ab1cf2c5","role":"identity-core"},
+    {"file":"1000009947_p85.jpg","source_video":"1000009947.mp4","extraction_percent":85,"sha256":"cfccb4ed15bb1cee3fb7e3366727c0a021438fa93627c9850130522290c15b42","role":"identity-core"},
+    {"file":"1000009948_p50.jpg","source_video":"1000009948.mp4","extraction_percent":50,"sha256":"b0b7f4b72bb0ccb9e35c16a262e4ac01fc936981c553d5a2171a50cc06fa95f4","role":"identity-core"},
+    {"file":"1000009948_p85.jpg","source_video":"1000009948.mp4","extraction_percent":85,"sha256":"fb3bcbb98196bb21d61820ea3d9dc37493975ac6077efd4dda425dd208e96644","role":"identity-core"}
+  ],
+  "supporting_refs": [
+    {"file":"1000009960_p85.jpg","source_video":"1000009960.mp4","extraction_percent":85,"sha256":"1f26f8f5b0464c85b64333a03ce008b24a295849fad1077ee4c6d88abba80aac","role":"supporting-angle-expression"},
+    {"file":"1000009961_p50.jpg","source_video":"1000009961.mp4","extraction_percent":50,"sha256":"b83fbd15bcbca314f456f8a699ce6372bddfadede2a86d8c09f8257012318382","role":"supporting-angle-expression"}
+  ],
+  "known_duplicate_groups": [
+    ["15630.mp4","15631.mp4"],
+    ["15632.mp4","15633.mp4","grok_video_2026-07-03-09-15-34.mp4"],
+    ["1000009948.mp4","grok_video_2026-09-03-14-48-51.mp4"],
+    ["1000009947.mp4","1000009963.mp4"]
+  ],
+  "provisional_master": {
+    "file":"ALICE_MASTER_SOURCE_v2_PROVISIONAL.jpg",
+    "derived_from":"core_refs/15630_p15.jpg",
+    "status":"provisional-not-canonical",
+    "reason":"Most neutral frontal source frame with continuity to v1; newer close-up frames remain alternates rather than replacing source truth."
+  },
+  "core_ref_count":10,
+  "supporting_ref_count":2
+}
