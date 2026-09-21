@@ -1,0 +1,33 @@
+name: Live Deploy Health
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for public Alice runtime
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            body="$(curl --fail --silent --show-error --max-time 20 https://alicealpha.onrender.com/api/health || true)"
+            echo "attempt=$attempt body=$body"
+
+            if printf '%s' "$body" | grep -q '"ok":true'; then
+              printf '%s' "$body" | grep -q '"realtime":true'                 && echo "Realtime backend is configured."                 || echo "Runtime is healthy, but realtime is not configured."
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "Public Alice runtime did not become healthy within 5 minutes." >&2
+          exit 1
+
+      - name: Verify public app shell
+        run: |
+          curl --fail --silent --show-error --max-time 20 https://alicealpha.onrender.com/             | grep -qi 'alice'
