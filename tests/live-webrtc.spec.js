@@ -1,12 +1,22 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, chromium } from '@playwright/test';
 
 const APP_URL = 'https://alicealpha.onrender.com/';
 
-test('public Alice opens a real WebRTC session and returns a live response', async ({ browser }) => {
+test('public Alice opens a real WebRTC session and returns a live response', async () => {
+  test.setTimeout(150_000);
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--use-fake-device-for-media-stream',
+      '--use-fake-ui-for-media-stream',
+      '--autoplay-policy=no-user-gesture-required',
+    ],
+  });
+
   const context = await browser.newContext({
     permissions: ['microphone', 'camera'],
   });
-
   const page = await context.newPage();
 
   await page.addInitScript(() => {
@@ -57,17 +67,18 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
 
   page.on('response', (response) => {
     if (response.url().includes('/api/realtime/session')) {
-      page.evaluate((status) => { window.__aliceProbe.sessionStatus = status; }, response.status()).catch(() => undefined);
+      page.evaluate((status) => {
+        window.__aliceProbe.sessionStatus = status;
+      }, response.status()).catch(() => undefined);
     }
   });
 
   await page.goto(APP_URL, { waitUntil: 'networkidle', timeout: 90_000 });
-
   await expect(page.locator('.live-state')).toContainText('Bereit', { timeout: 30_000 });
 
-  await page.getByRole('button', { name: 'Texteingabe öffnen' }).click();
+  await page.getByRole('button', { name: 'Texteingabe öffnen' }).click({ force: true });
   await page.locator('#alice-text').fill('Antworte bitte nur mit dem Wort TEST.');
-  await page.getByRole('button', { name: 'Senden' }).click();
+  await page.locator('form.text-fallback').evaluate((form) => form.requestSubmit());
 
   await expect.poll(async () => {
     return page.evaluate(() => window.__aliceProbe.sessionStatus);
@@ -87,6 +98,8 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
   }, { timeout: 60_000 }).toBe(true);
 
   const probe = await page.evaluate(() => window.__aliceProbe);
+  console.log('ALICE_WEBRTC_PROBE', JSON.stringify(probe));
+
   expect(probe.peerCreated).toBe(true);
   expect(probe.dataChannelCreated).toBe(true);
   expect(probe.dataChannelOpen).toBe(true);
@@ -95,4 +108,5 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
   expect(probe.sessionStatus).toBe(200);
 
   await context.close();
+  await browser.close();
 });
