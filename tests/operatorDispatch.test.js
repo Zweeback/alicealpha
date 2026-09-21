@@ -25,4 +25,18 @@ describe('operator dispatch boundary', () => {
     await expect(dispatchOperatorEnvelope({ operation: 'branch.create', repository: 'Zweeback/alicealpha' }, vi.fn()))
       .rejects.toThrow('operator-envelope-not-executable');
   });
+
+  it('does not invoke the executor for a validated but unsupported operation', async () => {
+    const envelope = createOperatorEnvelope({
+      id: 'unsupported-dispatch-proof',
+      operation: 'pr.create',
+      repository: 'Zweeback/alicealpha',
+      payload: { head: 'probe', base: 'main' },
+    }, () => '2026-09-21T19:10:00.000Z');
+    const executor = vi.fn();
+
+    await expect(dispatchOperatorEnvelope(envelope, executor))
+      .rejects.toThrow('operator-executor-not-supported');
+    expect(executor).not.toHaveBeenCalled();
+  });
 });
