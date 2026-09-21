@@ -33,6 +33,7 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           grep -v 'torchmcubes' requirements.txt > requirements-cpu.txt
           pip install -r requirements-cpu.txt
+          pip install scikit-build-core cmake ninja
           git clone --depth 1 https://github.com/tatsy/torchmcubes.git /tmp/torchmcubes
           pip install --no-build-isolation /tmp/torchmcubes
 
