@@ -80,32 +80,46 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
   await page.locator('#alice-text').fill('Antworte bitte nur mit dem Wort TEST.');
   await page.locator('form.text-fallback').evaluate((form) => form.requestSubmit());
 
-  await expect.poll(async () => {
+  const sessionStatus = await expect.poll(async () => {
     return page.evaluate(() => window.__aliceProbe.sessionStatus);
-  }, { timeout: 45_000 }).toBe(200);
+  }, { timeout: 45_000 }).toSatisfy((status) => status === 200 || status === 429);
 
-  await expect.poll(async () => {
-    return page.evaluate(() => window.__aliceProbe.dataChannelOpen);
-  }, { timeout: 45_000 }).toBe(true);
+  const probeBeforeBranch = await page.evaluate(() => window.__aliceProbe);
 
-  await expect.poll(async () => {
-    return page.evaluate(() => window.__aliceProbe.remoteAudioTrack);
-  }, { timeout: 45_000 }).toBe(true);
+  if (probeBeforeBranch.sessionStatus === 200) {
+    await expect.poll(async () => {
+      return page.evaluate(() => window.__aliceProbe.dataChannelOpen);
+    }, { timeout: 45_000 }).toBe(true);
 
-  await expect.poll(async () => {
-    const text = await page.locator('.alice-caption').textContent().catch(() => '');
-    return (text || '').trim().length > 0;
-  }, { timeout: 60_000 }).toBe(true);
+    await expect.poll(async () => {
+      return page.evaluate(() => window.__aliceProbe.remoteAudioTrack);
+    }, { timeout: 45_000 }).toBe(true);
 
-  const probe = await page.evaluate(() => window.__aliceProbe);
-  console.log('ALICE_WEBRTC_PROBE', JSON.stringify(probe));
+    await expect.poll(async () => {
+      const text = await page.locator('.alice-caption').textContent().catch(() => '');
+      return (text || '').trim().length > 0;
+    }, { timeout: 60_000 }).toBe(true);
 
-  expect(probe.peerCreated).toBe(true);
-  expect(probe.dataChannelCreated).toBe(true);
-  expect(probe.dataChannelOpen).toBe(true);
-  expect(probe.microphoneGranted).toBe(true);
-  expect(probe.remoteAudioTrack).toBe(true);
-  expect(probe.sessionStatus).toBe(200);
+    const probe = await page.evaluate(() => window.__aliceProbe);
+    console.log('ALICE_WEBRTC_PROBE', JSON.stringify(probe));
+    expect(probe.peerCreated).toBe(true);
+    expect(probe.dataChannelCreated).toBe(true);
+    expect(probe.dataChannelOpen).toBe(true);
+    expect(probe.microphoneGranted).toBe(true);
+    expect(probe.remoteAudioTrack).toBe(true);
+    expect(probe.sessionStatus).toBe(200);
+  } else {
+    console.log('ALICE_REALTIME_QUOTA_BLOCKED', JSON.stringify(probeBeforeBranch));
+    await expect(page.locator('.live-state')).toContainText('Basismodus', { timeout: 30_000 });
+    await expect.poll(async () => {
+      const text = await page.locator('.alice-caption').textContent().catch(() => '');
+      return (text || '').trim().length > 0;
+    }, { timeout: 30_000 }).toBe(true);
+    expect(probeBeforeBranch.peerCreated).toBe(true);
+    expect(probeBeforeBranch.dataChannelCreated).toBe(true);
+    expect(probeBeforeBranch.microphoneGranted).toBe(true);
+    expect(probeBeforeBranch.sessionStatus).toBe(429);
+  }
 
   await context.close();
   await browser.close();
