@@ -38,17 +38,26 @@ jobs:
           git clone --depth 1 https://github.com/tatsy/torchmcubes.git /tmp/torchmcubes
           pip install --no-build-isolation /tmp/torchmcubes
 
-      - name: Use fuller canonical Alice reference
+      - name: Repair and normalize canonical Alice reference
         run: |
-          cp debug-assets/alice-15632-50.jpg alice-reference.jpg
-          file alice-reference.jpg
+          python - <<'PY'
+          from PIL import Image, ImageFile
+          ImageFile.LOAD_TRUNCATED_IMAGES = True
+          src = "debug-assets/alice-15632-50.jpg"
+          im = Image.open(src)
+          im.load()
+          im = im.convert("RGB")
+          im.save("alice-reference.png", format="PNG", optimize=True)
+          print("SOURCE", src, im.size, im.mode)
+          PY
+          file alice-reference.png
 
       - name: Generate Alice GLB on CPU
         working-directory: triposr
         env:
           PYTORCH_ENABLE_MPS_FALLBACK: "1"
         run: |
-          python run.py ../alice-reference.jpg             --device cpu             --chunk-size 4096             --mc-resolution 128             --foreground-ratio 0.90             --model-save-format glb             --output-dir ../triposr-output
+          python run.py ../alice-reference.png             --device cpu             --chunk-size 4096             --mc-resolution 128             --foreground-ratio 0.90             --model-save-format glb             --output-dir ../triposr-output
           find ../triposr-output -maxdepth 4 -type f -printf '%p %s bytes\n'
 
       - name: Locate GLB
