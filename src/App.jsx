@@ -333,9 +333,20 @@ export default function App() {
     else await runLocalTurn(text);
   };
 
+  const visualParams = new URLSearchParams(globalThis.location?.search || '');
+  const explicit3DVisual = ['glb', 'vrm', 'procedural'].includes(visualParams.get('avatar'))
+    || visualParams.get('visual') === 'procedural';
+  const canonicalVisual = sessionMode === 'desktop' && !explicit3DVisual;
+
   return (
-    <div className={`alice-app phase-${phase} mode-${sessionMode}`} ref={overlayRef}>
-      <canvas ref={canvasRef} aria-label="Alice als lebendige dreidimensionale Begleiterin" />
+    <div className={`alice-app phase-${phase} mode-${sessionMode} ${canonicalVisual ? 'visual-canonical' : 'visual-3d'}`} ref={overlayRef}>
+      <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
+
+      {canonicalVisual && (
+        <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
+          <img src="/alice-canonical.jpg" alt="" draggable="false" />
+        </div>
+      )}
 
       <header className="presence-header">
         <div className="identity">
