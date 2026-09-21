@@ -210,3 +210,63 @@ test('touching Alice degrades to free local input when Realtime quota is unavail
   await context.close();
   await browser.close();
 });
+
+
+test('quota failure exposes the zero-cost browser AI entry and WebLLM module is reachable', async () => {
+  test.setTimeout(120_000);
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--use-fake-device-for-media-stream',
+      '--use-fake-ui-for-media-stream',
+      '--autoplay-policy=no-user-gesture-required',
+    ],
+  });
+
+  const context = await browser.newContext({
+    permissions: ['microphone', 'camera'],
+  });
+  const page = await context.newPage();
+
+  await page.addInitScript(() => {
+    window.__aliceQuotaProbe = { sessionStatus: null };
+  });
+
+  page.on('response', (response) => {
+    if (response.url().includes('/api/realtime/session')) {
+      page.evaluate((status) => {
+        window.__aliceQuotaProbe.sessionStatus = status;
+      }, response.status()).catch(() => undefined);
+    }
+  });
+
+  await page.goto(APP_URL, { waitUntil: 'networkidle', timeout: 90_000 });
+  await expect(page.locator('.live-state')).toContainText('Bereit', { timeout: 30_000 });
+
+  await page.getByRole('button', { name: 'Texteingabe öffnen' }).click({ force: true });
+  await page.locator('#alice-text').fill('Hallo Alice');
+  await page.locator('form.text-fallback').evaluate((form) => form.requestSubmit());
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__aliceQuotaProbe.sessionStatus);
+  }, { timeout: 45_000 }).toBe(429);
+
+  const localAIButton = page.getByRole('button', { name: /Lokale KI/ });
+  await expect(localAIButton).toBeVisible({ timeout: 30_000 });
+
+  const moduleReachable = await page.evaluate(async () => {
+    try {
+      const module = await import('https://esm.run/@mlc-ai/web-llm');
+      return typeof module.CreateMLCEngine === 'function';
+    } catch {
+      return false;
+    }
+  });
+  expect(moduleReachable).toBe(true);
+
+  console.log('ALICE_BROWSER_AI_ENTRY_READY');
+
+  await context.close();
+  await browser.close();
+});
