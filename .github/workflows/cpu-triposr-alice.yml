@@ -38,9 +38,9 @@ jobs:
           git clone --depth 1 https://github.com/tatsy/torchmcubes.git /tmp/torchmcubes
           pip install --no-build-isolation /tmp/torchmcubes
 
-      - name: Download canonical Alice reference
+      - name: Use fuller canonical Alice reference
         run: |
-          curl -L --fail --retry 3             -o alice-reference.jpg             "https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg"
+          cp debug-assets/alice-15632-50.jpg alice-reference.jpg
           file alice-reference.jpg
 
       - name: Generate Alice GLB on CPU
