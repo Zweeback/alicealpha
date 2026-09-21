@@ -340,7 +340,7 @@ export default function App() {
 
   return (
     <div className={`alice-app phase-${phase} mode-${sessionMode} ${canonicalVisual ? 'visual-canonical' : 'visual-3d'}`} ref={overlayRef}>
-      {!canonicalVisual && <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />}
+      <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {canonicalVisual && (
         <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
