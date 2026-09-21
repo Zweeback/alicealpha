@@ -20,7 +20,7 @@ jobs:
       - name: System packages
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq git libgl1 libglib2.0-0 blender
+          sudo apt-get install -y -qq git libgl1 libglib2.0-0 blender python3-numpy
 
       - name: Clone TripoSR
         run: |
@@ -127,6 +127,7 @@ jobs:
           ls -lh alice-triposr-*.png
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: alice-cpu-triposr
           path: |
