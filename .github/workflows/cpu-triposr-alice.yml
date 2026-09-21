@@ -1,0 +1,133 @@
+name: CPU TripoSR Alice
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/cpu-triposr-alice.yml'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: System packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git libgl1 libglib2.0-0 blender
+
+      - name: Clone TripoSR
+        run: |
+          git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git triposr
+
+      - name: Install CPU dependencies
+        working-directory: triposr
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install -r requirements.txt
+          pip install git+https://github.com/tatsy/torchmcubes.git
+
+      - name: Download canonical Alice reference
+        run: |
+          curl -L --fail --retry 3             -o alice-reference.jpg             "https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg"
+          file alice-reference.jpg
+
+      - name: Generate Alice GLB on CPU
+        working-directory: triposr
+        env:
+          PYTORCH_ENABLE_MPS_FALLBACK: "1"
+        run: |
+          python run.py ../alice-reference.jpg             --device cpu             --chunk-size 4096             --mc-resolution 128             --foreground-ratio 0.90             --model-save-format glb             --output-dir ../triposr-output
+          find ../triposr-output -maxdepth 4 -type f -printf '%p %s bytes\n'
+
+      - name: Locate GLB
+        run: |
+          GLB="$(find triposr-output -type f -name '*.glb' | head -1)"
+          test -n "$GLB"
+          cp "$GLB" alice-triposr.glb
+          echo "GLB=$GLB"
+          ls -lh alice-triposr.glb
+
+      - name: Render inspection images in Blender
+        run: |
+          cat > render_alice.py <<'PY'
+          import bpy, math, os
+          from mathutils import Vector
+
+          bpy.ops.wm.read_factory_settings(use_empty=True)
+          bpy.ops.import_scene.gltf(filepath=os.path.abspath("alice-triposr.glb"))
+
+          meshes=[o for o in bpy.context.scene.objects if o.type=="MESH"]
+          if not meshes:
+              raise RuntimeError("No mesh imported")
+
+          # Normalize subject to origin.
+          mins=Vector((1e9,1e9,1e9)); maxs=Vector((-1e9,-1e9,-1e9))
+          for o in meshes:
+              for c in o.bound_box:
+                  w=o.matrix_world @ Vector(c)
+                  mins.x=min(mins.x,w.x); mins.y=min(mins.y,w.y); mins.z=min(mins.z,w.z)
+                  maxs.x=max(maxs.x,w.x); maxs.y=max(maxs.y,w.y); maxs.z=max(maxs.z,w.z)
+          center=(mins+maxs)/2
+          size=max(maxs-mins)
+          for o in meshes:
+              o.location -= center
+              o.scale *= 2.0/size
+
+          bpy.ops.object.light_add(type='AREA', location=(3,-4,4))
+          bpy.context.object.data.energy=900
+          bpy.context.object.data.size=4
+          bpy.ops.object.light_add(type='AREA', location=(-3,-2,2))
+          bpy.context.object.data.energy=500
+          bpy.context.object.data.size=3
+          bpy.ops.object.light_add(type='AREA', location=(0,3,3))
+          bpy.context.object.data.energy=650
+          bpy.context.object.data.size=3
+
+          bpy.ops.object.camera_add(location=(0,-4.2,0.25))
+          cam=bpy.context.object
+          bpy.context.scene.camera=cam
+
+          def look_at(obj, pt):
+              obj.rotation_euler=(Vector(pt)-obj.location).to_track_quat('-Z','Y').to_euler()
+          look_at(cam,(0,0,0.15))
+          cam.data.lens=58
+
+          scene=bpy.context.scene
+          scene.render.engine='BLENDER_EEVEE'
+          scene.render.resolution_x=768
+          scene.render.resolution_y=768
+          scene.render.resolution_percentage=100
+          scene.render.image_settings.file_format='PNG'
+          scene.world.color=(0.035,0.04,0.05)
+
+          views=[
+              ("front",(0,-4.2,0.25)),
+              ("threequarter",(2.7,-3.2,0.25)),
+              ("side",(4.2,0,0.25)),
+          ]
+          for name,pos in views:
+              cam.location=pos
+              look_at(cam,(0,0,0.15))
+              scene.render.filepath=os.path.abspath(f"alice-triposr-{name}.png")
+              bpy.ops.render.render(write_still=True)
+          PY
+          blender --background --python render_alice.py
+          ls -lh alice-triposr-*.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alice-cpu-triposr
+          path: |
+            alice-triposr.glb
+            alice-triposr-front.png
+            alice-triposr-threequarter.png
+            alice-triposr-side.png
+          if-no-files-found: error
