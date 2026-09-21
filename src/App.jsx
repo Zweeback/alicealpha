@@ -16,6 +16,7 @@ const labels = {
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
   offline: 'Basismodus · keine Live-KI',
+  local: 'Lokale KI · auf diesem Gerät',
   error: 'Verbindung unterbrochen',
 };
 
@@ -43,6 +44,9 @@ export default function App() {
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
   const [hintVisible, setHintVisible] = useState(true);
+  const [localAIStatus, setLocalAIStatus] = useState('idle');
+  const [localAIProgress, setLocalAIProgress] = useState(0);
+  const [localAISupported, setLocalAISupported] = useState(null);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -73,7 +77,7 @@ export default function App() {
       voiceRef.current?.speak(result.plan, {
         onEnd: () => {
           fallbackBusyRef.current = false;
-          setPhase('offline');
+          setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
         },
       });
     } catch {
@@ -87,7 +91,7 @@ export default function App() {
     const voice = voiceRef.current;
     if (!voice?.canListen) {
       setTextOpen(true);
-      setPhase('offline');
+      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
       return;
     }
     if (fallbackBusyRef.current) {
@@ -101,10 +105,47 @@ export default function App() {
     try {
       await runLocalTurn(await voice.listen());
     } catch (error) {
-      setPhase('offline');
+      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
       if (error?.message !== 'aborted') setTextOpen(true);
     }
   }, [runLocalTurn]);
+
+  const enableLocalAI = useCallback(async () => {
+    const runtime = runtimeRef.current;
+    if (!runtime || localAIStatus === 'loading' || runtime.browserAIReady) return;
+
+    if (!runtime.browserAISupported) {
+      setLocalAISupported(false);
+      setLocalAIStatus('unsupported');
+      setCaption('Dieses Gerät stellt WebGPU nicht bereit. Der kleine lokale KI-Modus kann hier nicht geladen werden.');
+      return;
+    }
+
+    setLocalAISupported(true);
+    setLocalAIStatus('loading');
+    setLocalAIProgress(0);
+    setCaption('Ich lade mein kleines lokales Sprachmodell. Das passiert nur nach deiner Freigabe und braucht kein API-Guthaben.');
+
+    try {
+      await runtime.enableBrowserAI((progress) => {
+        const fraction = Number(progress?.progress);
+        if (Number.isFinite(fraction)) {
+          setLocalAIProgress(Math.max(0, Math.min(100, Math.round(fraction * 100))));
+        }
+      });
+      setLocalAIStatus('ready');
+      setLocalAIProgress(100);
+      setPhase('local');
+      setCaption('Lokale KI ist bereit. Antworten werden jetzt direkt auf diesem Gerät erzeugt.');
+      setTextOpen(true);
+    } catch (error) {
+      setLocalAIStatus('failed');
+      setPhase('offline');
+      setCaption(error?.message === 'webgpu-unavailable'
+        ? 'WebGPU ist auf diesem Gerät nicht verfügbar.'
+        : 'Das lokale Modell konnte nicht geladen werden. Der einfache Basismodus bleibt verfügbar.');
+    }
+  }, [localAIStatus]);
 
   const ensureLive = useCallback(async () => {
     setHintVisible(false);
@@ -145,6 +186,7 @@ export default function App() {
   useEffect(() => {
     const memory = new MemoryStore();
     const runtime = new PersonaRuntime(memory);
+    setLocalAISupported(runtime.browserAISupported);
     const hardware = new AnimatronicBridge();
     const voice = new VoiceChannel({
       onListeningChange: (active) => active && setPhase('listening'),
@@ -316,7 +358,23 @@ export default function App() {
           <p>Berühre Alice. Danach kannst du einfach sprechen.</p>
           <small>{realtimeAvailable
             ? 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
-            : 'Lokaler Basismodus: Der Live-KI-Kanal ist nicht verbunden.'}</small>
+            : localAIStatus === 'ready'
+              ? 'Lokale KI läuft direkt auf diesem Gerät.'
+              : 'Lokaler Basismodus: Der Live-KI-Kanal ist nicht verbunden.'}</small>
+          {!realtimeAvailable && localAIStatus !== 'ready' && (
+            <button
+              className="local-ai-button"
+              type="button"
+              onClick={enableLocalAI}
+              disabled={localAIStatus === 'loading' || localAISupported === false}
+            >
+              {localAIStatus === 'loading'
+                ? `Lokale KI laden · ${localAIProgress}%`
+                : localAISupported === false
+                  ? 'Lokale KI braucht WebGPU'
+                  : 'Lokale KI kostenlos laden'}
+            </button>
+          )}
         </div>
       )}
 
