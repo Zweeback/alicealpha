@@ -19,6 +19,7 @@ app.get('/api/health', (_request, response) => {
     ok: true,
     realtime: Boolean(process.env.OPENAI_API_KEY),
     model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
+    revision: process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || null,
   });
 });
 
