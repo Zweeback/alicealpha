@@ -1,7 +1,7 @@
 import express from 'express';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { ALICE_REALTIME_INSTRUCTIONS, ALICE_TOOLS } from './alicePrompt.js';
+import { buildRealtimeSession } from './realtimeSession.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -32,29 +32,7 @@ app.post('/api/realtime/session', express.text({ type: ['application/sdp', 'text
     return;
   }
 
-  const session = {
-    type: 'realtime',
-    model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
-    instructions: ALICE_REALTIME_INSTRUCTIONS,
-    tools: ALICE_TOOLS,
-    tool_choice: 'auto',
-    audio: {
-      input: {
-        transcription: {
-          model: 'gpt-4o-mini-transcribe',
-          language: 'de',
-          delay: 'low',
-        },
-        turn_detection: {
-          type: 'semantic_vad',
-          eagerness: 'medium',
-          create_response: true,
-          interrupt_response: true,
-        },
-      },
-      output: { voice: process.env.OPENAI_REALTIME_VOICE || 'marin' },
-    },
-  };
+  const session = buildRealtimeSession(process.env);
 
   const form = new FormData();
   form.set('sdp', request.body);
