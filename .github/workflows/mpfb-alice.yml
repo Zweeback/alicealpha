@@ -1,0 +1,193 @@
+name: MPFB Alice Human Base
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/mpfb-alice.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl xz-utils unzip libegl1 libgl1 libglx-mesa0 libxrender1 libxi6 libxkbcommon0
+
+      - name: Download Blender 4.5
+        run: |
+          curl -L --fail --retry 3             https://download.blender.org/release/Blender4.5/blender-4.5.9-linux-x64.tar.xz             -o blender.tar.xz
+          tar xJf blender.tar.xz
+          echo "$PWD/blender-4.5.9-linux-x64" >> "$GITHUB_PATH"
+          ./blender-4.5.9-linux-x64/blender --background --version
+
+      - name: Download MPFB and CC0 MakeHuman assets
+        run: |
+          curl -L --fail --retry 3             https://files.makehumancommunity.org/plugins/mpfb2-latest.zip             -o mpfb2.zip
+          curl -L --fail --retry 3             https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip             -o makehuman-assets.zip
+          unzip -q makehuman-assets.zip -d mhassets
+          find mhassets -type f | grep -Ei 'young.*caucasian.*female.*\.mhmat$' | head -30 || true
+          find mhassets -type f | grep -Ei '(hair|ponytail|long.*hair|female.*hair).*\.(mhclo|mhpxy|obj)$' | head -50 || true
+          find mhassets -type f | grep -Ei '(towel|dress|skirt|robe).*\.mhclo$' | head -50 || true
+
+      - name: Download proven headless MPFB generator
+        run: |
+          curl -L --fail --retry 3             https://raw.githubusercontent.com/kunalkushwaha/vsim/main/scripts/blender/make-human.py             -o make-human.py
+
+      - name: Choose skin
+        run: |
+          SKIN="$(find mhassets -type f | grep -Ei '/young_caucasian_female[^/]*/.*\.mhmat$|/young_caucasian_female.*\.mhmat$' | head -1)"
+          if [ -z "$SKIN" ]; then
+            SKIN="$(find mhassets -type f -name '*.mhmat' | grep -Ei 'young.*female|female.*young' | head -1)"
+          fi
+          test -n "$SKIN"
+          echo "ALICE_SKIN=$SKIN" >> "$GITHUB_ENV"
+          echo "Skin: $SKIN"
+
+      - name: Generate rigged Alice human base
+        run: |
+          blender --background --python make-human.py --             mpfb2.zip alice-human-base.glb "$ALICE_SKIN"             gender=0.0 age=0.42 muscle=0.28 weight=0.36 height=0.46 proportions=0.52             caucasian=1.0 asian=0.0 african=0.0 mouth=1 tex=1024
+          ls -lh alice-human-base.glb
+
+      - name: Add Alice hair color and towel shell, render inspection
+        run: |
+          cat > alice-style.py <<'PY'
+          import bpy, os, math
+          from mathutils import Vector
+
+          bpy.ops.wm.read_factory_settings(use_empty=True)
+          bpy.ops.import_scene.gltf(filepath=os.path.abspath("alice-human-base.glb"))
+          meshes=[o for o in bpy.context.scene.objects if o.type=="MESH"]
+          if not meshes:
+              raise RuntimeError("No human mesh")
+
+          # Bounds and approximate body proportions.
+          mins=Vector((1e9,1e9,1e9)); maxs=Vector((-1e9,-1e9,-1e9))
+          for o in meshes:
+              for c in o.bound_box:
+                  w=o.matrix_world @ Vector(c)
+                  mins.x=min(mins.x,w.x); mins.y=min(mins.y,w.y); mins.z=min(mins.z,w.z)
+                  maxs.x=max(maxs.x,w.x); maxs.y=max(maxs.y,w.y); maxs.z=max(maxs.z,w.z)
+          h=maxs.z-mins.z
+          center=(mins+maxs)/2
+
+          # Copper-red hair cap + long layered locks built as curves around head.
+          hair_mat=bpy.data.materials.new("Alice Copper Hair")
+          hair_mat.diffuse_color=(0.42,0.055,0.018,1.0)
+          hair_mat.roughness=0.42
+
+          head_z=mins.z+h*0.89
+          head_center=Vector((center.x,center.y,head_z))
+          # scalp cap
+          bpy.ops.mesh.primitive_uv_sphere_add(segments=64, ring_count=32,
+              location=(head_center.x, head_center.y+0.005, head_center.z+0.005),
+              scale=(h*0.085,h*0.075,h*0.105))
+          cap=bpy.context.object
+          cap.name="AliceHairScalp"
+          cap.data.materials.append(hair_mat)
+
+          # Hide lower half of scalp sphere by scaling/placing mostly over skull;
+          # long locks give silhouette. Curves are intentionally dense to read as hair, not tubes.
+          for side in (-1,1):
+              for i in range(18):
+                  frac=i/17
+                  x=head_center.x + side*h*(0.025+0.055*frac)
+                  y=head_center.y - h*(0.015+0.01*math.sin(frac*math.pi))
+                  z0=head_center.z+h*(0.075-0.04*frac)
+                  z1=mins.z+h*(0.55+0.08*math.sin(frac*math.pi))
+                  curve=bpy.data.curves.new(f"Hair_{side}_{i}","CURVE")
+                  curve.dimensions='3D'
+                  curve.bevel_depth=h*0.0048
+                  curve.bevel_resolution=3
+                  spline=curve.splines.new('BEZIER')
+                  spline.bezier_points.add(3)
+                  pts=[
+                    (x,y,z0),
+                    (x+side*h*0.02,y-h*0.005,head_center.z-h*0.02),
+                    (x+side*h*0.04,y+h*0.005,mins.z+h*0.69),
+                    (x+side*h*0.055,y, z1)
+                  ]
+                  for bp,co in zip(spline.bezier_points,pts):
+                      bp.co=co; bp.handle_left_type='AUTO'; bp.handle_right_type='AUTO'
+                  obj=bpy.data.objects.new(curve.name,curve)
+                  bpy.context.collection.objects.link(obj)
+                  obj.data.materials.append(hair_mat)
+
+          # Towel shell as a fitted rounded box around torso/upper thighs.
+          white=bpy.data.materials.new("Alice Towel")
+          white.diffuse_color=(0.93,0.91,0.86,1.0)
+          white.roughness=0.88
+          z_mid=mins.z+h*0.58
+          bpy.ops.mesh.primitive_cube_add(location=(center.x,center.y,z_mid))
+          towel=bpy.context.object
+          towel.name="AliceTowel"
+          towel.scale=(h*0.145,h*0.095,h*0.205)
+          bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+          bevel=towel.modifiers.new("Soft towel edges","BEVEL")
+          bevel.width=h*0.018; bevel.segments=5
+          towel.data.materials.append(white)
+
+          # Slight wrap overlap panel.
+          bpy.ops.mesh.primitive_cube_add(location=(center.x+h*0.055,center.y-h*0.095,z_mid+h*0.015))
+          panel=bpy.context.object
+          panel.name="AliceTowelFold"
+          panel.scale=(h*0.065,h*0.012,h*0.185)
+          bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+          panel.rotation_euler[1]=math.radians(-4)
+          bev=panel.modifiers.new("Fold bevel","BEVEL"); bev.width=h*0.01; bev.segments=4
+          panel.data.materials.append(white)
+
+          # Studio lights + camera.
+          for loc,en,size in [((3,-4,4),1100,4),((-3,-2,2.5),550,3),((0,3,4),700,3)]:
+              bpy.ops.object.light_add(type='AREA',location=loc)
+              bpy.context.object.data.energy=en; bpy.context.object.data.size=size
+
+          bpy.ops.object.camera_add()
+          cam=bpy.context.object; bpy.context.scene.camera=cam; cam.data.lens=62
+          def look(pos,target):
+              cam.location=pos
+              cam.rotation_euler=(Vector(target)-cam.location).to_track_quat('-Z','Y').to_euler()
+
+          scene=bpy.context.scene
+          scene.render.engine='BLENDER_EEVEE_NEXT'
+          scene.render.resolution_x=720; scene.render.resolution_y=1000; scene.render.resolution_percentage=100
+          scene.render.image_settings.file_format='PNG'
+          if scene.world is None: scene.world=bpy.data.worlds.new("World")
+          scene.world.color=(0.04,0.04,0.045)
+
+          target=(center.x,center.y,mins.z+h*0.57)
+          dist=h*1.35
+          views=[
+            ("front",(center.x,center.y-dist,mins.z+h*0.60)),
+            ("threequarter",(center.x+dist*0.65,center.y-dist*0.82,mins.z+h*0.60)),
+            ("side",(center.x+dist,center.y,mins.z+h*0.60)),
+          ]
+          for name,pos in views:
+              look(pos,target)
+              scene.render.filepath=os.path.abspath(f"alice-mpfb-{name}.png")
+              bpy.ops.render.render(write_still=True)
+
+          bpy.ops.export_scene.gltf(
+              filepath=os.path.abspath("alice-mpfb.glb"),
+              export_format='GLB',
+              export_animations=True,
+              export_skins=True,
+              export_morph=True
+          )
+          PY
+          blender --background --python alice-style.py
+          ls -lh alice-mpfb.glb alice-mpfb-*.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alice-mpfb-candidate
+          path: |
+            alice-mpfb.glb
+            alice-mpfb-front.png
+            alice-mpfb-threequarter.png
+            alice-mpfb-side.png
+          if-no-files-found: error
