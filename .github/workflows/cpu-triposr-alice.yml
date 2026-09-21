@@ -110,6 +110,8 @@ jobs:
           scene.render.resolution_y=768
           scene.render.resolution_percentage=100
           scene.render.image_settings.file_format='PNG'
+          if scene.world is None:
+              scene.world = bpy.data.worlds.new("World")
           scene.world.color=(0.035,0.04,0.05)
 
           views=[
