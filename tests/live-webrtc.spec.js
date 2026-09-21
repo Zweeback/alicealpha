@@ -1,6 +1,7 @@
 import { test, expect, chromium } from '@playwright/test';
 
 const APP_URL = 'https://alicealpha.onrender.com/';
+const LOCAL_APP_URL = 'http://127.0.0.1:8790/';
 
 test('public Alice opens a real WebRTC session and returns a live response', async () => {
   test.setTimeout(150_000);
@@ -241,7 +242,23 @@ test('quota failure exposes the zero-cost browser AI entry and WebLLM module is 
     }
   });
 
-  await page.goto(APP_URL, { waitUntil: 'networkidle', timeout: 90_000 });
+  await page.route('**/api/health', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, realtime: true, model: 'test-realtime' }),
+    });
+  });
+
+  await page.route('**/api/realtime/session', async (route) => {
+    await route.fulfill({
+      status: 429,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'test-quota-exhausted' }),
+    });
+  });
+
+  await page.goto(LOCAL_APP_URL, { waitUntil: 'networkidle', timeout: 90_000 });
   await expect(page.locator('.live-state')).toContainText('Bereit', { timeout: 30_000 });
 
   await page.getByRole('button', { name: 'Texteingabe öffnen' }).click({ force: true });
