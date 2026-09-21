@@ -21,6 +21,23 @@ describe('operator dispatch boundary', () => {
     expect(result.completed.detail.result.github_token).toBe('[redacted]');
   });
 
+  it('marks branch.create failed when the executor reports a different branch', async () => {
+    const envelope = createOperatorEnvelope({
+      id: 'dispatch-result-mismatch',
+      operation: 'branch.create',
+      repository: 'Zweeback/alicealpha',
+      payload: { branch: 'expected-probe', base_ref: 'main' },
+    }, () => '2026-09-21T21:15:00.000Z');
+    const executor = vi.fn(async () => ({ branch: 'unexpected-probe' }));
+
+    const result = await dispatchOperatorEnvelope(envelope, executor);
+
+    expect(executor).toHaveBeenCalledOnce();
+    expect(result.accepted.status).toBe('accepted');
+    expect(result.completed.status).toBe('failed');
+    expect(result.completed.detail.error).toBe('operator-executor-result-mismatch');
+  });
+
   it('fails closed for an unvalidated envelope', async () => {
     await expect(dispatchOperatorEnvelope({ operation: 'branch.create', repository: 'Zweeback/alicealpha' }, vi.fn()))
       .rejects.toThrow('operator-envelope-not-executable');
