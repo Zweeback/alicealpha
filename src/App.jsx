@@ -378,6 +378,23 @@ export default function App() {
         </div>
       )}
 
+      {!hintVisible && !realtimeAvailable && localAIStatus !== 'ready' && (
+        <div className="local-ai-entry">
+          <button
+            className="local-ai-button"
+            type="button"
+            onClick={enableLocalAI}
+            disabled={localAIStatus === 'loading' || localAISupported === false}
+          >
+            {localAIStatus === 'loading'
+              ? `Lokale KI laden · ${localAIProgress}%`
+              : localAISupported === false
+                ? 'Lokale KI braucht WebGPU'
+                : 'Lokale KI kostenlos laden'}
+          </button>
+        </div>
+      )}
+
       <div className="xr-entry" aria-label="Räumlichen Modus starten">
         {xrSupport.ar && <button type="button" onClick={() => enterXR('ar')}>Alice in meinen Raum</button>}
         {xrSupport.vr && <button type="button" onClick={() => enterXR('vr')}>Alice im Labor</button>}
