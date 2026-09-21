@@ -43,8 +43,7 @@ button, input { font: inherit; }
 
 
 .visual-canonical canvas {
-  opacity: 0.22;
-  filter: saturate(0.55) blur(1.2px);
+  display: none;
 }
 
 .canonical-alice-portrait {
