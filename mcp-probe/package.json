@@ -1,0 +1,8 @@
+{
+  "name": "alice-mcp-pianam-probe",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"start":"node probe.mjs"},
+  "dependencies": {"@modelcontextprotocol/sdk":"latest"}
+}
