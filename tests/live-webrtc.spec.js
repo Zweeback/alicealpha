@@ -80,11 +80,12 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
   await page.locator('#alice-text').fill('Antworte bitte nur mit dem Wort TEST.');
   await page.locator('form.text-fallback').evaluate((form) => form.requestSubmit());
 
-  const sessionStatus = await expect.poll(async () => {
+  await expect.poll(async () => {
     return page.evaluate(() => window.__aliceProbe.sessionStatus);
-  }, { timeout: 45_000 }).toSatisfy((status) => status === 200 || status === 429);
+  }, { timeout: 45_000 }).not.toBeNull();
 
   const probeBeforeBranch = await page.evaluate(() => window.__aliceProbe);
+  expect([200, 429]).toContain(probeBeforeBranch.sessionStatus);
 
   if (probeBeforeBranch.sessionStatus === 200) {
     await expect.poll(async () => {
