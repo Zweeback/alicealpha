@@ -21,6 +21,23 @@ jobs:
 
       - run: npm ci
 
+      - name: Build branch app for local browser checks
+        run: npm run build
+
+      - name: Start branch app
+        shell: bash
+        run: |
+          PORT=8790 npm run server > /tmp/alice-branch-server.log 2>&1 &
+          echo $! > /tmp/alice-branch-server.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8790/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/alice-branch-server.log
+          exit 1
+
       - name: Install Playwright test runner
         run: npm install --no-save @playwright/test@1.55.0
 
