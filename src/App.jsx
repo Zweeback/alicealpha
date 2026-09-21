@@ -340,11 +340,11 @@ export default function App() {
 
   return (
     <div className={`alice-app phase-${phase} mode-${sessionMode} ${canonicalVisual ? 'visual-canonical' : 'visual-3d'}`} ref={overlayRef}>
-      <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
+      {!canonicalVisual && <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />}
 
       {canonicalVisual && (
         <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
-          <img src="/alice-canonical.jpg" alt="" draggable="false" />
+          <img src="https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg" alt="" draggable="false" />
         </div>
       )}
 
