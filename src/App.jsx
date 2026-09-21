@@ -119,12 +119,15 @@ export default function App() {
         setPhase('connected');
         return;
       } catch (error) {
-        setPhase('error');
+        setRealtimeAvailable(false);
         if (error.message && error.message.includes('webrtc-unavailable')) {
-          setCaption('Mikrofon-Zugriff verweigert.');
+          setCaption('Der Live-Kanal ist auf diesem Gerät nicht verfügbar. Ich wechsle in den lokalen Modus.');
+        } else if (error.message && error.message.includes('realtime-session-429')) {
+          setCaption('Der Live-Kanal hat gerade kein Kontingent. Ich wechsle in den lokalen Modus.');
         } else {
-          setCaption('Der Live-Kanal ist nicht erreichbar. Mikrofon-Zugriff verweigert oder Fehler.');
+          setCaption('Der Live-Kanal ist gerade nicht erreichbar. Ich wechsle in den lokalen Modus.');
         }
+        await listenLocally();
         return;
       }
     }
