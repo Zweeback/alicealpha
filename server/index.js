@@ -41,8 +41,8 @@ app.post('/api/realtime/session', express.text({ type: ['application/sdp', 'text
     audio: {
       input: {
         transcription: {
-          model: 'gpt-live-transcribe',
-          languages: ['de'],
+          model: 'gpt-4o-mini-transcribe',
+          language: 'de',
           delay: 'low',
         },
         turn_detection: {
