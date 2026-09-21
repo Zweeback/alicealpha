@@ -10,22 +10,24 @@ jobs:
   verify-render:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for public Alice runtime
+      - name: Wait for exact public Alice revision
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
-          for attempt in {1..30}; do
+          for attempt in {1..60}; do
             body="$(curl --fail --silent --show-error --max-time 20 https://alicealpha.onrender.com/api/health || true)"
             echo "attempt=$attempt body=$body"
 
-            if printf '%s' "$body" | grep -q '"ok":true'; then
-              printf '%s' "$body" | grep -q '"realtime":true'                 && echo "Realtime backend is configured."                 || echo "Runtime is healthy, but realtime is not configured."
+            if printf '%s' "$body" | grep -q '"ok":true'               && printf '%s' "$body" | grep -q '"realtime":true'               && printf '%s' "$body" | grep -q "\"revision\":\"$EXPECTED_SHA\""; then
+              echo "Exact Alice revision is live with realtime configured."
               exit 0
             fi
 
             sleep 10
           done
 
-          echo "Public Alice runtime did not become healthy within 5 minutes." >&2
+          echo "Expected Alice revision did not become live within 10 minutes." >&2
           exit 1
 
       - name: Verify public app shell
