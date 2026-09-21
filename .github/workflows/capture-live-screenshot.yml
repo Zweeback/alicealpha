@@ -1,4 +1,5 @@
 name: Capture Live Alice Screenshot
+# rerun after canonical visual fix
 
 on:
   pull_request:
