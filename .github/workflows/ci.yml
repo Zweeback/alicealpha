@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test-and-build:
@@ -16,3 +17,19 @@ jobs:
       - run: npm ci
       - run: npm run test:run
       - run: npm run build
+      - name: Runtime smoke test
+        shell: bash
+        run: |
+          npm run server > /tmp/alice-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; cat /tmp/alice-server.log' EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/api/health               | tee /tmp/alice-health.json               | grep -q '"ok":true'; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Alice runtime did not become healthy in time." >&2
+          exit 1
