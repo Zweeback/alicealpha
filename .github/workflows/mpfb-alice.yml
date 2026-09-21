@@ -50,7 +50,8 @@ jobs:
 
       - name: Generate rigged Alice human base
         run: |
-          blender --background --python make-human.py --             mpfb2.zip alice-human-base.glb "$ALICE_SKIN"             gender=0.0 age=0.42 muscle=0.28 weight=0.36 height=0.46 proportions=0.52             caucasian=1.0 asian=0.0 african=0.0 mouth=1 tex=1024
+          ROOT="$PWD"
+          blender --background --python "$ROOT/make-human.py" --             "$ROOT/mpfb2.zip" "$ROOT/alice-human-base.glb" "$ROOT/$ALICE_SKIN"             "$ROOT/mhassets/hair/long01/long01.mhclo"             gender=0.0 age=0.42 muscle=0.28 weight=0.36 height=0.46 proportions=0.52             caucasian=1.0 asian=0.0 african=0.0 mouth=1 tex=1024
           ls -lh alice-human-base.glb
 
       - name: Add Alice hair color and towel shell, render inspection
