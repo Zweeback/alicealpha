@@ -34,7 +34,7 @@ jobs:
           grep -v 'torchmcubes' requirements.txt > requirements-cpu.txt
           pip install -r requirements-cpu.txt
           pip install onnxruntime
-          pip install scikit-build-core cmake ninja pybind11
+          pip install scikit-build-core cmake ninja pybind11 pybind11
           git clone --depth 1 https://github.com/tatsy/torchmcubes.git /tmp/torchmcubes
           pip install --no-build-isolation /tmp/torchmcubes
 
