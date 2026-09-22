@@ -2,6 +2,7 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildRealtimeSession } from './realtimeSession.js';
+import { callOllama } from './ollama.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -19,8 +20,39 @@ app.get('/api/health', (_request, response) => {
     ok: true,
     realtime: Boolean(process.env.OPENAI_API_KEY),
     model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
+    ollama: Boolean(process.env.ALICE_OLLAMA_URL),
+    ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
     revision: process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || null,
   });
+});
+
+app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request, response) => {
+  if (!process.env.ALICE_OLLAMA_URL) {
+    response.status(503).json({ error: 'ollama-not-configured' });
+    return;
+  }
+
+  const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+  if (!text) {
+    response.status(400).json({ error: 'missing-text' });
+    return;
+  }
+
+  try {
+    const result = await callOllama({
+      text,
+      confirmed_memory: request.body?.confirmed_memory,
+      persona_state: request.body?.persona_state,
+      baseUrl: process.env.ALICE_OLLAMA_URL,
+      model: process.env.ALICE_OLLAMA_MODEL || 'mistral',
+      timeoutMs: Number(process.env.ALICE_OLLAMA_TIMEOUT_MS || 120000),
+    });
+    response.json({ ...result, source: 'ollama' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'ollama-request-failed';
+    console.error('Local Ollama request failed:', message);
+    response.status(message === 'ollama-empty-response' ? 502 : 503).json({ error: message });
+  }
 });
 
 app.post('/api/realtime/session', express.text({ type: ['application/sdp', 'text/plain'], limit: '1mb' }), async (request, response) => {
