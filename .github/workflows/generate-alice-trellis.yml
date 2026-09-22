@@ -86,7 +86,7 @@ jobs:
         if: always()
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq blender
+          sudo apt-get install -y -qq blender python3-numpy
 
       - name: Render TRELLIS GLB from multiple angles
         if: always()
