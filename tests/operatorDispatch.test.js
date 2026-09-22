@@ -57,17 +57,59 @@ describe('operator dispatch boundary', () => {
     expect(executor).not.toHaveBeenCalled();
   });
 
-  it('does not invoke the executor for pr.merge without successful CI and branch protection', async () => {
+  it('does not invoke the executor for pr.merge without successful CI and a safe merge policy', async () => {
     const envelope = createOperatorEnvelope({
       id: 'unsafe-merge-proof',
       operation: 'pr.merge',
       repository: 'Zweeback/alicealpha',
-      payload: { pull_number: 48 },
+      payload: { pull_number: 49 },
     }, () => '2026-09-22T05:09:00.000Z');
     const executor = vi.fn();
 
     await expect(dispatchOperatorEnvelope(envelope, executor, {
       mergePolicy: { ci: 'success', protected: false },
+    })).rejects.toThrow('operator-merge-policy-not-satisfied');
+    expect(executor).not.toHaveBeenCalled();
+  });
+
+  it('allows pr.merge when successful CI is bound to the current PR head SHA', async () => {
+    const envelope = createOperatorEnvelope({
+      id: 'sha-bound-merge-proof',
+      operation: 'pr.merge',
+      repository: 'Zweeback/alicealpha',
+      payload: { pull_number: 49 },
+    }, () => '2026-09-22T06:09:00.000Z');
+    const executor = vi.fn(async () => ({ merged: true }));
+
+    const result = await dispatchOperatorEnvelope(envelope, executor, {
+      mergePolicy: {
+        ci: 'success',
+        protected: false,
+        expectedHeadSha: 'abc123',
+        currentHeadSha: 'abc123',
+      },
+    });
+
+    expect(executor).toHaveBeenCalledOnce();
+    expect(result.completed.status).toBe('succeeded');
+  });
+
+  it('fails closed when the CI SHA is stale relative to the current PR head', async () => {
+    const envelope = createOperatorEnvelope({
+      id: 'stale-sha-merge-proof',
+      operation: 'pr.merge',
+      repository: 'Zweeback/alicealpha',
+      payload: { pull_number: 49 },
+    }, () => '2026-09-22T06:10:00.000Z');
+    const executor = vi.fn();
+
+    await expect(dispatchOperatorEnvelope(envelope, executor, {
+      mergePolicy: {
+        ci: 'success',
+        protected: false,
+        expectedHeadSha: 'tested-sha',
+        currentHeadSha: 'new-head-sha',
+      },
     })).rejects.toThrow('operator-merge-policy-not-satisfied');
     expect(executor).not.toHaveBeenCalled();
   });
