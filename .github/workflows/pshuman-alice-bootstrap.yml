@@ -1,0 +1,125 @@
+name: PSHuman Alice Bootstrap
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pshuman-alice-bootstrap.yml'
+  workflow_dispatch:
+
+jobs:
+  pshuman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright and ffmpeg
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
+      - name: Download canonical Alice reference
+        run: |
+          curl -L --fail --retry 3             -o alice-reference.jpg             "https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg"
+          file alice-reference.jpg
+
+      - name: Run PSHuman ZeroGPU Space
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          (async () => {
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage({viewport:{width:1280,height:900}});
+            page.setDefaultTimeout(30000);
+            await page.goto('https://fffiloni-pshuman.hf.space/', {waitUntil:'domcontentloaded', timeout:120000});
+            await page.waitForTimeout(12000);
+            console.log('TITLE', await page.title());
+            console.log('BODY0', (await page.locator('body').innerText()).slice(0,2500));
+            await page.screenshot({path:'pshuman-before.png',fullPage:true});
+
+            const input=page.locator('input[type=file]').first();
+            if(!await input.count()) throw new Error('No upload input');
+            await input.setInputFiles('alice-reference.jpg');
+            await page.waitForTimeout(4000);
+            await page.screenshot({path:'pshuman-loaded.png',fullPage:true});
+
+            const processBtn=page.getByRole('button',{name:/Process/i}).first();
+            await processBtn.click();
+            console.log('PROCESS_CLICKED');
+
+            const deadline=Date.now()+12*60*1000;
+            let videoUrl=null;
+            while(Date.now()<deadline){
+              await page.waitForTimeout(10000);
+              const body=await page.locator('body').innerText();
+              console.log('POLL',new Date().toISOString(),body.slice(-1400));
+              await page.screenshot({path:'pshuman-progress.png',fullPage:true});
+              const video=page.locator('video').first();
+              if(await video.count()){
+                videoUrl=await video.getAttribute('src');
+                if(!videoUrl){
+                  const source=video.locator('source').first();
+                  if(await source.count()) videoUrl=await source.getAttribute('src');
+                }
+              }
+              if(videoUrl && !/blob:/.test(videoUrl)){
+                console.log('VIDEO_URL',videoUrl);
+                break;
+              }
+              if(/error/i.test(body) && !/no error/i.test(body)){
+                console.log('BODY_HAS_ERROR');
+              }
+            }
+            await page.screenshot({path:'pshuman-final.png',fullPage:true});
+            if(!videoUrl) throw new Error('No PSHuman output video URL');
+
+            let absolute=videoUrl;
+            if(videoUrl.startsWith('/')) absolute=new URL(videoUrl,page.url()).href;
+            const resp=await page.request.get(absolute,{timeout:120000});
+            if(!resp.ok()) throw new Error('Video fetch failed '+resp.status());
+            fs.writeFileSync('alice-pshuman.mp4', await resp.body());
+            console.log('VIDEO_SAVED',fs.statSync('alice-pshuman.mp4').size);
+            await browser.close();
+          })();
+          NODE
+
+      - name: Extract RGB turntable candidate views
+        run: |
+          mkdir -p pshuman-frames
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 alice-pshuman.mp4
+          # Sample 12 frames; PSHuman videos show RGB and normals side-by-side, so keep left half.
+          ffmpeg -y -i alice-pshuman.mp4 -vf "fps=2,crop=iw/2:ih:0:0,scale=512:-2" pshuman-frames/frame-%03d.png
+          python - <<'PY'
+          from PIL import Image,ImageOps,ImageDraw
+          from pathlib import Path
+          files=sorted(Path('pshuman-frames').glob('*.png'))[:24]
+          thumbs=[]
+          for f in files:
+              im=Image.open(f).convert('RGB')
+              im.thumbnail((180,180))
+              canvas=Image.new('RGB',(190,210),'white')
+              canvas.paste(im,((190-im.width)//2,5))
+              ImageDraw.Draw(canvas).text((5,190),f.name,fill='black')
+              thumbs.append(canvas)
+          cols=4
+          rows=(len(thumbs)+cols-1)//cols
+          sheet=Image.new('RGB',(cols*190,rows*210),'#ddd')
+          for i,t in enumerate(thumbs): sheet.paste(t,((i%cols)*190,(i//cols)*210))
+          sheet.save('pshuman-contact.jpg',quality=88)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-pshuman-bootstrap
+          path: |
+            pshuman-*.png
+            pshuman-contact.jpg
+            alice-pshuman.mp4
+            pshuman-frames/*.png
+          if-no-files-found: warn
