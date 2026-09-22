@@ -1,6 +1,6 @@
 import { mayExecuteOperatorEnvelope, operatorAuditEvent } from './operatorAudit.js';
 
-const EXECUTORS = new Set(['branch.create']);
+const EXECUTORS = new Set(['branch.create', 'pr.merge']);
 
 function verifyExecutorResult(envelope, result) {
   if (envelope.operation === 'branch.create') {
@@ -10,10 +10,18 @@ function verifyExecutorResult(envelope, result) {
   }
 }
 
-export async function dispatchOperatorEnvelope(envelope, executor) {
+function requireSafeMergePolicy(envelope, policy) {
+  if (envelope.operation !== 'pr.merge') return;
+  if (!policy || policy.ci !== 'success' || policy.protected !== true) {
+    throw new Error('operator-merge-policy-not-satisfied');
+  }
+}
+
+export async function dispatchOperatorEnvelope(envelope, executor, options = {}) {
   if (!mayExecuteOperatorEnvelope(envelope)) throw new Error('operator-envelope-not-executable');
   if (!EXECUTORS.has(envelope.operation)) throw new Error('operator-executor-not-supported');
   if (typeof executor !== 'function') throw new TypeError('operator-executor-required');
+  requireSafeMergePolicy(envelope, options.mergePolicy);
 
   const accepted = operatorAuditEvent(envelope, 'accepted');
   try {
