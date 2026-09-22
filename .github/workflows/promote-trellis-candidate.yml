@@ -1,0 +1,61 @@
+name: Promote TRELLIS candidate artifact
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/promote-trellis-candidate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ARTIFACT_ID: "10671300146"
+      TARGET_BRANCH: ${{ github.head_ref }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Download verified TRELLIS artifact
+        run: |
+          curl -L --fail --retry 3             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip"             -o /tmp/alice-trellis.zip
+          rm -rf /tmp/alice-trellis
+          mkdir -p /tmp/alice-trellis
+          unzip -o /tmp/alice-trellis.zip -d /tmp/alice-trellis
+          test -s /tmp/alice-trellis/alice-trellis.glb
+          mkdir -p public/avatars
+          cp /tmp/alice-trellis/alice-trellis.glb public/avatars/alice-trellis.glb
+          ls -lh public/avatars/alice-trellis.glb
+
+      - name: Pin SHA-256 into manifest
+        run: |
+          SHA="$(sha256sum public/avatars/alice-trellis.glb | awk '{print $1}')"
+          python - "$SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          path=Path("public/avatars/alice-trellis.json")
+          data=json.loads(path.read_text())
+          data["asset"]["sha256"]=sys.argv[1]
+          data["asset"]["bytes"]=Path("public/avatars/alice-trellis.glb").stat().st_size
+          path.write_text(json.dumps(data, indent=2)+"\n")
+          PY
+          cat public/avatars/alice-trellis.json
+
+      - name: Commit candidate binary to PR branch
+        run: |
+          if git diff --quiet -- public/avatars/alice-trellis.glb public/avatars/alice-trellis.json; then
+            echo "Candidate already pinned"
+            exit 0
+          fi
+          git config user.name "alice-avatar-bot"
+          git config user.email "alice-avatar-bot@users.noreply.github.com"
+          git add public/avatars/alice-trellis.glb public/avatars/alice-trellis.json
+          git commit -m "chore: pin TRELLIS Alice candidate artifact"
+          git push origin "HEAD:$TARGET_BRANCH"
