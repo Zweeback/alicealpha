@@ -1,0 +1,2 @@
+alice self-mvp branch write capability probe
+purpose: verify authenticated github mcp can commit to an isolated branch without modifying main
