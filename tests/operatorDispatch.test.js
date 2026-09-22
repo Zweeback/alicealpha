@@ -56,4 +56,19 @@ describe('operator dispatch boundary', () => {
       .rejects.toThrow('operator-executor-not-supported');
     expect(executor).not.toHaveBeenCalled();
   });
+
+  it('does not invoke the executor for pr.merge without successful CI and branch protection', async () => {
+    const envelope = createOperatorEnvelope({
+      id: 'unsafe-merge-proof',
+      operation: 'pr.merge',
+      repository: 'Zweeback/alicealpha',
+      payload: { pull_number: 48 },
+    }, () => '2026-09-22T05:09:00.000Z');
+    const executor = vi.fn();
+
+    await expect(dispatchOperatorEnvelope(envelope, executor, {
+      mergePolicy: { ci: 'success', protected: false },
+    })).rejects.toThrow('operator-merge-policy-not-satisfied');
+    expect(executor).not.toHaveBeenCalled();
+  });
 });
