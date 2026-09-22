@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
+import { resolveAvatarSelection } from './avatarCatalog.js';
 
 const cyan = new THREE.Color('#39d9e6');
 const amber = new THREE.Color('#d99a36');
@@ -242,14 +243,14 @@ async function createAlice() {
   };
 
   const params = new URLSearchParams(window.location.search);
-  const avatar = params.get('avatar');
   const procedural = params.get('procedural');
-  const useProcedural = procedural === '1' || (avatar !== 'glb' && avatar !== 'vrm');
+  const selection = resolveAvatarSelection(window.location.search);
+  const useProcedural = procedural === '1' || selection.kind === 'procedural';
 
-  if (!useProcedural && (avatar === 'glb' || avatar === 'vrm')) {
+  if (!useProcedural && (selection.kind === 'glb' || selection.kind === 'vrm')) {
     try {
       const loader = getGLTFLoader();
-      const gltf = await loader.loadAsync(avatar === 'vrm' ? '/alice.vrm' : '/alice.glb');
+      const gltf = await loader.loadAsync(selection.url);
       state.gltf = gltf;
       const model = gltf.scene || gltf.scenes[0];
       root.add(model);
@@ -282,7 +283,7 @@ async function createAlice() {
       }
       return state;
     } catch (err) {
-      console.warn('Failed to load selected avatar, falling back to procedural Alice:', err);
+      console.warn(`Failed to load avatar candidate ${selection.id}; falling back to procedural Alice:`, err);
     }
   }
   // Procedural fallback

@@ -6,6 +6,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
+import { isExplicit3DSelection } from './xr/avatarCatalog.js';
 
 const labels = {
   booting: 'Alice erwacht',
@@ -338,8 +339,7 @@ export default function App() {
   };
 
   const visualParams = new URLSearchParams(globalThis.location?.search || '');
-  const explicit3DVisual = ['glb', 'vrm', 'procedural'].includes(visualParams.get('avatar'))
-    || visualParams.get('visual') === 'procedural';
+  const explicit3DVisual = isExplicit3DSelection(globalThis.location?.search || '');
   const canonicalVisual = sessionMode === 'desktop' && !explicit3DVisual;
 
   return (
