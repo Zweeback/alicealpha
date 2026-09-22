@@ -37,7 +37,19 @@ export class PersonaRuntime {
         });
         if (response.ok) {
           const result = await response.json();
-          if (result?.reply && result?.plan) return { ...result, source: 'cloud' };
+          if (result?.reply) {
+            const reply = String(result.reply).trim();
+            if (reply) {
+              const localFrame = await this.local.respond(text);
+              return {
+                ...localFrame,
+                ...result,
+                reply,
+                plan: result.plan || createPerformancePlan(reply, localFrame.state, localFrame.dialogueAct),
+                source: result.source || 'backend',
+              };
+            }
+          }
         }
       } catch {
         // The embodied experience remains available when the cloud adapter is absent.
