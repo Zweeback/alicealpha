@@ -91,7 +91,7 @@ jobs:
       - name: Render TRELLIS GLB from multiple angles
         if: always()
         run: |
-          test -f alice-trellis.glb || exit 0
+          test -f alice-trellis.glb || { echo 'TRELLIS_GLb_MISSING'; exit 2; }
           cat > render_trellis.py <<'PY'
           import bpy, os
           from mathutils import Vector
