@@ -12,7 +12,12 @@ function verifyExecutorResult(envelope, result) {
 
 function requireSafeMergePolicy(envelope, policy) {
   if (envelope.operation !== 'pr.merge') return;
-  if (!policy || policy.ci !== 'success' || policy.protected !== true) {
+  const shaBound = Boolean(
+    policy?.expectedHeadSha
+    && policy?.currentHeadSha
+    && policy.expectedHeadSha === policy.currentHeadSha,
+  );
+  if (!policy || policy.ci !== 'success' || (policy.protected !== true && !shaBound)) {
     throw new Error('operator-merge-policy-not-satisfied');
   }
 }
