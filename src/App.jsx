@@ -267,8 +267,12 @@ export default function App() {
         // Client diagnostics: also require WebRTC capability
         const canWebRTC = Boolean(globalThis.RTCPeerConnection && navigator.mediaDevices?.getUserMedia);
         const available = Boolean(health?.realtime) && canWebRTC;
+        runtime.endpoint = health?.ollama ? '/api/local/respond' : null;
         setRealtimeAvailable(available);
-        setPhase(available ? 'ready' : 'offline');
+        setPhase(available ? 'ready' : health?.ollama ? 'local' : 'offline');
+        if (!available && health?.ollama) {
+          setCaption(`Lokales Ollama ist verbunden · ${health.ollamaModel || 'Modell bereit'}`);
+        }
       })
       .catch(() => setPhase('offline'));
 
