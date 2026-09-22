@@ -82,6 +82,82 @@ jobs:
             if (!done) process.exitCode = 2;
           })();
           NODE
+      - name: Install Blender for GLB inspection
+        if: always()
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq blender
+
+      - name: Render TRELLIS GLB from multiple angles
+        if: always()
+        run: |
+          test -f alice-trellis.glb || exit 0
+          cat > render_trellis.py <<'PY'
+          import bpy, os
+          from mathutils import Vector
+
+          bpy.ops.wm.read_factory_settings(use_empty=True)
+          bpy.ops.import_scene.gltf(filepath=os.path.abspath("alice-trellis.glb"))
+          meshes=[o for o in bpy.context.scene.objects if o.type=="MESH"]
+          if not meshes:
+              raise RuntimeError("No mesh imported from TRELLIS GLB")
+
+          mins=Vector((1e9,1e9,1e9)); maxs=Vector((-1e9,-1e9,-1e9))
+          for o in meshes:
+              for c in o.bound_box:
+                  w=o.matrix_world @ Vector(c)
+                  mins.x=min(mins.x,w.x); mins.y=min(mins.y,w.y); mins.z=min(mins.z,w.z)
+                  maxs.x=max(maxs.x,w.x); maxs.y=max(maxs.y,w.y); maxs.z=max(maxs.z,w.z)
+
+          center=(mins+maxs)/2
+          extent=max(maxs-mins)
+          if extent <= 0: extent=1.0
+          for o in meshes:
+              o.location -= center
+              o.scale *= 2.0/extent
+
+          # Groundless studio lighting
+          lights=[
+              ((3,-4,4),1100,4.0),
+              ((-3,-2,2),700,3.0),
+              ((0,3,3),650,3.0),
+          ]
+          for loc,energy,size in lights:
+              bpy.ops.object.light_add(type='AREA', location=loc)
+              bpy.context.object.data.energy=energy
+              bpy.context.object.data.size=size
+
+          bpy.ops.object.camera_add(location=(0,-4.0,0.2))
+          cam=bpy.context.object
+          bpy.context.scene.camera=cam
+          cam.data.lens=58
+
+          def look_at(obj, pt):
+              obj.rotation_euler=(Vector(pt)-obj.location).to_track_quat('-Z','Y').to_euler()
+
+          scene=bpy.context.scene
+          scene.render.engine='BLENDER_EEVEE'
+          scene.render.resolution_x=900
+          scene.render.resolution_y=900
+          scene.render.resolution_percentage=100
+          scene.render.image_settings.file_format='PNG'
+          scene.world.color=(0.025,0.03,0.035)
+
+          views=[
+              ("front",(0,-4.0,0.2)),
+              ("threequarter",(2.7,-3.2,0.2)),
+              ("side",(4.0,0,0.2)),
+              ("back",(0,4.0,0.2)),
+          ]
+          for name,pos in views:
+              cam.location=pos
+              look_at(cam,(0,0,0.15))
+              scene.render.filepath=os.path.abspath(f"trellis-{name}.png")
+              bpy.ops.render.render(write_still=True)
+          PY
+          blender --background --python render_trellis.py
+          ls -lh trellis-front.png trellis-threequarter.png trellis-side.png trellis-back.png
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
