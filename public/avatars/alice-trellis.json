@@ -1,0 +1,24 @@
+{
+  "id": "alice-trellis-20260922",
+  "status": "candidate",
+  "source": {
+    "generator": "trellis-community/TRELLIS",
+    "reference": "canonical-grok-reference",
+    "workflow_run": 35642208693,
+    "artifact_id": 10671300146
+  },
+  "asset": {
+    "path": "/avatars/alice-trellis.glb",
+    "sha256": null
+  },
+  "quality": {
+    "identity": "unknown",
+    "humanTopology": true,
+    "rigged": false,
+    "approved": false
+  },
+  "notes": [
+    "Candidate only. Never becomes the default visual until identity review passes.",
+    "Rigging and expression controls are not yet verified."
+  ]
+}
