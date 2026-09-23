@@ -14,10 +14,15 @@ export function createOperatorEnvelope(input, now = () => new Date().toISOString
   if (!ALLOWED_OPERATIONS.has(input.operation)) throw new Error('operator-operation-not-allowed');
   if (!input.repository || !/^[^/]+\/[^/]+$/.test(input.repository)) throw new Error('operator-repository-invalid');
 
+  const id = input.id || randomUUID();
+  const traceId = input.trace_id || `alice.operator.${id}`;
+  if (typeof traceId !== 'string' || traceId.length === 0) throw new Error('operator-trace-id-invalid');
+
   const payload = redact(input.payload ?? {});
   const canonical = JSON.stringify({ operation: input.operation, repository: input.repository, payload });
   return Object.freeze({
-    id: input.id || randomUUID(),
+    id,
+    trace_id: traceId,
     created_at: now(),
     operation: input.operation,
     repository: input.repository,
@@ -32,6 +37,7 @@ export function operatorAuditEvent(envelope, status, detail = {}) {
   if (!['accepted', 'running', 'succeeded', 'failed'].includes(status)) throw new Error('operator-status-invalid');
   return Object.freeze({
     envelope_id: envelope.id,
+    trace_id: envelope.trace_id || `alice.operator.${envelope.id}`,
     operation: envelope.operation,
     repository: envelope.repository,
     status,
