@@ -1,0 +1,119 @@
+name: ECON Alice Probe
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/econ-alice-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Download canonical Alice reference
+        run: |
+          curl -L --fail --retry 3             -o alice-reference.jpg             "https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg"
+
+      - name: Probe ECON Hugging Face Space
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1280,height:1000},acceptDownloads:true});
+            page.setDefaultTimeout(30000);
+
+            const urls=[
+              'https://yuliang-econ.hf.space/',
+              'https://huggingface.co/spaces/Yuliang/ECON'
+            ];
+            let opened=false;
+            for (const url of urls) {
+              try {
+                await page.goto(url,{waitUntil:'domcontentloaded',timeout:120000});
+                await page.waitForTimeout(12000);
+                const body=(await page.locator('body').innerText()).slice(0,5000);
+                console.log('URL',page.url());
+                console.log('BODY',body);
+                if (/ECON|image|upload|reconstruct/i.test(body)) { opened=true; break; }
+              } catch(e) { console.log('OPEN_ERR',url,String(e)); }
+            }
+            if(!opened) throw new Error('ECON Space did not open');
+
+            await page.screenshot({path:'econ-before.png',fullPage:true});
+
+            const fileInputs=page.locator('input[type=file]');
+            console.log('FILE_INPUTS',await fileInputs.count());
+            if(await fileInputs.count()<1) throw new Error('No ECON upload input');
+
+            await fileInputs.first().setInputFiles('alice-reference.jpg');
+            await page.waitForTimeout(5000);
+            await page.screenshot({path:'econ-loaded.png',fullPage:true});
+
+            const body1=(await page.locator('body').innerText());
+            console.log('AFTER_UPLOAD',body1.slice(-4000));
+
+            const candidates=[
+              /reconstruct/i,
+              /generate/i,
+              /submit/i,
+              /run/i,
+              /process/i
+            ];
+            let clicked=false;
+            for(const re of candidates){
+              const b=page.getByRole('button',{name:re}).first();
+              if(await b.count()){
+                try{ await b.click(); clicked=true; console.log('CLICKED',re.toString()); break; }catch{}
+              }
+            }
+            if(!clicked) throw new Error('No reconstruction button found');
+
+            const deadline=Date.now()+10*60*1000;
+            let seenResult=false;
+            while(Date.now()<deadline){
+              await page.waitForTimeout(10000);
+              const body=await page.locator('body').innerText();
+              console.log('POLL',new Date().toISOString(),body.slice(-2200));
+              await page.screenshot({path:'econ-progress.png',fullPage:true});
+              if(/error|quota exceeded/i.test(body)){
+                if(/quota exceeded/i.test(body)) break;
+              }
+              const models=page.locator('model-viewer, canvas');
+              const links=page.locator('a[download], a[href$=".obj"], a[href$=".ply"], a[href$=".glb"]');
+              if((await models.count())>0 || (await links.count())>0){
+                seenResult=true;
+                break;
+              }
+            }
+
+            await page.screenshot({path:'econ-final.png',fullPage:true});
+
+            const links=page.locator('a[download], a[href$=".obj"], a[href$=".ply"], a[href$=".glb"]');
+            console.log('RESULT_LINKS',await links.count());
+            for(let i=0;i<await links.count();i++){
+              console.log('LINK',i,await links.nth(i).getAttribute('href'));
+            }
+            console.log('SEEN_RESULT',seenResult);
+            await browser.close();
+          })();
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-econ-probe
+          path: econ-*.png
+          if-no-files-found: warn
