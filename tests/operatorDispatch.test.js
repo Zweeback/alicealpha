@@ -12,7 +12,9 @@ describe('operator dispatch boundary', () => {
     }, () => '2026-09-21T16:00:00.000Z');
     const executor = vi.fn(async (job) => ({ branch: job.payload.branch, github_token: 'fake-result-secret' }));
 
-    const result = await dispatchOperatorEnvelope(envelope, executor, {\n      approval: { granted: true, actor: 'human:test' },\n    });
+    const result = await dispatchOperatorEnvelope(envelope, executor, {
+      approval: { granted: true, actor: 'human:test' },
+    });
 
     expect(executor).toHaveBeenCalledOnce();
     expect(executor.mock.calls[0][0].payload.authorization).toBe('[redacted]');
