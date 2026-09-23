@@ -1,6 +1,9 @@
 name: Live Browser WebRTC
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     paths:
       - '.github/workflows/live-browser-webrtc.yml'
