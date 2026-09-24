@@ -12,11 +12,15 @@ describe('operator dispatch boundary', () => {
     }, () => '2026-09-21T16:00:00.000Z');
     const executor = vi.fn(async (job) => ({ branch: job.payload.branch, github_token: 'fake-result-secret' }));
 
-    const result = await dispatchOperatorEnvelope(envelope, executor);
+    const result = await dispatchOperatorEnvelope(envelope, executor, {
+      approval: { granted: true, actor: 'human:test' },
+    });
 
     expect(executor).toHaveBeenCalledOnce();
     expect(executor.mock.calls[0][0].payload.authorization).toBe('[redacted]');
+    expect(executor.mock.calls[0][0].trace_id).toBe('alice.operator.dispatch-proof');
     expect(result.accepted.status).toBe('accepted');
+    expect(result.accepted.trace_id).toBe('alice.operator.dispatch-proof');
     expect(result.completed.status).toBe('succeeded');
     expect(result.completed.detail.result.github_token).toBe('[redacted]');
   });
@@ -57,6 +61,26 @@ describe('operator dispatch boundary', () => {
     expect(executor).not.toHaveBeenCalled();
   });
 
+  it('does not invoke the executor for pr.merge without explicit human approval', async () => {
+    const envelope = createOperatorEnvelope({
+      id: 'approval-gate-proof',
+      operation: 'pr.merge',
+      repository: 'Zweeback/alicealpha',
+      payload: { pull_number: 49 },
+    }, () => '2026-09-22T05:08:00.000Z');
+    const executor = vi.fn();
+
+    await expect(dispatchOperatorEnvelope(envelope, executor, {
+      mergePolicy: {
+        ci: 'success',
+        protected: false,
+        expectedHeadSha: 'abc123',
+        currentHeadSha: 'abc123',
+      },
+    })).rejects.toThrow('operator-approval-required');
+    expect(executor).not.toHaveBeenCalled();
+  });
+
   it('does not invoke the executor for pr.merge without successful CI and a safe merge policy', async () => {
     const envelope = createOperatorEnvelope({
       id: 'unsafe-merge-proof',
@@ -67,12 +91,13 @@ describe('operator dispatch boundary', () => {
     const executor = vi.fn();
 
     await expect(dispatchOperatorEnvelope(envelope, executor, {
+      approval: { granted: true, actor: 'human:test' },
       mergePolicy: { ci: 'success', protected: false },
     })).rejects.toThrow('operator-merge-policy-not-satisfied');
     expect(executor).not.toHaveBeenCalled();
   });
 
-  it('allows pr.merge when successful CI is bound to the current PR head SHA', async () => {
+  it('allows pr.merge when successful CI is bound to the current PR head SHA and a human approved it', async () => {
     const envelope = createOperatorEnvelope({
       id: 'sha-bound-merge-proof',
       operation: 'pr.merge',
@@ -82,6 +107,7 @@ describe('operator dispatch boundary', () => {
     const executor = vi.fn(async () => ({ merged: true }));
 
     const result = await dispatchOperatorEnvelope(envelope, executor, {
+      approval: { granted: true, actor: 'human:test' },
       mergePolicy: {
         ci: 'success',
         protected: false,
@@ -91,6 +117,8 @@ describe('operator dispatch boundary', () => {
     });
 
     expect(executor).toHaveBeenCalledOnce();
+    expect(result.accepted.detail.risk.level).toBe('high');
+    expect(result.accepted.detail.approval.actor).toBe('human:test');
     expect(result.completed.status).toBe('succeeded');
   });
 
@@ -104,6 +132,7 @@ describe('operator dispatch boundary', () => {
     const executor = vi.fn();
 
     await expect(dispatchOperatorEnvelope(envelope, executor, {
+      approval: { granted: true, actor: 'human:test' },
       mergePolicy: {
         ci: 'success',
         protected: false,
