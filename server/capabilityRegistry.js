@@ -134,7 +134,7 @@ export function buildAliceKernelSnapshot(env = process.env, now = () => new Date
   return Object.freeze({
     ok: true,
     identity: 'alice',
-    kernel: '0.4.0',
+    kernel: '0.3.0',
     control_plane: 'v2',
     generated_at: now(),
     revision: revision(env),
