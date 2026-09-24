@@ -13,7 +13,7 @@ function trimMemory(items = []) {
     .filter(Boolean);
 }
 
-export function buildOllamaPrompt({ text, confirmed_memory = [], persona_state = {} }) {
+export function buildOllamaPrompt({ text, confirmed_memory = [], persona_state = {}, companion_state = null }) {
   const memories = trimMemory(confirmed_memory);
   const state = persona_state && typeof persona_state === 'object'
     ? JSON.stringify(persona_state)
@@ -23,6 +23,7 @@ export function buildOllamaPrompt({ text, confirmed_memory = [], persona_state =
     DEFAULT_SYSTEM,
     memories.length ? `Bestätigte Erinnerungen:\n- ${memories.join('\n- ')}` : '',
     `Interner Persona-Zustand: ${state}`,
+    companion_state ? `Lokale Kontinuität: Sitzung ${Number(companion_state.sessionCount || 0)}, bisherige Turns ${Number(companion_state.turnCount || 0)}. Erwähne Abwesenheit nie vorwurfsvoll.` : '',
     `Nutzer: ${String(text || '').trim()}`,
     'Alice:',
   ].filter(Boolean).join('\n\n');
@@ -32,6 +33,7 @@ export async function callOllama({
   text,
   confirmed_memory,
   persona_state,
+  companion_state,
   baseUrl,
   model = 'mistral',
   timeoutMs = 120000,
@@ -46,7 +48,7 @@ export async function callOllama({
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model,
-        prompt: buildOllamaPrompt({ text, confirmed_memory, persona_state }),
+        prompt: buildOllamaPrompt({ text, confirmed_memory, persona_state, companion_state }),
         stream: false,
         options: {
           temperature: 0.72,
