@@ -36,7 +36,7 @@ describe('Alice capability registry', () => {
     const snapshot = buildAliceKernelSnapshot({}, () => '2026-09-25T00:30:00.000Z');
 
     expect(snapshot.identity).toBe('alice');
-    expect(snapshot.kernel).toBe('0.3.0');
+    expect(snapshot.kernel).toBe('0.3.1');
     expect(snapshot.control_plane).toBe('v2');
     expect(snapshot.execution_law).toEqual([
       'observe',
