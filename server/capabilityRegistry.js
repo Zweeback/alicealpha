@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 const CAPABILITY_DEFINITIONS = Object.freeze([
   {
     id: 'persona.core',
@@ -93,6 +95,10 @@ const EXECUTION_LAW = Object.freeze([
   'rollback-or-close',
 ]);
 
+const EXTERNAL_CAPABILITY_BUS = Object.freeze(
+  JSON.parse(readFileSync(new URL('../data/external_capability_bus.json', import.meta.url), 'utf8')),
+);
+
 function revision(env) {
   return env.RENDER_GIT_COMMIT || env.VERCEL_GIT_COMMIT_SHA || env.GITHUB_SHA || null;
 }
@@ -121,12 +127,16 @@ export function buildCapabilityRegistry(env = process.env) {
   });
 }
 
+export function buildExternalCapabilityBus() {
+  return EXTERNAL_CAPABILITY_BUS;
+}
+
 export function buildAliceKernelSnapshot(env = process.env, now = () => new Date().toISOString()) {
   const registry = buildCapabilityRegistry(env);
   return Object.freeze({
     ok: true,
     identity: 'alice',
-    kernel: '0.3.0',
+    kernel: '0.3.1',
     control_plane: 'v2',
     generated_at: now(),
     revision: revision(env),
@@ -137,7 +147,10 @@ export function buildAliceKernelSnapshot(env = process.env, now = () => new Date
       permanent_memory_requires_confirmation: true,
       high_risk_writes_require_human_approval: true,
       executor_results_require_verification: true,
+      skills_are_not_external_authority: true,
+      tool_presence_is_not_connection_proof: true,
     }),
     capability_registry: registry,
+    external_capability_bus: EXTERNAL_CAPABILITY_BUS,
   });
 }
