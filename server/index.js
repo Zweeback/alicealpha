@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
+import { getKernelCapabilities } from './autonomyKernel.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -24,6 +25,10 @@ app.get('/api/health', (_request, response) => {
     ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
     revision: process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || null,
   });
+});
+
+app.get('/api/alice/kernel', (_request, response) => {
+  response.json({ ok: true, ...getKernelCapabilities() });
 });
 
 app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request, response) => {
