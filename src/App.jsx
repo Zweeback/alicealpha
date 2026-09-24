@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatronicBridge } from './core/animatronic.js';
+import { CompanionStore } from './core/companion.js';
 import { MemoryStore } from './core/memory.js';
 import { PersonaRuntime } from './core/runtime.js';
 import { RealtimeChannel } from './core/realtime.js';
@@ -29,6 +30,7 @@ export default function App() {
   const realtimeRef = useRef(null);
   const voiceRef = useRef(null);
   const memoryRef = useRef(null);
+  const companionRef = useRef(null);
   const runtimeRef = useRef(null);
   const hardwareRef = useRef(null);
   const interactRef = useRef(null);
@@ -48,6 +50,8 @@ export default function App() {
   const [localAIStatus, setLocalAIStatus] = useState('idle');
   const [localAIProgress, setLocalAIProgress] = useState(0);
   const [localAISupported, setLocalAISupported] = useState(null);
+  const [companionState, setCompanionState] = useState({ sessionCount: 0, turnCount: 0 });
+  const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -71,6 +75,8 @@ export default function App() {
     setPhase('thinking');
     try {
       const result = await runtimeRef.current.respond(text);
+      setCompanionState(companionRef.current?.snapshot?.() || { sessionCount: 0, turnCount: 0 });
+      setConfirmedMemoryCount(memoryRef.current?.confirmed?.().length || 0);
       setCaption(result.reply);
       setPhase('speaking');
       worldRef.current?.playPlan(result.plan);
@@ -186,7 +192,11 @@ export default function App() {
 
   useEffect(() => {
     const memory = new MemoryStore();
-    const runtime = new PersonaRuntime(memory);
+    const companion = new CompanionStore();
+    const openedCompanionState = companion.openSession();
+    const runtime = new PersonaRuntime(memory, undefined, companion);
+    setCompanionState(openedCompanionState);
+    setConfirmedMemoryCount(memory.confirmed().length);
     setLocalAISupported(runtime.browserAISupported);
     const hardware = new AnimatronicBridge();
     const voice = new VoiceChannel({
@@ -194,6 +204,7 @@ export default function App() {
       onSpeechEnergy: (energy) => worldRef.current?.setSpeechEnergy(energy),
     });
     memoryRef.current = memory;
+    companionRef.current = companion;
     runtimeRef.current = runtime;
     hardwareRef.current = hardware;
     voiceRef.current = voice;
@@ -234,6 +245,10 @@ export default function App() {
       onUserTranscript: (text) => setUserCaption(text),
       onSpeechEnergy: (energy) => world.setSpeechEnergy(energy),
       onTool: async (name, args) => {
+        if (name === 'get_companion_state') {
+          const state = companion.snapshot();
+          return { ok: true, ...state, confirmedMemories: memory.confirmed().length };
+        }
         if (name === 'drive_avatar') {
           world.playCue(args);
           return { ok: true, embodied: true };
@@ -251,6 +266,7 @@ export default function App() {
           const item = args.decision === 'confirm'
             ? memory.confirm(args.candidate_id)
             : memory.reject(args.candidate_id);
+          setConfirmedMemoryCount(memory.confirmed().length);
           return { ok: Boolean(item), status: item?.status };
         }
         return { ok: false, error: 'unknown-tool' };
@@ -354,7 +370,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{live3DVisual ? 'Live Antlitz · 3D' : 'Kanonisches Portrait'} · {sessionMode.toUpperCase()}</small></div>
+          <div><strong>Alice</strong><small>{live3DVisual ? 'Live Antlitz · 3D' : 'Kanonisches Portrait'} · Sitzung {companionState.sessionCount || 1} · {confirmedMemoryCount} Erinnerungen</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
