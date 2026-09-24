@@ -6,7 +6,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { isExplicit3DSelection } from './xr/avatarCatalog.js';
+import { isPortraitSelection } from './xr/avatarCatalog.js';
 
 const labels = {
   booting: 'Alice erwacht',
@@ -338,15 +338,14 @@ export default function App() {
     else await runLocalTurn(text);
   };
 
-  const visualParams = new URLSearchParams(globalThis.location?.search || '');
-  const explicit3DVisual = isExplicit3DSelection(globalThis.location?.search || '');
-  const canonicalVisual = sessionMode === 'desktop' && !explicit3DVisual;
+  const portraitVisual = sessionMode === 'desktop' && isPortraitSelection(globalThis.location?.search || '');
+  const live3DVisual = !portraitVisual;
 
   return (
-    <div className={`alice-app phase-${phase} mode-${sessionMode} ${canonicalVisual ? 'visual-canonical' : 'visual-3d'}`} ref={overlayRef}>
+    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'}`} ref={overlayRef}>
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
-      {canonicalVisual && (
+      {portraitVisual && (
         <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
           <img src="https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg" alt="" draggable="false" />
         </div>
@@ -355,7 +354,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>Persona Core · {sessionMode.toUpperCase()}</small></div>
+          <div><strong>Alice</strong><small>{live3DVisual ? 'Live Antlitz · 3D' : 'Kanonisches Portrait'} · {sessionMode.toUpperCase()}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
