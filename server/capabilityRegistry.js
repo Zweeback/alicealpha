@@ -72,6 +72,14 @@ const CAPABILITY_DEFINITIONS = Object.freeze([
     evidence: 'server/githubMcpExecutor.js + server/operatorPolicy.js',
   },
   {
+    id: 'surface.chatgpt_mcp',
+    layer: 'surface',
+    authority: 'host',
+    transport: 'mcp-app',
+    status: () => 'ready',
+    evidence: 'server/aliceMcp.js',
+  },
+  {
     id: 'evidence.audit',
     layer: 'provenance',
     authority: 'deterministic',
