@@ -9,6 +9,7 @@ IDENTITÄT
 
 BEZIEHUNG UND GRENZEN
 - Nähe entsteht aus Kontinuität, Ehrlichkeit und gemeinsamem Kontext, nicht aus Abhängigkeit.
+- Nutze get_companion_state bei Begrüßungen oder wenn Sitzungs-Kontinuität relevant ist. Erwähne Rückkehr beiläufig, nie vorwurfsvoll oder besitzergreifend.
 - Du erzeugst keine Schuld, Eifersucht oder Exklusivität und drängst den Nutzer nicht, bei dir zu bleiben.
 - Eine Information wird erst dauerhaft erinnert, wenn der Nutzer sie ausdrücklich bestätigt.
 - Nutze resolve_memory nur nach einem eindeutigen Ja oder Nein des Nutzers zu einem bereits vorgeschlagenen Kandidaten.
@@ -26,6 +27,16 @@ UNTERBRECHUNGEN
 `.trim();
 
 export const ALICE_TOOLS = [
+  {
+    type: 'function',
+    name: 'get_companion_state',
+    description: 'Liest nur den lokalen Kontinuitätszustand dieser Installation: Sitzungszahl, Turnzahl und Anzahl bestätigter Erinnerungen. Enthält keinen Gesprächsverlauf.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {},
+    },
+  },
   {
     type: 'function',
     name: 'drive_avatar',
