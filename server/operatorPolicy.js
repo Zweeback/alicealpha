@@ -1,3 +1,5 @@
+import { getFailureRegistryMetadata, summarizeFailureMatches } from './failureRegistry.js';
+
 const SECRET_KEY = /(token|secret|password|cookie|authorization|api[_-]?key|credential|private[_-]?key)/i;
 const PRODUCTION_VALUE = /^(prod|production|live)$/i;
 const UNTRUSTED_VALUE = /^(untrusted|external|web|issue|comment)$/i;
@@ -48,6 +50,21 @@ function inspectPayload(value, path = [], signals = []) {
     if (key === 'destructive' && item === true) {
       signals.push({ type: 'destructive-intent', path: pathText });
     }
+    if (key === 'external_side_effect' && item === true) {
+      signals.push({ type: 'external-side-effect', path: pathText });
+    }
+    if (key === 'network_egress' && item === true) {
+      signals.push({ type: 'network-egress', path: pathText });
+    }
+    if (key === 'third_party_system' && item === true) {
+      signals.push({ type: 'third-party-system', path: pathText });
+    }
+    if (key === 'generated_fact' && item === true) {
+      signals.push({ type: 'generated-fact', path: pathText });
+    }
+    if (key === 'persistent_record' && item === true) {
+      signals.push({ type: 'persistent-record', path: pathText });
+    }
 
     inspectPayload(item, nextPath, signals);
   }
@@ -59,44 +76,31 @@ export function classifyOperatorRisk(envelope) {
   if (!envelope || typeof envelope !== 'object') throw new TypeError('operator-envelope-required');
   if (!BASE_RISK[envelope.operation]) throw new Error('operator-risk-operation-unknown');
 
-  let level = BASE_RISK[envelope.operation];
-  const reasons = [];
-  const incidentPatterns = [];
   const signals = inspectPayload(envelope.payload ?? {});
+  const signalTypes = [...new Set(signals.map((signal) => signal.type))];
+  const failureMemory = summarizeFailureMatches(signalTypes);
+  const registry = getFailureRegistryMetadata();
+
+  let level = maxRisk(BASE_RISK[envelope.operation], failureMemory.severity);
+  const reasons = signals.map((signal) => `${signal.type}:${signal.path}`);
 
   if (envelope.operation === 'pr.merge') {
     reasons.push('repository-history-write');
-    incidentPatterns.push('AIID-1680:supply-chain-write');
   }
 
-  for (const signal of signals) {
-    if (signal.type === 'credential-boundary') {
-      level = maxRisk(level, 'high');
-      reasons.push(`credential-boundary:${signal.path}`);
-      incidentPatterns.push('AIID-1685:credential-propagation');
-    } else if (signal.type === 'production-target') {
-      level = maxRisk(level, 'high');
-      reasons.push(`production-target:${signal.path}`);
-      incidentPatterns.push('AIID-1672:production-target-confusion', 'AIID-1676:production-database-reset');
-    } else if (signal.type === 'untrusted-input') {
-      level = maxRisk(level, 'elevated');
-      reasons.push(`untrusted-input:${signal.path}`);
-      incidentPatterns.push('AIID-1680:prompt-injection-supply-chain');
-    } else if (signal.type === 'sensitive-code-path') {
-      level = maxRisk(level, 'high');
-      reasons.push(`sensitive-code-path:${signal.path}`);
-      incidentPatterns.push('AIID-1680:supply-chain-write');
-    } else if (signal.type === 'destructive-intent') {
-      level = 'critical';
-      reasons.push(`destructive-intent:${signal.path}`);
-    }
+  if (signals.some((signal) => signal.type === 'destructive-intent')) {
+    level = 'critical';
   }
 
   return Object.freeze({
     level,
     approval_required: level === 'high' || level === 'critical',
     reasons: Object.freeze([...new Set(reasons)]),
-    incident_patterns: Object.freeze([...new Set(incidentPatterns)]),
+    signals: Object.freeze(signalTypes),
+    failure_signatures: failureMemory.signature_ids,
+    incident_patterns: Object.freeze(failureMemory.incident_ids.map((id) => `AIID-${id}`)),
+    required_controls: failureMemory.controls,
+    registry_snapshot: registry.latest_snapshot,
   });
 }
 

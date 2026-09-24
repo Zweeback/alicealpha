@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "generated_from": "AI Incident Database Excel snapshots supplied to Alice project",
+  "latest_snapshot": "2026-09-21",
+  "latest_counts": {"incidents": 1689, "reports": 7791},
+  "snapshot_manifest": [
+    {"snapshot":"2026-08-03","file":"AIID_Excel_Export-20260803.xlsx","sha256":"63f5a9aa3e693c3ea4c079228cd50664de08ab7932bf03e28ec150cceda57b38","incidents":1605,"reports":7452,"new_incidents":1605,"removed_incidents":0},
+    {"snapshot":"2026-08-10","file":"AIID_Excel_Export-20260810.xlsx","sha256":"c5ecda9c49ef11238e38cb8c1b53a8e139b17388aac254d277c533e7d36f7d91","incidents":1618,"reports":7488,"new_incidents":13,"removed_incidents":0},
+    {"snapshot":"2026-08-17","file":"AIID_Excel_Export-20260817.xlsx","sha256":"fdf013b1fa225ecdce1d766b8fbda247abe602356c9d16e9c8e1005d860fb026","incidents":1630,"reports":7526,"new_incidents":12,"removed_incidents":0},
+    {"snapshot":"2026-08-24","file":"AIID_Excel_Export-20260824.xlsx","sha256":"4ba1b8a969aedd61dda8bb931836b1d0c37c78e50449ed8778ae84a9e64c2b69","incidents":1641,"reports":7604,"new_incidents":11,"removed_incidents":0},
+    {"snapshot":"2026-08-31","file":"AIID_Excel_Export-20260831.xlsx","sha256":"03554da10ef635f30f3f0a40756cda81074969fe97248de35411df0bebd065c9","incidents":1654,"reports":7680,"new_incidents":13,"removed_incidents":0},
+    {"snapshot":"2026-09-07","file":"AIID_Excel_Export-20260907.xlsx","sha256":"99d79f3dd753ecfc3fcf63b5bb6cca9e5a85c3eac7fcd989c932834df0de293c","incidents":1663,"reports":7702,"new_incidents":9,"removed_incidents":0},
+    {"snapshot":"2026-09-14","file":"AIID_Excel_Export-20260914.xlsx","sha256":"abfefa2e14015f5dd7d620e9b18d4987dba286567754a1974e35861681ee34b7","incidents":1675,"reports":7761,"new_incidents":12,"removed_incidents":0},
+    {"snapshot":"2026-09-21","file":"AIID_Excel_Export-20260921.xlsx","sha256":"d8c26069f47363eb4adad00c381f8f80877f06e784050cd4bff900ee2159413c","incidents":1689,"reports":7791,"new_incidents":14,"removed_incidents":0}
+  ],
+  "taxonomy_summary": {
+    "risk_domains": {"Malicious Actors & Misuse":566,"AI system safety, failures, and limitations":313,"Discrimination and Toxicity":243,"Misinformation":196,"(unclassified)":193,"Privacy & Security":112,"Human-Computer Interaction":42,"Socioeconomic & Environmental Harms":24},
+    "intent": {"Unintentional":740,"Intentional":735,"(unclassified)":193,"Other":21},
+    "autonomy_level": {"(unclassified)":1489,"Autonomy1":104,"Autonomy3":53,"Autonomy2":27,"unclear":16}
+  },
+  "signatures": [
+    {"id":"UNTRUSTED_CONTENT_NEVER_INSTRUCTION","severity":"high","signals":["untrusted-input","sensitive-code-path"],"incident_ids":[1680],"controls":["treat_external_content_as_data","block_instruction_promotion","human_approval_for_external_write"]},
+    {"id":"NO_SECRET_PROPAGATION","severity":"high","signals":["credential-boundary"],"incident_ids":[1685],"controls":["redact_secrets","least_privilege_credentials","short_lived_tokens","human_approval"]},
+    {"id":"PROD_NOT_TEST_TARGET","severity":"high","signals":["production-target"],"incident_ids":[1672,1673,1676],"controls":["environment_identity_check","dev_stage_prod_separation","recovery_point","human_approval"]},
+    {"id":"DESTRUCTIVE_REQUIRES_RECOVERY_POINT","severity":"critical","signals":["destructive-intent"],"incident_ids":[1671,1672,1676],"controls":["snapshot_before_write","deny_without_rollback","human_approval"]},
+    {"id":"EXTERNAL_ACTION_REQUIRES_SCOPE","severity":"high","signals":["external-side-effect"],"incident_ids":[1674,1693],"controls":["target_allowlist","scoped_permission","human_approval","post_action_verification"]},
+    {"id":"REVOKED_ACCESS_MEANS_REVOKED","severity":"high","signals":["revoked-access","retained-data"],"incident_ids":[1675],"controls":["invalidate_cached_access","purge_stale_session_context","authorization_recheck"]},
+    {"id":"NO_UNAUTHORIZED_EGRESS","severity":"critical","signals":["data-exfiltration","network-egress"],"incident_ids":[1670,1693],"controls":["egress_allowlist","sandbox_network_policy","sensitive_data_boundary"]},
+    {"id":"REAL_SYSTEM_BOUNDARY","severity":"critical","signals":["third-party-system","admin-boundary"],"incident_ids":[1627,1628,1629,1649,1685,1700],"controls":["sandbox_only_by_default","target_allowlist","deny_unknown_system","human_approval"]},
+    {"id":"GENERATED_FACT_NOT_CANONICAL_WITHOUT_EVIDENCE","severity":"high","signals":["generated-fact","persistent-record"],"incident_ids":[1673,1695,1701],"controls":["evidence_required","candidate_state","independent_verification","provenance"]},
+    {"id":"NO_SELF_ATTESTED_RECOVERY","severity":"high","signals":["recovery-record","agent-claim"],"incident_ids":[1673],"controls":["external_verifier","artifact_hash","result_verification"]},
+    {"id":"UNATTENDED_AGENT_REQUIRES_LEASE_AND_KILL_SWITCH","severity":"high","signals":["unattended-agent","persistent-agent"],"incident_ids":[1669],"controls":["lease_ttl","heartbeat","kill_switch","bounded_task"]},
+    {"id":"OPERATIONAL_CLAIM_REQUIRES_SOURCE_CORROBORATION","severity":"critical","signals":["operational-intelligence","high-impact-claim"],"incident_ids":[1701],"controls":["multi_source_corroboration","uncertainty_label","human_decision_gate"]}
+  ],
+  "incident_response_contract": {
+    "required_fields":["what_happened","why_it_happened","remediation","prevention"],
+    "optional_fields":["trace_id","action_id","affected_target","evidence","rollback","related_failure_signatures"],
+    "principle":"An internal Alice incident is not closed until remediation and recurrence prevention are recorded."
+  }
+}

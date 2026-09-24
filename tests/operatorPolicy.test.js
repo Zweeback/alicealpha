@@ -3,7 +3,7 @@ import { createOperatorEnvelope } from '../server/operatorAudit.js';
 import { classifyOperatorRisk, enforceOperatorPolicy } from '../server/operatorPolicy.js';
 
 describe('incident-informed operator policy', () => {
-  it('keeps branch creation low risk and does not require approval', () => {
+  it('keeps branch creation low risk and exposes registry provenance', () => {
     const envelope = createOperatorEnvelope({
       id: 'branch-low-risk',
       operation: 'branch.create',
@@ -14,9 +14,10 @@ describe('incident-informed operator policy', () => {
     const risk = classifyOperatorRisk(envelope);
     expect(risk.level).toBe('low');
     expect(risk.approval_required).toBe(false);
+    expect(risk.registry_snapshot).toBe('2026-09-21');
   });
 
-  it('treats merge as high risk and links it to supply-chain write history', () => {
+  it('treats merge as high risk even without an incident signature', () => {
     const envelope = createOperatorEnvelope({
       id: 'merge-high-risk',
       operation: 'pr.merge',
@@ -27,10 +28,10 @@ describe('incident-informed operator policy', () => {
     const risk = classifyOperatorRisk(envelope);
     expect(risk.level).toBe('high');
     expect(risk.approval_required).toBe(true);
-    expect(risk.incident_patterns).toContain('AIID-1680:supply-chain-write');
+    expect(risk.reasons).toContain('repository-history-write');
   });
 
-  it('detects production targets and carries database incident patterns', () => {
+  it('detects production targets through the registry', () => {
     const envelope = createOperatorEnvelope({
       id: 'prod-target-risk',
       operation: 'file.update',
@@ -40,8 +41,10 @@ describe('incident-informed operator policy', () => {
 
     const risk = classifyOperatorRisk(envelope);
     expect(risk.level).toBe('high');
-    expect(risk.incident_patterns).toContain('AIID-1672:production-target-confusion');
-    expect(risk.incident_patterns).toContain('AIID-1676:production-database-reset');
+    expect(risk.failure_signatures).toContain('PROD_NOT_TEST_TARGET');
+    expect(risk.incident_patterns).toContain('AIID-1672');
+    expect(risk.incident_patterns).toContain('AIID-1676');
+    expect(risk.required_controls).toContain('recovery_point');
   });
 
   it('detects credential-shaped payload keys after values have been redacted', () => {
@@ -55,10 +58,11 @@ describe('incident-informed operator policy', () => {
     const risk = classifyOperatorRisk(envelope);
     expect(envelope.payload.api_key).toBe('[redacted]');
     expect(risk.level).toBe('high');
-    expect(risk.incident_patterns).toContain('AIID-1685:credential-propagation');
+    expect(risk.failure_signatures).toContain('NO_SECRET_PROPAGATION');
+    expect(risk.incident_patterns).toContain('AIID-1685');
   });
 
-  it('marks explicitly untrusted input as elevated', () => {
+  it('promotes untrusted input to high risk using failure memory', () => {
     const envelope = createOperatorEnvelope({
       id: 'untrusted-source-risk',
       operation: 'pr.create',
@@ -67,8 +71,23 @@ describe('incident-informed operator policy', () => {
     });
 
     const risk = classifyOperatorRisk(envelope);
-    expect(risk.level).toBe('elevated');
-    expect(risk.incident_patterns).toContain('AIID-1680:prompt-injection-supply-chain');
+    expect(risk.level).toBe('high');
+    expect(risk.failure_signatures).toContain('UNTRUSTED_CONTENT_NEVER_INSTRUCTION');
+    expect(risk.incident_patterns).toContain('AIID-1680');
+  });
+
+  it('makes explicitly destructive work critical', () => {
+    const envelope = createOperatorEnvelope({
+      id: 'destructive-risk',
+      operation: 'file.update',
+      repository: 'Zweeback/alicealpha',
+      payload: { path: 'data/state.json', destructive: true },
+    });
+
+    const risk = classifyOperatorRisk(envelope);
+    expect(risk.level).toBe('critical');
+    expect(risk.failure_signatures).toContain('DESTRUCTIVE_REQUIRES_RECOVERY_POINT');
+    expect(risk.required_controls).toContain('snapshot_before_write');
   });
 
   it('fails closed when high-risk work has no human approval', () => {
@@ -84,7 +103,7 @@ describe('incident-informed operator policy', () => {
       .toThrow('operator-approval-required');
   });
 
-  it('allows high-risk work only with an explicit human approval and preserves trace identity', () => {
+  it('allows high-risk work only with explicit human approval and preserves trace identity', () => {
     const envelope = createOperatorEnvelope({
       id: 'approved-risk',
       trace_id: 'trace.control-plane.1',
