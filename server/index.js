@@ -1,6 +1,7 @@
 import express from 'express';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
 
@@ -16,14 +17,24 @@ const dist = resolve('dist');
 
 app.disable('x-powered-by');
 app.get('/api/health', (_request, response) => {
+  const kernel = buildAliceKernelSnapshot(process.env);
   response.json({
     ok: true,
+    identity: kernel.identity,
+    kernel: kernel.kernel,
+    controlPlane: kernel.control_plane,
+    capabilities: kernel.capability_registry.summary,
     realtime: Boolean(process.env.OPENAI_API_KEY),
     model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
     ollama: Boolean(process.env.ALICE_OLLAMA_URL),
     ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
-    revision: process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || null,
+    revision: kernel.revision,
   });
+});
+
+app.get('/api/alice', (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  response.json(buildAliceKernelSnapshot(process.env));
 });
 
 app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request, response) => {
