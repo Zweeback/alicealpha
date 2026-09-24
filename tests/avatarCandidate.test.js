@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateAvatarManifest } from '../src/xr/avatarQuality.js';
-import { isExplicit3DSelection, resolveAvatarSelection } from '../src/xr/avatarCatalog.js';
+import { isExplicit3DSelection, isPortraitSelection, resolveAvatarSelection } from '../src/xr/avatarCatalog.js';
 
 describe('avatar candidate lab', () => {
-  it('resolves TRELLIS only when explicitly requested', () => {
+  it('boots into the live TRELLIS avatar unless portrait fallback is explicitly requested', () => {
     expect(resolveAvatarSelection('?avatar=trellis').id).toBe('trellis');
-    expect(resolveAvatarSelection('').id).toBe('procedural');
-    expect(isExplicit3DSelection('?avatar=trellis')).toBe(true);
+    expect(resolveAvatarSelection('').id).toBe('trellis');
+    expect(isExplicit3DSelection('')).toBe(true);
+    expect(isPortraitSelection('')).toBe(false);
+    expect(isExplicit3DSelection('?visual=portrait')).toBe(false);
+    expect(isPortraitSelection('?visual=portrait')).toBe(true);
   });
 
   it('keeps unapproved candidates out of approval state', () => {
