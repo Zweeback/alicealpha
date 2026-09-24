@@ -481,21 +481,22 @@ export class AliceWorld {
     const height = this.canvas.clientHeight || globalThis.innerHeight || 1;
     const size = this.desktopBounds ? this.desktopBounds.getSize(new THREE.Vector3()) : new THREE.Vector3(1.5, 1.8, 1);
     const center = this.desktopBounds ? this.desktopBounds.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0.9, 0);
+    const desktopPortrait = this.mode === 'desktop';
     const frame = calculatePerspectiveFrame({
       viewportWidth: width,
       viewportHeight: height,
       verticalFovDegrees: this.camera.fov,
       boundsWidth: size.x,
-      boundsHeight: size.y,
+      boundsHeight: desktopPortrait ? size.y * 0.72 : size.y,
       boundsDepth: size.z,
-      padding: 1.2,
-      minimumDistance: 3.35,
+      padding: desktopPortrait ? 1.04 : 1.2,
+      minimumDistance: desktopPortrait ? 2.15 : 3.35,
     });
 
     this.camera.aspect = frame.aspect;
     this.camera.updateProjectionMatrix();
     if (this.mode === 'desktop') {
-      const targetY = center.y + size.y * 0.035;
+      const targetY = center.y + size.y * 0.2;
       this.camera.position.set(center.x, targetY, center.z + frame.distance);
       this.camera.lookAt(center.x, targetY, center.z);
     }
