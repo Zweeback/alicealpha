@@ -1,0 +1,265 @@
+{
+  "schema": "alice.external-capability-bus.v1",
+  "generated_from": "user-declared @ capability list",
+  "semantics": {
+    "skill": "workflow/reasoning protocol available to Alice",
+    "tool": "runtime tool namespace available to this orchestration surface",
+    "unresolved": "name retained but not asserted as executable until resolved"
+  },
+  "entries": [
+    {
+      "name": "Product Design",
+      "kind": "skill",
+      "route": "skills://plugins/product-design"
+    },
+    {
+      "name": "Data Analytics",
+      "kind": "skill",
+      "route": "skills://plugins/data-analytics"
+    },
+    {
+      "name": "Sales",
+      "kind": "skill",
+      "route": "skills://plugins/sales"
+    },
+    {
+      "name": "Public Equity Investing",
+      "kind": "skill",
+      "route": "skills://plugins/public-equity-investing"
+    },
+    {
+      "name": "Investment Banking",
+      "kind": "skill",
+      "route": "skills://plugins/investment-banking"
+    },
+    {
+      "name": "Slack",
+      "kind": "tool",
+      "route": "Slack"
+    },
+    {
+      "name": "Game Studio",
+      "kind": "skill",
+      "route": "skills://plugins/game-studio"
+    },
+    {
+      "name": "Unity Essentials",
+      "kind": "skill",
+      "route": "skills://plugins/unity-workbench",
+      "alias_resolution": "Unity Essentials -> unity-workbench"
+    },
+    {
+      "name": "Vercel",
+      "kind": "tool",
+      "route": "Vercel"
+    },
+    {
+      "name": "Stripe",
+      "kind": "tool",
+      "route": "Stripe"
+    },
+    {
+      "name": "TalkGen",
+      "kind": "tool",
+      "route": "TalkGen"
+    },
+    {
+      "name": "SharePoint",
+      "kind": "tool",
+      "route": "Microsoft_SharePoint"
+    },
+    {
+      "name": "Supabase",
+      "kind": "tool",
+      "route": "Supabase"
+    },
+    {
+      "name": "Replit",
+      "kind": "tool",
+      "route": "Replit"
+    },
+    {
+      "name": "Shopify",
+      "kind": "tool",
+      "route": "Shopify"
+    },
+    {
+      "name": "Quicknode",
+      "kind": "tool",
+      "route": "Quicknode"
+    },
+    {
+      "name": "Temporal",
+      "kind": "skill",
+      "route": "skills://plugins/temporal"
+    },
+    {
+      "name": "Notion",
+      "kind": "tool",
+      "route": "Notion"
+    },
+    {
+      "name": "monday.com",
+      "kind": "tool",
+      "route": "monday_com"
+    },
+    {
+      "name": "Semrush",
+      "kind": "tool",
+      "route": "Semrush"
+    },
+    {
+      "name": "TwinMind",
+      "kind": "tool",
+      "route": "TwinMind"
+    },
+    {
+      "name": "vidIQ",
+      "kind": "tool",
+      "route": "vidIQ"
+    },
+    {
+      "name": "Linear",
+      "kind": "tool",
+      "route": "Linear"
+    },
+    {
+      "name": "Jotform",
+      "kind": "tool",
+      "route": "Jotform"
+    },
+    {
+      "name": "Mermaid Chart",
+      "kind": "tool",
+      "route": "Mermaid_Chart"
+    },
+    {
+      "name": "PageShare",
+      "kind": "tool",
+      "route": "PageShare"
+    },
+    {
+      "name": "Parallel Search",
+      "kind": "tool",
+      "route": "Parallel_Search"
+    },
+    {
+      "name": "Mem",
+      "kind": "tool",
+      "route": "Mem"
+    },
+    {
+      "name": "WPWriter",
+      "kind": "tool",
+      "route": "WPWriter"
+    },
+    {
+      "name": "Kleinanzeigen",
+      "kind": "tool",
+      "route": "Kleinanzeigen"
+    },
+    {
+      "name": "Mintlify MCP",
+      "kind": "tool",
+      "route": "Mintlify_MCP"
+    },
+    {
+      "name": "Macaly Cloud",
+      "kind": "tool",
+      "route": "Macaly_Cloud"
+    },
+    {
+      "name": "Midify",
+      "kind": "tool",
+      "route": "Midify"
+    },
+    {
+      "name": "Minty",
+      "kind": "tool",
+      "route": "Minty"
+    },
+    {
+      "name": "Apollo.io",
+      "kind": "tool",
+      "route": "Apollo_io"
+    },
+    {
+      "name": "Voice Notify for Codex",
+      "kind": "skill",
+      "route": "skills://plugins/codex-voice-notify"
+    },
+    {
+      "name": "TheFork",
+      "kind": "tool",
+      "route": "TheFork"
+    },
+    {
+      "name": "Gophers",
+      "kind": "skill",
+      "route": "skills://plugins/gophers"
+    },
+    {
+      "name": "Codex Engineering Guardrails",
+      "kind": "skill",
+      "route": "skills://plugins/codex-engineering-guardrails"
+    },
+    {
+      "name": "Open Design",
+      "kind": "skill",
+      "route": "skills://plugins/open-design"
+    },
+    {
+      "name": "Tailscale",
+      "kind": "skill",
+      "route": "skills://plugins/tailscale"
+    },
+    {
+      "name": "trigger-tree",
+      "kind": "skill",
+      "route": "skills://plugins/trigger-tree"
+    },
+    {
+      "name": "Descript",
+      "kind": "tool",
+      "route": "Descript"
+    },
+    {
+      "name": "FlightDeck",
+      "kind": "skill",
+      "route": "skills://plugins/flightdeck-review",
+      "alias_resolution": "FlightDeck -> flightdeck-review"
+    },
+    {
+      "name": "Keystone",
+      "kind": "skill",
+      "route": "skills://plugins/keystone"
+    },
+    {
+      "name": "Netlify",
+      "kind": "tool",
+      "route": "Netlify"
+    },
+    {
+      "name": "Namecheap",
+      "kind": "tool",
+      "route": "Namecheap"
+    },
+    {
+      "name": "NaCl",
+      "kind": "skill",
+      "route": "skills://plugins/nacl"
+    },
+    {
+      "name": "Fallow Code Analysis",
+      "kind": "skill",
+      "route": "skills://plugins/fallow",
+      "alias_resolution": "Fallow Code Analysis -> fallow"
+    }
+  ],
+  "summary": {
+    "total": 49,
+    "skill": 18,
+    "tool": 31,
+    "unresolved": 0
+  }
+}

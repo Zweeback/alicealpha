@@ -24,6 +24,7 @@ app.get('/api/health', (_request, response) => {
     kernel: kernel.kernel,
     controlPlane: kernel.control_plane,
     capabilities: kernel.capability_registry.summary,
+    externalCapabilities: kernel.external_capability_bus.summary,
     realtime: Boolean(process.env.OPENAI_API_KEY),
     model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
     ollama: Boolean(process.env.ALICE_OLLAMA_URL),
