@@ -1,6 +1,7 @@
 import express from 'express';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { handleAliceMcpHttp } from './aliceMcp.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
@@ -16,6 +17,31 @@ const port = Number(process.env.PORT || 8787);
 const dist = resolve('dist');
 
 app.disable('x-powered-by');
+
+app.options('/mcp', (_request, response) => {
+  response.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'content-type, mcp-protocol-version',
+  });
+  response.status(204).end();
+});
+
+app.post('/mcp', express.json({ limit: '1mb' }), handleAliceMcpHttp);
+
+app.get('/mcp', (_request, response) => {
+  response.set({
+    'Access-Control-Allow-Origin': '*',
+    Allow: 'POST, OPTIONS',
+    'Cache-Control': 'no-store',
+  });
+  response.status(405).json({
+    jsonrpc: '2.0',
+    error: { code: -32600, message: 'Use POST for stateless MCP requests.' },
+    id: null,
+  });
+});
+
 app.get('/api/health', (_request, response) => {
   const kernel = buildAliceKernelSnapshot(process.env);
   response.json({
@@ -24,6 +50,8 @@ app.get('/api/health', (_request, response) => {
     kernel: kernel.kernel,
     controlPlane: kernel.control_plane,
     capabilities: kernel.capability_registry.summary,
+    mcp: true,
+    mcpEndpoint: '/mcp',
     realtime: Boolean(process.env.OPENAI_API_KEY),
     model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
     ollama: Boolean(process.env.ALICE_OLLAMA_URL),
@@ -107,4 +135,5 @@ app.get('/{*path}', (_request, response) => response.sendFile(resolve(dist, 'ind
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Alice listening on http://0.0.0.0:${port}`);
+  console.log(`Alice MCP available on http://0.0.0.0:${port}/mcp`);
 });
