@@ -45,7 +45,7 @@ export class BrowserModelRuntime {
     }
   }
 
-  async reply(text, { memory = [], state = {} } = {}) {
+  async reply(text, { memory = [], state = {}, companion = null } = {}) {
     if (!this.engine) throw new Error('browser-model-not-loaded');
 
     const memoryBlock = compactMemory(memory);
@@ -60,6 +60,7 @@ export class BrowserModelRuntime {
             'Persistente Erinnerungen dürfen nicht eigenmächtig geschrieben werden.',
             memoryBlock ? `Bestätigte Erinnerungen:\n${memoryBlock}` : '',
             `Aktueller Stilzustand: Wärme ${Number(state.warmth || 0.6).toFixed(2)}, Neugier ${Number(state.curiosity || 0.5).toFixed(2)}.`,
+            companion ? `Kontinuität auf diesem Gerät: Sitzung ${Number(companion.sessionCount || 0)}, bisherige Turns ${Number(companion.turnCount || 0)}. Nutze das beiläufig und niemals schuld- oder druckerzeugend.` : '',
           ].filter(Boolean).join('\n'),
         },
         { role: 'user', content: String(text) },

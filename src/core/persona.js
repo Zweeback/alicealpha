@@ -16,15 +16,16 @@ function deterministicPick(options, seed) {
 }
 
 export class AlicePersona {
-  constructor(memory) {
+  constructor(memory, companion = null) {
     this.memory = memory;
+    this.companion = companion;
     this.pendingMemoryId = memory.candidates().at(-1)?.id || null;
     this.state = {
       warmth: 0.62,
       curiosity: 0.54,
       concern: 0.08,
       playfulness: 0.16,
-      familiarity: Math.min(0.85, 0.2 + memory.confirmed().length * 0.03),
+      familiarity: Math.min(0.9, 0.2 + memory.confirmed().length * 0.03 + Math.min(0.18, (companion?.snapshot?.().sessionCount || 0) * 0.01)),
       turn: 0,
     };
   }
@@ -74,8 +75,10 @@ export class AlicePersona {
 
     if (greeting.test(text)) {
       const known = this.memory.recent(1)[0];
-      const suffix = known ? ` Ich erinnere mich noch: ${known.value}.` : '';
-      return this.#result(`Hey Ben. Ich bin da – aufmerksam, nicht als Schleife.${suffix}`, 'greeting');
+      const continuity = this.companion?.snapshot?.();
+      const returnLine = continuity?.sessionCount > 1 ? ` Das ist unsere ${continuity.sessionCount}. Sitzung auf diesem Gerät.` : '';
+      const suffix = known ? ` Ich erinnere mich noch an eine bestätigte Sache: ${known.value}.` : '';
+      return this.#result(`Hey Ben. Ich bin da.${returnLine}${suffix}`, 'greeting');
     }
 
     if (positive.test(text)) {

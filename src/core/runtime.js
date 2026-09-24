@@ -3,8 +3,9 @@ import { AlicePersona } from './persona.js';
 import { BrowserModelRuntime, browserAIAvailable } from './browserModel.js';
 
 export class PersonaRuntime {
-  constructor(memory, endpoint = globalThis.__ALICE_BACKEND__ || null) {
-    this.local = new AlicePersona(memory);
+  constructor(memory, endpoint = globalThis.__ALICE_BACKEND__ || null, companion = null) {
+    this.companion = companion;
+    this.local = new AlicePersona(memory, companion);
     this.endpoint = endpoint;
     this.browserModel = new BrowserModelRuntime();
   }
@@ -23,6 +24,8 @@ export class PersonaRuntime {
   }
 
   async respond(text, signal) {
+    this.companion?.recordTurn?.();
+    const companionState = this.companion?.snapshot?.() || null;
     if (this.endpoint) {
       try {
         const response = await fetch(this.endpoint, {
@@ -32,6 +35,7 @@ export class PersonaRuntime {
             text,
             confirmed_memory: this.local.memory.recent(8),
             persona_state: this.local.state,
+            companion_state: companionState,
           }),
           signal,
         });
@@ -67,6 +71,7 @@ export class PersonaRuntime {
         const reply = await this.browserModel.reply(text, {
           memory: this.local.memory.recent(8),
           state: localFrame.state,
+          companion: companionState,
         });
         return {
           ...localFrame,
