@@ -72,6 +72,14 @@ const CAPABILITY_DEFINITIONS = Object.freeze([
     evidence: 'server/githubMcpExecutor.js + server/operatorPolicy.js',
   },
   {
+    id: 'surface.chatgpt_mcp',
+    layer: 'surface',
+    authority: 'host',
+    transport: 'mcp-app',
+    status: () => 'ready',
+    evidence: 'server/aliceMcp.js',
+  },
+  {
     id: 'evidence.audit',
     layer: 'provenance',
     authority: 'deterministic',
@@ -126,7 +134,7 @@ export function buildAliceKernelSnapshot(env = process.env, now = () => new Date
   return Object.freeze({
     ok: true,
     identity: 'alice',
-    kernel: '0.3.0',
+    kernel: '0.4.0',
     control_plane: 'v2',
     generated_at: now(),
     revision: revision(env),
