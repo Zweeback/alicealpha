@@ -37,11 +37,15 @@ export const AVATAR_CATALOG = Object.freeze({
 
 export function resolveAvatarSelection(search = '') {
   const params = new URLSearchParams(search);
-  const requested = params.get('avatar') || 'procedural';
+  const requested = params.get('avatar') || 'trellis';
   return AVATAR_CATALOG[requested] || AVATAR_CATALOG.procedural;
 }
 
 export function isExplicit3DSelection(search = '') {
   const params = new URLSearchParams(search);
-  return Boolean(AVATAR_CATALOG[params.get('avatar')]) || params.get('visual') === 'procedural';
+  return params.get('visual') !== 'portrait';
+}
+
+export function isPortraitSelection(search = '') {
+  return new URLSearchParams(search).get('visual') === 'portrait';
 }
