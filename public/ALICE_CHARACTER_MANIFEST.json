@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "0.1.0",
+  "characterId": "alice",
+  "identityRevision": "alice-v0.3-pending",
+  "sourceReferenceSetRevision": "towel-alice-reference-pending",
+  "canonicalAssetStatus": "pending",
+  "approvedAsset": null,
+  "candidateAssets": [
+    {
+      "path": "/alice.glb",
+      "kind": "glb",
+      "status": "candidate",
+      "provenance": "existing runtime candidate; not canonical until gate approval",
+      "sha256": null
+    },
+    {
+      "path": "/alice.vrm",
+      "kind": "vrm",
+      "status": "optional_candidate",
+      "provenance": "loader-supported fallback slot",
+      "sha256": null
+    }
+  ],
+  "requiredHumanoidBones": [
+    "hips",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "leftUpperArm",
+    "leftLowerArm",
+    "leftHand",
+    "rightUpperArm",
+    "rightLowerArm",
+    "rightHand",
+    "leftUpperLeg",
+    "leftLowerLeg",
+    "leftFoot",
+    "rightUpperLeg",
+    "rightLowerLeg",
+    "rightFoot"
+  ],
+  "requiredFacialExpressions": [
+    "blink",
+    "blinkLeft",
+    "blinkRight",
+    "jawOpen",
+    "smile"
+  ],
+  "requiredVisemes": ["A", "I", "U", "E", "O"],
+  "bounds": {
+    "heightMeters": { "min": 1.35, "max": 2.05 },
+    "originCentered": true,
+    "forwardAxis": "-Z"
+  },
+  "fallbackPolicy": {
+    "mode": "fail_closed_to_procedural",
+    "proceduralFallbackRequired": true,
+    "defaultMayUseCandidateWithoutApproval": false
+  },
+  "promotionGate": {
+    "requiresVisualPassComment": true,
+    "requiresRuntimeDiagnostics": true,
+    "requiresManifestValidation": true,
+    "requiresExplicitVersionBump": true
+  },
+  "approval": {
+    "status": "pending",
+    "approvedAt": null,
+    "approvedBy": null,
+    "approvedChecksum": null
+  },
+  "notes": [
+    "Generated derivatives must not silently replace source references.",
+    "A candidate asset is never canonical until this manifest is promoted deliberately.",
+    "Runtime fallback remains observable and mandatory."
+  ]
+}
