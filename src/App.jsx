@@ -44,6 +44,7 @@ export default function App() {
   const [sessionMode, setSessionMode] = useState('desktop');
   const [xrSupport, setXrSupport] = useState({ ar: false, vr: false });
   const [realtimeAvailable, setRealtimeAvailable] = useState(false);
+  const [renderFallback, setRenderFallback] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
   const [hintVisible, setHintVisible] = useState(true);
@@ -209,15 +210,34 @@ export default function App() {
     hardwareRef.current = hardware;
     voiceRef.current = voice;
 
-    const world = new AliceWorld(canvasRef.current, {
-
-      overlayRoot: overlayRef.current,
-      onInteract: () => interactRef.current?.(),
-      onSessionChange: setMode,
-    });
+    let world;
+    try {
+      world = new AliceWorld(canvasRef.current, {
+        overlayRoot: overlayRef.current,
+        onInteract: () => interactRef.current?.(),
+        onSessionChange: setMode,
+      });
+      world.init().catch((error) => {
+        console.warn('Alice 3D initialization failed; using portrait fallback:', error);
+        setRenderFallback(true);
+      });
+      world.support().then(setXrSupport).catch(() => undefined);
+    } catch (error) {
+      console.warn('WebGL unavailable; using Alice portrait/text fallback:', error);
+      setRenderFallback(true);
+      setXrSupport({ ar: false, vr: false });
+      world = {
+        setPresence() {},
+        stopPlan() {},
+        setSpeechEnergy() {},
+        playPlan() {},
+        playCue() {},
+        dispose() {},
+        async support() { return { ar: false, vr: false }; },
+        async startXR() { throw new Error('webgl-unavailable'); },
+      };
+    }
     worldRef.current = world;
-    world.init().catch(console.error);
-    world.support().then(setXrSupport).catch(() => undefined);
 
     const camera = new CameraPresence({
       onPresence: (presence) => {
@@ -354,7 +374,7 @@ export default function App() {
     else await runLocalTurn(text);
   };
 
-  const portraitVisual = sessionMode === 'desktop' && isPortraitSelection(globalThis.location?.search || '');
+  const portraitVisual = sessionMode === 'desktop' && (renderFallback || isPortraitSelection(globalThis.location?.search || ''));
   const live3DVisual = !portraitVisual;
 
   return (
@@ -363,7 +383,15 @@ export default function App() {
 
       {portraitVisual && (
         <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
-          <img src="https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg" alt="" draggable="false" />
+          <img
+            src="/alice-canonical.jpg"
+            alt=""
+            draggable="false"
+            onError={(event) => {
+              const image = event.currentTarget;
+              if (!image.src.endsWith('/alice-mark.svg')) image.src = '/alice-mark.svg';
+            }}
+          />
         </div>
       )}
 

@@ -1,0 +1,56 @@
+name: Release Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - alice/release-audit-20260926
+
+permissions:
+  contents: read
+
+jobs:
+  adversarial-release-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run test:run
+      - run: npm run build
+
+      - name: Start production build
+        shell: bash
+        run: |
+          PORT=8791 npm run server > /tmp/alice-audit-server.log 2>&1 &
+          echo $! > /tmp/alice-audit-server.pid
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:8791/api/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/alice-audit-server.log
+          exit 1
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run adversarial release audit
+        run: npx playwright test tests/release-audit.spec.js --reporter=line
+        env:
+          CI: 'true'
+
+      - name: Upload audit server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alice-release-audit
+          path: /tmp/alice-audit-server.log
+          if-no-files-found: warn

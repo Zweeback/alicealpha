@@ -2,7 +2,7 @@ const PROTOCOL_VERSION = '2025-06-18';
 const RESOURCE_URI = 'ui://alice/companion-v1.html';
 const RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app';
 const APP_ORIGIN = 'https://alicealpha.onrender.com';
-const APP_URL = `${APP_ORIGIN}/?visual=3d&avatar=trellis&embed=chatgpt`;
+const APP_URL = `${APP_ORIGIN}/?visual=3d&embed=chatgpt`;
 
 const RESOURCE_META = Object.freeze({
   ui: {
