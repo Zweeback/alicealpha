@@ -1,0 +1,42 @@
+name: Container
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Alice image
+        run: docker build -t alice:mvd .
+
+      - name: Start container
+        run: |
+          docker run --rm -d --name alice-mvd -p 8787:8787 alice:mvd
+
+      - name: Container health smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'docker logs alice-mvd || true; docker stop alice-mvd || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/api/health \
+              | tee /tmp/alice-container-health.json \
+              | grep -q '"ok":true'; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Alice container did not become healthy in time." >&2
+          exit 1
