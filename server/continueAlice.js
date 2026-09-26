@@ -6,6 +6,7 @@ import {
   verifyCurrentStep,
 } from './runState.js';
 import {
+  createBlindspotEntry,
   loadBlindspotLedger,
   saveBlindspotLedger,
   upsertBlindspot,
@@ -20,8 +21,9 @@ async function persistBlindspots(path, items, now) {
   let ledger = await loadBlindspotLedger(path);
   const ids = [];
   for (const item of items) {
+    const entry = createBlindspotEntry(item, now);
     ledger = upsertBlindspot(ledger, item, now);
-    ids.push(ledger.entries.at(-1)?.id || item.id);
+    ids.push(entry.id);
   }
   await saveBlindspotLedger(ledger, path);
   return ids.filter(Boolean);
@@ -30,6 +32,7 @@ async function persistBlindspots(path, items, now) {
 export async function continueAlice({
   statePath,
   ledgerPath,
+  initialState,
   execute,
   verify,
   now = () => new Date().toISOString(),
@@ -37,7 +40,7 @@ export async function continueAlice({
   if (typeof execute !== 'function') throw new TypeError('alice-continue-executor-required');
   if (typeof verify !== 'function') throw new TypeError('alice-continue-verifier-required');
 
-  let state = await loadRunState(statePath);
+  let state = await loadRunState(statePath, initialState);
 
   if (state.status === 'complete') {
     return { status: 'complete', state, executed: false };
