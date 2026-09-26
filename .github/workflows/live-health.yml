@@ -19,8 +19,8 @@ jobs:
             body="$(curl --fail --silent --show-error --max-time 20 https://alicealpha.onrender.com/api/health || true)"
             echo "attempt=$attempt body=$body"
 
-            if printf '%s' "$body" | grep -q '"ok":true'               && printf '%s' "$body" | grep -q '"realtime":true'               && printf '%s' "$body" | grep -q "\"revision\":\"$EXPECTED_SHA\""; then
-              echo "Exact Alice revision is live with realtime configured."
+            if printf '%s' "$body" | grep -q '"ok":true'               && printf '%s' "$body" | grep -q '"realtimeConfigured":true'               && printf '%s' "$body" | grep -q "\"revision\":\"$EXPECTED_SHA\""; then
+              echo "Exact Alice revision is live with Realtime configured; operational state is verified separately."
               exit 0
             fi
 
