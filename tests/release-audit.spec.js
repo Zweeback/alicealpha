@@ -171,3 +171,44 @@ test('live health does not claim Realtime healthy when the real session endpoint
   }
   await browser.close();
 });
+
+
+test('PWA reopens from service-worker storage after browser HTTP cache is cleared', async () => {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.goto(LOCAL, { waitUntil: 'networkidle', timeout: 60_000 });
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Network.enable');
+  await cdp.send('Network.clearBrowserCache');
+  await context.setOffline(true);
+
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => undefined);
+  await expect(page.locator('.identity strong')).toHaveText('Alice', { timeout: 15_000 });
+
+  await context.setOffline(false);
+  await browser.close();
+});
+
+test('public Realtime key proxy has explicit abuse protection', async () => {
+  const source = fs.readFileSync('server/index.js', 'utf8');
+  const start = source.indexOf("app.post('/api/realtime/session'");
+  const end = source.indexOf('app.use(express.static', start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const route = source.slice(start, end > start ? end : undefined);
+
+  expect(
+    /rateLimit|rateLimiter|throttl/i.test(route),
+    'Realtime endpoint needs request throttling before it can proxy a server-side paid API key',
+  ).toBe(true);
+  expect(
+    /authorization|ALICE_[A-Z_]*TOKEN|x-alice|allowedOrigin|originAllow/i.test(route),
+    'Realtime endpoint needs an access gate or explicit trusted-origin policy',
+  ).toBe(true);
+});
