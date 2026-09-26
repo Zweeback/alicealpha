@@ -25,4 +25,4 @@ describe('local speech visemes', () => {
       O: 'oh',
     });
   });
-}
+});
