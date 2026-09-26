@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
+import { VRM_VISEME_EXPRESSIONS } from '../core/viseme.js';
 
 const cyan = new THREE.Color('#39d9e6');
 const amber = new THREE.Color('#d99a36');
@@ -306,6 +307,7 @@ export class AliceWorld {
     this.performanceStartedAt = 0;
     this.gesture = 'attentive';
     this.speechEnergy = 0;
+    this.speechViseme = null;
     this.mode = 'desktop';
     this.arPlaced = false;
     this.hitTestSource = null;
@@ -471,6 +473,10 @@ export class AliceWorld {
     this.speechEnergy = THREE.MathUtils.clamp(Number(value) || 0, 0, 1);
   }
 
+  setViseme(viseme) {
+    this.speechViseme = Object.hasOwn(VRM_VISEME_EXPRESSIONS, viseme) ? viseme : null;
+  }
+
   stopPlan() {
     this.performance = null;
     this.gesture = 'attentive';
@@ -554,13 +560,32 @@ export class AliceWorld {
     const syntheticEnergy = timedPerformance ? 0.2 + Math.abs(Math.sin(elapsed * 0.022)) * 0.52 : 0;
     const speechEnergy = Math.max(this.speechEnergy, syntheticEnergy);
     if (isProcedural && mouth) {
-      mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
-      mouth.scale.x = damp(mouth.scale.x, this.presence.expression === 'smile' ? 1.35 : 1.15, 8, delta);
+      const visemeShape = {
+        A: { x: 1.0, y: 0.62 },
+        I: { x: 1.45, y: 0.24 },
+        U: { x: 0.78, y: 0.38 },
+        E: { x: 1.32, y: 0.28 },
+        O: { x: 0.82, y: 0.52 },
+      }[this.speechViseme] || { x: 1.15, y: 0.55 };
+      mouth.scale.y = damp(
+        mouth.scale.y,
+        speaking ? 0.12 + speechEnergy * visemeShape.y : this.presence.expression === 'smile' ? 0.1 : 0.06,
+        18,
+        delta,
+      );
+      mouth.scale.x = damp(
+        mouth.scale.x,
+        speaking ? visemeShape.x : this.presence.expression === 'smile' ? 1.35 : 1.15,
+        8,
+        delta,
+      );
     }
     if (vrm) {
       const expressionManager = vrm.expressionManager;
       if (expressionManager) {
-        expressionManager.setValue('aa', speaking ? speechEnergy : 0);
+        const activeExpression = VRM_VISEME_EXPRESSIONS[this.speechViseme] || 'aa';
+        Object.values(VRM_VISEME_EXPRESSIONS).forEach((name) => expressionManager.setValue(name, 0));
+        expressionManager.setValue(activeExpression, speaking ? speechEnergy : 0);
         expressionManager.setValue('blink', 1 - blink);
         expressionManager.setValue('happy', this.presence.expression === 'smile' ? 1 : 0);
         expressionManager.update();
