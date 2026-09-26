@@ -6,6 +6,7 @@ import { PersonaRuntime } from './core/runtime.js';
 import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
+import { visemeForTextBoundary } from './core/viseme.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { isPortraitSelection } from './xr/avatarCatalog.js';
 
@@ -82,8 +83,14 @@ export default function App() {
       setPhase('speaking');
       worldRef.current?.playPlan(result.plan);
       hardwareRef.current?.sendPlan(result.plan).catch(() => undefined);
+      const spokenText = result.plan.spoken_text || result.reply;
+      worldRef.current?.setViseme(visemeForTextBoundary(spokenText, 0));
       voiceRef.current?.speak(result.plan, {
+        onBoundary: (charIndex) => {
+          worldRef.current?.setViseme(visemeForTextBoundary(spokenText, charIndex));
+        },
         onEnd: () => {
+          worldRef.current?.setViseme(null);
           fallbackBusyRef.current = false;
           setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
         },
@@ -104,6 +111,7 @@ export default function App() {
     }
     if (fallbackBusyRef.current) {
       voice.stopSpeaking();
+      worldRef.current?.setViseme(null);
       worldRef.current?.stopPlan();
       fallbackBusyRef.current = false;
     }
@@ -230,6 +238,7 @@ export default function App() {
         setPresence() {},
         stopPlan() {},
         setSpeechEnergy() {},
+        setViseme() {},
         playPlan() {},
         playCue() {},
         dispose() {},
