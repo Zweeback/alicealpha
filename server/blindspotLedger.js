@@ -19,12 +19,15 @@ export function createBlindspotEntry(input, now = () => new Date().toISOString()
   if (!input?.subject?.trim()) throw new Error('blindspot-subject-required');
   if (!input?.detail?.trim()) throw new Error('blindspot-detail-required');
 
+  const disposition = input.disposition ?? 'pending';
+  if (!DISPOSITIONS.has(disposition)) throw new Error('blindspot-disposition-invalid');
+
   return {
     id: input.id || `bs-${fingerprint(input)}`,
     category: input.category,
     subject: input.subject.trim(),
     detail: input.detail.trim(),
-    disposition: input.disposition || 'pending',
+    disposition,
     evidence: Array.isArray(input.evidence) ? [...input.evidence] : [],
     first_seen_at: input.first_seen_at || now(),
     updated_at: input.updated_at || now(),
@@ -79,6 +82,7 @@ export function upsertBlindspot(ledger, input, now = () => new Date().toISOStrin
     next.entries[index] = {
       ...next.entries[index],
       ...entry,
+      disposition: input.disposition ?? next.entries[index].disposition,
       first_seen_at: next.entries[index].first_seen_at,
       updated_at: now(),
     };
