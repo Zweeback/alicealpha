@@ -5,7 +5,6 @@ import { resolveAvatarSelection } from '../src/xr/avatarCatalog.js';
 const LOCAL = 'http://127.0.0.1:8791/';
 const LIVE = 'https://alicealpha.onrender.com/';
 
-test.describe.configure({ mode: 'serial' });
 
 test('default avatar selection obeys the fail-closed character manifest', async () => {
   const manifest = JSON.parse(fs.readFileSync('public/ALICE_CHARACTER_MANIFEST.json', 'utf8'));
