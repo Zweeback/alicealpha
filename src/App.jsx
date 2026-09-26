@@ -383,7 +383,15 @@ export default function App() {
 
       {portraitVisual && (
         <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
-          <img src="/alice-canonical.jpg" alt="" draggable="false" />
+          <img
+            src="/alice-canonical.jpg"
+            alt=""
+            draggable="false"
+            onError={(event) => {
+              const image = event.currentTarget;
+              if (!image.src.endsWith('/alice-mark.svg')) image.src = '/alice-mark.svg';
+            }}
+          />
         </div>
       )}
 
