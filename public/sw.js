@@ -1,4 +1,4 @@
-const CACHE = 'alice-v0.2.0';
+const CACHE = 'alice-v0.3.0';
 const CORE = ['./', './index.html', './manifest.webmanifest', './alice-mark.svg'];
 
 self.addEventListener('install', (event) => {
