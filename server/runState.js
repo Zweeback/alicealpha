@@ -60,11 +60,16 @@ export function validateRunState(state) {
   return state;
 }
 
-export async function loadRunState(path = DEFAULT_RUN_STATE_PATH) {
-  const raw = await readFile(path, 'utf8');
-  const state = JSON.parse(raw);
-  validateRunState(state);
-  return state;
+export async function loadRunState(path = DEFAULT_RUN_STATE_PATH, initialState = {}) {
+  try {
+    const raw = await readFile(path, 'utf8');
+    const state = JSON.parse(raw);
+    validateRunState(state);
+    return state;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return createRunState(initialState);
+    throw error;
+  }
 }
 
 export async function saveRunState(state, path = DEFAULT_RUN_STATE_PATH) {
