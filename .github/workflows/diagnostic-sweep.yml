@@ -1,0 +1,111 @@
+name: Diagnostic Sweep
+
+on:
+  push:
+    branches:
+      - alice/diagnostic-sweep-20260926
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit and regression diagnostics
+        continue-on-error: true
+        run: npm run test:run
+
+      - name: Build
+        continue-on-error: true
+        run: npm run build
+
+      - name: Start local runtime
+        shell: bash
+        run: |
+          PORT=8792 npm run server > /tmp/alice-diagnostic-server.log 2>&1 &
+          echo $! > /tmp/alice-diagnostic-server.pid
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:8792/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/alice-diagnostic-server.log
+          exit 1
+
+      - name: HTTP contract diagnostics
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          FAIL=0
+
+          check_status() {
+            NAME="$1"
+            EXPECT="$2"
+            URL="$3"
+            METHOD="${4:-GET}"
+            GOT="$(curl -sS -o /tmp/body -w '%{http_code}' -X "$METHOD" "$URL")"
+            echo "$NAME expected=$EXPECT got=$GOT body=$(head -c 180 /tmp/body)"
+            if [ "$GOT" != "$EXPECT" ]; then
+              echo "::error::$NAME expected HTTP $EXPECT but got $GOT"
+              FAIL=1
+            fi
+          }
+
+          check_status health 200 http://127.0.0.1:8792/api/health
+          check_status unknown_api 404 http://127.0.0.1:8792/api/definitely-missing
+          check_status realtime_get 405 http://127.0.0.1:8792/api/realtime/session
+          check_status local_without_ollama 503 http://127.0.0.1:8792/api/local/respond POST
+          check_status realtime_without_key 503 http://127.0.0.1:8792/api/realtime/session POST
+          check_status mcp_get 405 http://127.0.0.1:8792/mcp
+          check_status manifest 200 http://127.0.0.1:8792/manifest.webmanifest
+          check_status trellis_asset 200 http://127.0.0.1:8792/avatars/alice-trellis.glb
+
+          HEADERS="$(curl -sSI http://127.0.0.1:8792/)"
+          printf '%s\n' "$HEADERS"
+          for H in x-content-type-options referrer-policy permissions-policy content-security-policy; do
+            if ! printf '%s' "$HEADERS" | grep -qi "^$H:"; then
+              echo "::error::missing security header: $H"
+              FAIL=1
+            fi
+          done
+
+          exit "$FAIL"
+
+      - name: Docker read-only runtime diagnostic
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -e
+          docker build -t alice:diagnostic .
+          docker run --rm -d --name alice-diagnostic --read-only --tmpfs /tmp -p 8793:8787 alice:diagnostic
+          trap 'docker logs alice-diagnostic || true; docker stop alice-diagnostic || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:8793/api/health | grep -q '"ok":true'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: GHCR image availability diagnostic
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -e
+          TOKEN="$(curl -fsSL 'https://ghcr.io/token?scope=repository%3Azweeback%2Falicealpha%3Apull' | jq -r '.token')"
+          curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Accept: application/vnd.oci.image.manifest.v1+json' https://ghcr.io/v2/zweeback/alicealpha/manifests/latest >/tmp/manifest.json
+          jq . /tmp/manifest.json
