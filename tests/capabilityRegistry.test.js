@@ -11,6 +11,7 @@ describe('Alice capability registry', () => {
     expect(byId['inference.ollama'].status).toBe('unconfigured');
     expect(byId['realtime.webrtc'].status).toBe('unconfigured');
     expect(byId['operator.github'].status).toBe('bounded');
+    expect(byId['research.web_intake'].status).toBe('unconfigured');
   });
 
   it('reports configured server transports without exposing credential values', () => {
@@ -18,6 +19,7 @@ describe('Alice capability registry', () => {
       OPENAI_API_KEY: 'super-secret-key',
       ALICE_OLLAMA_URL: 'http://ollama.internal:11434',
       RENDER_GIT_COMMIT: 'abc123',
+      ALICE_WEB_INTAKE_TOKEN: 'web-intake-secret',
     };
 
     const snapshot = buildAliceKernelSnapshot(env, () => '2026-09-25T00:30:00.000Z');
@@ -26,10 +28,12 @@ describe('Alice capability registry', () => {
 
     expect(byId['inference.ollama'].status).toBe('configured');
     expect(byId['realtime.webrtc'].status).toBe('configured');
+    expect(byId['research.web_intake'].status).toBe('configured');
     expect(snapshot.revision).toBe('abc123');
     expect(snapshot.generated_at).toBe('2026-09-25T00:30:00.000Z');
     expect(serialized).not.toContain('super-secret-key');
     expect(serialized).not.toContain('ollama.internal');
+    expect(serialized).not.toContain('web-intake-secret');
   });
 
   it('publishes the control-plane invariants and execution law as machine-readable state', () => {
