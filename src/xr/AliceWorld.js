@@ -91,14 +91,14 @@ function makeArm(side, materials) {
   const shoulder = new THREE.Group();
   shoulder.position.set(side * 0.58, 0.66, 0);
 
-  const upper = capsule(materials.garment, 0.105, 0.42, 16);
+  const upper = capsule(materials.top, 0.105, 0.42, 16);
   upper.position.y = -0.28;
   upper.castShadow = true;
   shoulder.add(upper);
 
   const elbow = new THREE.Group();
   elbow.position.y = -0.57;
-  const forearm = capsule(materials.garment, 0.09, 0.38, 16);
+  const forearm = capsule(materials.top, 0.09, 0.38, 16);
   forearm.position.y = -0.25;
   forearm.castShadow = true;
   elbow.add(forearm);
@@ -121,6 +121,11 @@ function createProceduralAlice() {
     hairDark: new THREE.MeshStandardMaterial({ color: '#43130e', roughness: 0.78, metalness: 0 }),
     garment: new THREE.MeshStandardMaterial({ color: '#ddd9d1', roughness: 0.86, metalness: 0 }),
     garmentShadow: new THREE.MeshStandardMaterial({ color: '#aaa59e', roughness: 0.9, metalness: 0 }),
+    top: new THREE.MeshStandardMaterial({ color: '#f0eee9', roughness: 0.82, metalness: 0 }),
+    bottom: new THREE.MeshStandardMaterial({ color: '#315575', roughness: 0.78, metalness: 0 }),
+    shoes: new THREE.MeshStandardMaterial({ color: '#141619', roughness: 0.84, metalness: 0.02 }),
+    mage: new THREE.MeshStandardMaterial({ color: '#17121f', roughness: 0.76, metalness: 0.04 }),
+    mageAccent: new THREE.MeshStandardMaterial({ color: '#7454a8', roughness: 0.5, metalness: 0.1, emissive: '#241637', emissiveIntensity: 0.35 }),
     eye: new THREE.MeshStandardMaterial({ color: '#e9efeb', roughness: 0.38 }),
     iris: new THREE.MeshStandardMaterial({ color: '#6896a0', roughness: 0.4, metalness: 0 }),
     pupil: new THREE.MeshBasicMaterial({ color: '#0a0c0d' }),
@@ -128,13 +133,13 @@ function createProceduralAlice() {
     cyan: new THREE.MeshStandardMaterial({ color: '#7f8b89', roughness: 0.72, metalness: 0.08 }),
   };
 
-  const hips = new THREE.Mesh(new THREE.SphereGeometry(0.43, 32, 20), materials.garmentShadow);
+  const hips = new THREE.Mesh(new THREE.SphereGeometry(0.43, 32, 20), materials.bottom);
   hips.scale.set(1, 0.62, 0.7);
   hips.position.y = -0.08;
   hips.castShadow = true;
   root.add(hips);
 
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.48, 0.94, 36), materials.garment);
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.48, 0.94, 36), materials.top);
   torso.position.y = 0.42;
   torso.scale.z = 0.7;
   torso.castShadow = true;
@@ -144,7 +149,7 @@ function createProceduralAlice() {
   seam.position.set(0, 0.45, 0.34);
   root.add(seam);
 
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.32, 28), materials.garment);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.32, 28), materials.skin);
   neck.position.y = 0.99;
   neck.castShadow = true;
   root.add(neck);
@@ -222,22 +227,73 @@ function createProceduralAlice() {
   mouth.scale.set(1.15, 0.16, 0.25);
   headPivot.add(mouth);
 
+  const mageHead = new THREE.Group();
+  const hatCone = new THREE.Mesh(new THREE.ConeGeometry(0.43, 0.78, 32), materials.mage);
+  hatCone.position.set(0.04, 0.63, -0.02);
+  hatCone.rotation.z = -0.08;
+  hatCone.castShadow = true;
+  const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.055, 48), materials.mage);
+  hatBrim.position.set(0, 0.28, 0);
+  hatBrim.castShadow = true;
+  const hatBand = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.026, 10, 48), materials.mageAccent);
+  hatBand.rotation.x = Math.PI / 2;
+  hatBand.position.set(0, 0.31, 0);
+  mageHead.add(hatCone, hatBrim, hatBand);
+  headPivot.add(mageHead);
+
+  const mageBody = new THREE.Group();
+  const cape = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.18, 0.055), materials.mage);
+  cape.position.set(0, 0.34, -0.36);
+  cape.rotation.x = -0.04;
+  cape.castShadow = true;
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.62, 0.46, 40, 1, true), materials.mage);
+  skirt.position.set(0, -0.2, 0);
+  skirt.castShadow = true;
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 10, 48), materials.mageAccent);
+  belt.rotation.x = Math.PI / 2;
+  belt.position.set(0, 0.03, 0);
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.085, 0), materials.mageAccent);
+  gem.position.set(0, 0.56, 0.4);
+  gem.rotation.z = Math.PI / 4;
+  mageBody.add(cape, skirt, belt, gem);
+  root.add(mageBody);
+
+  const outfitState = { name: 'casual' };
+  const setOutfit = (name = 'casual') => {
+    const next = name === 'dark-mage' ? 'dark-mage' : 'casual';
+    outfitState.name = next;
+    const mage = next === 'dark-mage';
+
+    materials.top.color.set(mage ? '#17151b' : '#f4f1ea');
+    materials.bottom.color.set(mage ? '#1c1725' : '#315575');
+    materials.shoes.color.set(mage ? '#0b0a0e' : '#151719');
+    materials.top.roughness = mage ? 0.68 : 0.86;
+    materials.bottom.roughness = mage ? 0.7 : 0.78;
+
+    mageHead.visible = mage;
+    mageBody.visible = mage;
+    chestCore.visible = mage;
+    return outfitState.name;
+  };
+
   const armLeft = makeArm(-1, materials);
   const armRight = makeArm(1, materials);
   root.add(armLeft.shoulder, armRight.shoulder);
 
   [-1, 1].forEach((side) => {
-    const leg = capsule(materials.garment, 0.14, 0.7, 18);
+    const leg = capsule(materials.bottom, 0.14, 0.7, 18);
     leg.position.set(side * 0.2, -0.69, 0);
     leg.castShadow = true;
     root.add(leg);
-    const boot = capsule(materials.garmentShadow, 0.15, 0.23, 18);
+    const boot = capsule(materials.shoes, 0.15, 0.23, 18);
     boot.position.set(side * 0.2, -1.13, 0.08);
     boot.rotation.x = Math.PI / 2;
     boot.scale.z = 1.15;
     boot.castShadow = true;
     root.add(boot);
   });
+
+  setOutfit('casual');
 
   root.traverse((object) => {
     if (object.isMesh) object.frustumCulled = false;
@@ -252,6 +308,8 @@ function createProceduralAlice() {
     mouth,
     chestCore,
     arms: { left: armLeft, right: armRight },
+    setOutfit,
+    getOutfit: () => outfitState.name,
   };
 }
 
@@ -488,6 +546,19 @@ export class AliceWorld {
 
   setPresence(presence) {
     this.presence = { ...this.presence, ...presence };
+  }
+
+  setOutfit(name) {
+    if (!this.alice?.setOutfit) return false;
+    this.alice.setOutfit(name);
+    this.alice.root.updateMatrixWorld(true);
+    this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
+    this.resize();
+    return true;
+  }
+
+  getOutfit() {
+    return this.alice?.getOutfit?.() || null;
   }
 
   playPlan(plan) {
