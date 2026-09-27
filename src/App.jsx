@@ -9,6 +9,7 @@ import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
+import { callModeEnabled } from './core/callMode.js';
 
 const labels = {
   booting: 'Alice erwacht',
@@ -24,7 +25,9 @@ const labels = {
 };
 
 export default function App() {
-  const demoMode = visualDemoEnabled(globalThis.location?.search || '');
+  const search = globalThis.location?.search || '';
+  const demoMode = visualDemoEnabled(search);
+  const callMode = callModeEnabled(search);
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const worldRef = useRef(null);
@@ -188,6 +191,20 @@ export default function App() {
     }
     await listenLocally();
   }, [ensureCamera, listenLocally, realtimeAvailable]);
+
+  const endCall = useCallback(() => {
+    realtimeRef.current?.disconnect();
+    cameraRef.current?.stop();
+    voiceRef.current?.stopListening();
+    voiceRef.current?.stopSpeaking();
+    worldRef.current?.stopPlan();
+    fallbackBusyRef.current = false;
+    setCaption('');
+    setUserCaption('');
+    setTextOpen(false);
+    setHintVisible(true);
+    setPhase(realtimeAvailable ? 'ready' : runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+  }, [realtimeAvailable]);
 
   useEffect(() => {
     interactRef.current = ensureLive;
@@ -394,7 +411,7 @@ export default function App() {
     else await runLocalTurn(text);
   };
 
-  const visualQuery = globalThis.location?.search || '';
+  const visualQuery = search;
   const portraitVisual = sessionMode === 'desktop' && (
     renderFallback
     || isPortraitSelection(visualQuery)
@@ -403,7 +420,7 @@ export default function App() {
   const live3DVisual = !portraitVisual;
 
   return (
-    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'}`} ref={overlayRef}>
+    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {portraitVisual && (
@@ -437,10 +454,19 @@ export default function App() {
       </section>
 
       {hintVisible && (
-        <div className="first-contact">
-          <p>Berühre Alice. Sprich einfach.</p>
+        <div className={`first-contact ${callMode ? 'call-contact' : ''}`}>
+          {callMode ? (
+            <button className="call-primary" type="button" onClick={ensureLive}>
+              <span className="call-icon" aria-hidden="true">●</span>
+              Alice anrufen
+            </button>
+          ) : (
+            <p>Berühre Alice. Sprich einfach.</p>
+          )}
           <small>{realtimeAvailable
-            ? 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
+            ? callMode
+              ? 'Mikrofon und Kamera starten erst nach deinem Tippen.'
+              : 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
             : localAIStatus === 'ready'
               ? 'Lokale KI läuft direkt auf diesem Gerät.'
               : 'Lokaler Basismodus: Der Live-KI-Kanal ist nicht verbunden.'}</small>
@@ -461,6 +487,13 @@ export default function App() {
         </div>
       )}
 
+      {callMode && !hintVisible && (
+        <div className="call-controls" aria-label="Alice Anruf">
+          <button className="call-hangup" type="button" onClick={endCall}>Auflegen</button>
+          <button className="call-text" type="button" onClick={() => setTextOpen((open) => !open)}>Schreiben</button>
+        </div>
+      )}
+
       {!hintVisible && !realtimeAvailable && localAIStatus !== 'ready' && (
         <div className="local-ai-entry">
           <button
@@ -478,7 +511,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="xr-entry" aria-label="Räumlichen Modus starten">
+      <div className="xr-entry" aria-label="Räumlichen Modus starten" hidden={callMode}>
         {xrSupport.ar && <button type="button" onClick={() => enterXR('ar')}>Alice in meinen Raum</button>}
         {xrSupport.vr && <button type="button" onClick={() => enterXR('vr')}>Alice im Labor</button>}
       </div>
