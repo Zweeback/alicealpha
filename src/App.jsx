@@ -8,6 +8,7 @@ import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
+import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 
 const labels = {
   booting: 'Alice erwacht',
@@ -23,6 +24,7 @@ const labels = {
 };
 
 export default function App() {
+  const demoMode = visualDemoEnabled(globalThis.location?.search || '');
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const worldRef = useRef(null);
@@ -239,6 +241,23 @@ export default function App() {
     }
     worldRef.current = world;
 
+    let demoTimer = null;
+    let demoIndex = 0;
+    const runDemoBeat = () => {
+      if (!demoMode) return;
+      const beat = ALICE_VISUAL_DEMO[demoIndex % ALICE_VISUAL_DEMO.length];
+      demoIndex += 1;
+      setHintVisible(false);
+      setUserCaption('');
+      setCaption(beat.caption);
+      setPhase(beat.phase);
+      presenceRef.current = beat.presence;
+      world.setPresence(beat.presence);
+      world.playCue(beat.cue);
+      demoTimer = globalThis.setTimeout(runDemoBeat, beat.duration_ms);
+    };
+    if (demoMode) demoTimer = globalThis.setTimeout(runDemoBeat, 350);
+
     const camera = new CameraPresence({
       onPresence: (presence) => {
         presenceRef.current = presence;
@@ -335,9 +354,10 @@ export default function App() {
       voice.stopListening();
       voice.stopSpeaking();
       hardware.disconnect().catch(() => undefined);
+      if (demoTimer) globalThis.clearTimeout(demoTimer);
       world.dispose();
     };
-  }, [setMode]);
+  }, [setMode, demoMode]);
 
   const enterXR = async (mode) => {
     setHintVisible(false);
@@ -378,7 +398,7 @@ export default function App() {
   const portraitVisual = sessionMode === 'desktop' && (
     renderFallback
     || isPortraitSelection(visualQuery)
-    || !isExplicit3DSelection(visualQuery)
+    || (!demoMode && !isExplicit3DSelection(visualQuery))
   );
   const live3DVisual = !portraitVisual;
 
@@ -403,7 +423,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{live3DVisual ? 'verkörperte Präsenz · 3D' : 'Präsenzmodus'}</small></div>
+          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'verkörperte Präsenz · 3D' : 'Präsenzmodus'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
