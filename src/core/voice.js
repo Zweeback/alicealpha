@@ -81,11 +81,12 @@ export class VoiceChannel {
 
     globalThis.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(plan.spoken_text);
-    utterance.lang = plan.voice.language;
+    const selectedVoice = this.#preferredVoice(plan.voice.accent);
+    utterance.voice = selectedVoice;
+    utterance.lang = selectedVoice?.lang || plan.voice.language;
     utterance.rate = plan.voice.rate;
     utterance.pitch = plan.voice.pitch;
     utterance.volume = plan.voice.volume;
-    utterance.voice = this.#preferredVoice();
     utterance.onstart = onStart;
     utterance.onboundary = (event) => onBoundary(event.charIndex);
     utterance.onend = () => {
@@ -106,10 +107,15 @@ export class VoiceChannel {
     this.activeUtterance = null;
   }
 
-  #preferredVoice() {
+  #preferredVoice(accent = 'fr-FR') {
     const voices = globalThis.speechSynthesis?.getVoices?.() || [];
-    // Sort to make the selection deterministic
     voices.sort((a, b) => a.name.localeCompare(b.name));
+
+    const accentPrefix = String(accent || '').slice(0, 2).toLowerCase();
+    const accented = voices.filter((voice) => voice.lang?.toLowerCase().startsWith(accentPrefix));
+    const frenchFemale = accented.find((voice) => /female|amelie|amélie|audrey|marie|hortense|celine|céline|lea|léa|julie/i.test(voice.name));
+    if (frenchFemale || accented[0]) return frenchFemale || accented[0];
+
     const german = voices.filter((voice) => voice.lang?.toLowerCase().startsWith('de'));
     return german.find((voice) => /female|katja|anna|petra|amala|seraphina|vicki/i.test(voice.name)) || german[0] || null;
   }

@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
+import { sampleMicroMotion } from './microMotion.js';
 
-const cyan = new THREE.Color('#39d9e6');
-const amber = new THREE.Color('#d99a36');
+const cyan = new THREE.Color('#8eced0');
+const amber = new THREE.Color('#c18767');
 
 function damp(current, target, lambda, delta) {
   return THREE.MathUtils.damp(current, target, lambda, delta);
@@ -21,37 +22,68 @@ function tube(points, radius, material) {
 
 function createLab() {
   const group = new THREE.Group();
-  const floorMaterial = new THREE.MeshStandardMaterial({ color: '#0b1114', roughness: 0.82, metalness: 0.24 });
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(5.5, 72), floorMaterial);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(6.4, 96),
+    new THREE.MeshStandardMaterial({
+      color: '#090b0c',
+      roughness: 0.94,
+      metalness: 0.03,
+    }),
+  );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -1.16;
+  floor.position.y = -1.17;
   floor.receiveShadow = true;
   group.add(floor);
 
   const wall = new THREE.Mesh(
-    new THREE.CylinderGeometry(4.7, 4.7, 4.4, 48, 1, true),
-    new THREE.MeshStandardMaterial({ color: '#080d10', roughness: 0.72, metalness: 0.36, side: THREE.BackSide }),
+    new THREE.CylinderGeometry(5.5, 5.5, 5.2, 72, 1, true),
+    new THREE.MeshStandardMaterial({
+      color: '#07090a',
+      roughness: 0.96,
+      metalness: 0.02,
+      side: THREE.BackSide,
+    }),
   );
-  wall.position.y = 0.7;
+  wall.position.y = 0.95;
   group.add(wall);
 
-  const ringMaterial = new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.17 });
-  [-0.5, 1.15, 2.5].forEach((height, index) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(4.63, 0.018 + index * 0.006, 8, 96), ringMaterial);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = height;
-    group.add(ring);
-  });
+  const plinth = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.28, 1.38, 0.07, 72),
+    new THREE.MeshStandardMaterial({
+      color: '#111415',
+      roughness: 0.82,
+      metalness: 0.08,
+    }),
+  );
+  plinth.position.y = -1.135;
+  plinth.receiveShadow = true;
+  group.add(plinth);
 
-  for (let index = 0; index < 8; index += 1) {
-    const angle = (index / 8) * Math.PI * 2;
-    const lightBar = new THREE.Mesh(
-      new THREE.BoxGeometry(0.025, 1.4, 0.025),
-      new THREE.MeshBasicMaterial({ color: index % 2 ? '#4b6970' : cyan, transparent: true, opacity: 0.28 }),
-    );
-    lightBar.position.set(Math.sin(angle) * 4.55, 0.65, Math.cos(angle) * 4.55);
-    group.add(lightBar);
-  }
+  const halo = new THREE.Mesh(
+    new THREE.RingGeometry(1.62, 1.635, 128),
+    new THREE.MeshBasicMaterial({
+      color: '#dfe7e4',
+      transparent: true,
+      opacity: 0.055,
+      side: THREE.DoubleSide,
+    }),
+  );
+  halo.position.set(0, 0.62, -1.82);
+  group.add(halo);
+
+  const horizon = new THREE.Mesh(
+    new THREE.TorusGeometry(4.9, 0.008, 8, 144),
+    new THREE.MeshBasicMaterial({
+      color: '#d8dedb',
+      transparent: true,
+      opacity: 0.045,
+    }),
+  );
+  horizon.rotation.x = Math.PI / 2;
+  horizon.position.y = -0.72;
+  group.add(horizon);
+
   return group;
 }
 
@@ -83,17 +115,17 @@ function makeArm(side, materials) {
 function createProceduralAlice() {
   const root = new THREE.Group();
   const materials = {
-    skin: new THREE.MeshStandardMaterial({ color: '#efbca9', roughness: 0.68, metalness: 0 }),
-    skinShadow: new THREE.MeshStandardMaterial({ color: '#d99b87', roughness: 0.72 }),
-    hair: new THREE.MeshStandardMaterial({ color: '#9b2c16', roughness: 0.58, metalness: 0.02 }),
-    hairDark: new THREE.MeshStandardMaterial({ color: '#4e120c', roughness: 0.7 }),
-    garment: new THREE.MeshStandardMaterial({ color: '#e8eceb', roughness: 0.44, metalness: 0.08 }),
-    garmentShadow: new THREE.MeshStandardMaterial({ color: '#aebabe', roughness: 0.55, metalness: 0.12 }),
-    eye: new THREE.MeshStandardMaterial({ color: '#eef7f5', roughness: 0.3 }),
-    iris: new THREE.MeshStandardMaterial({ color: '#58aeb8', roughness: 0.26, metalness: 0.08 }),
-    pupil: new THREE.MeshBasicMaterial({ color: '#081012' }),
-    mouth: new THREE.MeshStandardMaterial({ color: '#7c2c2b', roughness: 0.62 }),
-    cyan: new THREE.MeshStandardMaterial({ color: '#0b3b42', emissive: cyan, emissiveIntensity: 2.2, roughness: 0.28 }),
+    skin: new THREE.MeshStandardMaterial({ color: '#e7b5a3', roughness: 0.54, metalness: 0 }),
+    skinShadow: new THREE.MeshStandardMaterial({ color: '#c98f7d', roughness: 0.62, metalness: 0 }),
+    hair: new THREE.MeshStandardMaterial({ color: '#8a281a', roughness: 0.72, metalness: 0 }),
+    hairDark: new THREE.MeshStandardMaterial({ color: '#43130e', roughness: 0.78, metalness: 0 }),
+    garment: new THREE.MeshStandardMaterial({ color: '#ddd9d1', roughness: 0.86, metalness: 0 }),
+    garmentShadow: new THREE.MeshStandardMaterial({ color: '#aaa59e', roughness: 0.9, metalness: 0 }),
+    eye: new THREE.MeshStandardMaterial({ color: '#e9efeb', roughness: 0.38 }),
+    iris: new THREE.MeshStandardMaterial({ color: '#6896a0', roughness: 0.4, metalness: 0 }),
+    pupil: new THREE.MeshBasicMaterial({ color: '#0a0c0d' }),
+    mouth: new THREE.MeshStandardMaterial({ color: '#854c4b', roughness: 0.7 }),
+    cyan: new THREE.MeshStandardMaterial({ color: '#7f8b89', roughness: 0.72, metalness: 0.08 }),
   };
 
   const hips = new THREE.Mesh(new THREE.SphereGeometry(0.43, 32, 20), materials.garmentShadow);
@@ -122,6 +154,7 @@ function createProceduralAlice() {
   const coreOuter = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.014, 12, 48), materials.cyan);
   const coreInner = new THREE.Mesh(new THREE.CircleGeometry(0.067, 32), materials.cyan);
   chestCore.add(coreOuter, coreInner);
+  chestCore.visible = false;
   root.add(chestCore);
 
   const headPivot = new THREE.Group();
@@ -312,17 +345,17 @@ export class AliceWorld {
     this.hitMatrix = null;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#070b0d');
-    this.scene.fog = new THREE.FogExp2('#070b0d', 0.12);
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
-    this.camera.position.set(0, 0.25, 3.35);
-    this.camera.lookAt(0, 0.25, 0);
+    this.scene.background = new THREE.Color('#050607');
+    this.scene.fog = new THREE.FogExp2('#050607', 0.085);
+    this.camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+    this.camera.position.set(0, 0.35, 3.45);
+    this.camera.lookAt(0, 0.35, 0);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 0.9;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.xr.enabled = true;
@@ -357,17 +390,25 @@ export class AliceWorld {
 
 
   #addLights() {
-    this.scene.add(new THREE.HemisphereLight('#d9f4f5', '#111318', 2.1));
-    const key = new THREE.DirectionalLight('#fff3ea', 4.2);
-    key.position.set(-2.4, 3.4, 3.5);
+    this.scene.add(new THREE.HemisphereLight('#e8efec', '#17110f', 0.82));
+
+    const key = new THREE.DirectionalLight('#ffe9dc', 3.35);
+    key.position.set(-2.8, 3.7, 4.1);
     key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.mapSize.set(1536, 1536);
+    key.shadow.bias = -0.0004;
     this.scene.add(key);
-    const rim = new THREE.PointLight(cyan, 18, 8, 2);
-    rim.position.set(2.2, 1.4, -1.2);
+
+    const fill = new THREE.PointLight('#cfd9d7', 1.8, 7, 2);
+    fill.position.set(2.5, 0.8, 3.2);
+    this.scene.add(fill);
+
+    const rim = new THREE.PointLight(cyan, 6.8, 7, 2);
+    rim.position.set(2.4, 1.8, -1.7);
     this.scene.add(rim);
-    const warm = new THREE.PointLight(amber, 5, 6, 2);
-    warm.position.set(-2.3, 0.5, 1.8);
+
+    const warm = new THREE.PointLight(amber, 2.2, 5.5, 2);
+    warm.position.set(-2.4, -0.1, 1.4);
     this.scene.add(warm);
   }
 
@@ -415,8 +456,8 @@ export class AliceWorld {
     const session = await navigator.xr.requestSession(sessionMode, options);
     this.mode = mode;
     this.lab.visible = mode !== 'ar';
-    this.scene.background = mode === 'ar' ? null : new THREE.Color('#070b0d');
-    this.scene.fog = mode === 'ar' ? null : new THREE.FogExp2('#070b0d', 0.12);
+    this.scene.background = mode === 'ar' ? null : new THREE.Color('#050607');
+    this.scene.fog = mode === 'ar' ? null : new THREE.FogExp2('#050607', 0.085);
     this.alice.root.scale.setScalar(0.82);
     this.alice.root.position.set(0, 1.1, -1.7);
     this.lab.position.y = 1.15;
@@ -432,8 +473,8 @@ export class AliceWorld {
       this.mode = 'desktop';
       this.lab.visible = true;
       this.lab.position.y = 0;
-      this.scene.background = new THREE.Color('#070b0d');
-      this.scene.fog = new THREE.FogExp2('#070b0d', 0.12);
+      this.scene.background = new THREE.Color('#050607');
+      this.scene.fog = new THREE.FogExp2('#050607', 0.085);
       this.alice.root.position.set(0, 0, 0);
       this.alice.root.scale.setScalar(1);
       this.placementRing.visible = false;
@@ -487,16 +528,16 @@ export class AliceWorld {
       viewportHeight: height,
       verticalFovDegrees: this.camera.fov,
       boundsWidth: size.x,
-      boundsHeight: desktopPortrait ? size.y * 0.72 : size.y,
+      boundsHeight: desktopPortrait ? size.y * ((width / height) < 0.72 ? 0.76 : 0.64) : size.y,
       boundsDepth: size.z,
-      padding: desktopPortrait ? 1.04 : 1.2,
-      minimumDistance: desktopPortrait ? 2.15 : 3.35,
+      padding: desktopPortrait ? 1.0 : 1.2,
+      minimumDistance: desktopPortrait ? 2.05 : 3.35,
     });
 
     this.camera.aspect = frame.aspect;
     this.camera.updateProjectionMatrix();
     if (this.mode === 'desktop') {
-      const targetY = center.y + size.y * 0.2;
+      const targetY = center.y + size.y * 0.24;
       this.camera.position.set(center.x, targetY, center.z + frame.distance);
       this.camera.lookAt(center.x, targetY, center.z);
     }
@@ -532,26 +573,26 @@ export class AliceWorld {
     const targetYaw = THREE.MathUtils.clamp(userX, -0.28, 0.28);
     const targetPitch = THREE.MathUtils.clamp(-userY, -0.18, 0.18);
 
-    headPivot.rotation.y = damp(headPivot.rotation.y, targetYaw + Math.sin(seconds * 0.37) * 0.018, 5.5, delta);
-    headPivot.rotation.x = damp(headPivot.rotation.x, targetPitch + Math.sin(seconds * 0.29) * 0.012, 5.5, delta);
-    headPivot.rotation.z = damp(headPivot.rotation.z, Math.sin(seconds * 0.23) * 0.012, 3.2, delta);
+    const elapsed = this.performance ? time - this.performanceStartedAt : 0;
+    const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
+    const speaking = timedPerformance || this.speechEnergy > 0.035;
+    const micro = sampleMicroMotion(seconds, { speaking });
 
-    const blinkPhase = seconds % 4.7;
-    const naturalBlink = blinkPhase > 4.55 ? Math.max(0.08, 1 - (blinkPhase - 4.55) * 10) : 1;
-    const blink = Math.min(naturalBlink, 1 - (this.presence.blink || 0) * 0.55);
+    headPivot.rotation.y = damp(headPivot.rotation.y, targetYaw + micro.headNoiseYaw, 5.5, delta);
+    headPivot.rotation.x = damp(headPivot.rotation.x, targetPitch + micro.headNoisePitch, 5.5, delta);
+    headPivot.rotation.z = damp(headPivot.rotation.z, micro.sway * 1.25, 3.2, delta);
+
+    const blink = Math.min(micro.blinkOpen, 1 - (this.presence.blink || 0) * 0.55);
     // @ts-ignore
     if (isProcedural && eyeRigs) {
       eyeRigs.forEach(({ group, white }) => {
-        group.rotation.y = damp(group.rotation.y, targetYaw * 0.75, 10, delta);
-        group.rotation.x = damp(group.rotation.x, targetPitch * 0.7, 10, delta);
+        group.rotation.y = damp(group.rotation.y, targetYaw * 0.75 + micro.eyeYaw, 10, delta);
+        group.rotation.x = damp(group.rotation.x, targetPitch * 0.7 + micro.eyePitch, 10, delta);
         white.scale.y = damp(white.scale.y, 0.72 * blink, 22, delta);
       });
     }
 
-    const elapsed = this.performance ? time - this.performanceStartedAt : 0;
-    const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
-    const speaking = timedPerformance || this.speechEnergy > 0.035;
-    const syntheticEnergy = timedPerformance ? 0.2 + Math.abs(Math.sin(elapsed * 0.022)) * 0.52 : 0;
+    const syntheticEnergy = timedPerformance ? 0.16 + Math.abs(Math.sin(elapsed * 0.019)) * 0.46 : 0;
     const speechEnergy = Math.max(this.speechEnergy, syntheticEnergy);
     if (isProcedural && mouth) {
       mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
@@ -560,7 +601,10 @@ export class AliceWorld {
     if (vrm) {
       const expressionManager = vrm.expressionManager;
       if (expressionManager) {
-        expressionManager.setValue('aa', speaking ? speechEnergy : 0);
+        const visemePhase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
+        expressionManager.setValue('aa', speaking ? speechEnergy * (0.68 + visemePhase * 0.22) : 0);
+        expressionManager.setValue('ih', speaking ? speechEnergy * (1 - visemePhase) * 0.22 : 0);
+        expressionManager.setValue('ou', speaking ? speechEnergy * visemePhase * 0.16 : 0);
         expressionManager.setValue('blink', 1 - blink);
         expressionManager.setValue('happy', this.presence.expression === 'smile' ? 1 : 0);
         expressionManager.update();
@@ -580,7 +624,12 @@ export class AliceWorld {
     }
 
     this.#animateGesture(arms, delta, speaking);
-    root.rotation.z = Math.sin(seconds * 0.55) * 0.008;
+    root.rotation.z = micro.sway;
+    if (isProcedural) {
+      const breathLift = micro.breath * (speaking ? 0.0025 : 0.004);
+      arms.left.shoulder.position.y = damp(arms.left.shoulder.position.y, 0.66 + breathLift, 3.2, delta);
+      arms.right.shoulder.position.y = damp(arms.right.shoulder.position.y, 0.66 + breathLift, 3.2, delta);
+    }
 
     if (this.renderer.xr.isPresenting && (this.mode !== 'ar' || this.arPlaced)) {
       const cameraPosition = new THREE.Vector3();

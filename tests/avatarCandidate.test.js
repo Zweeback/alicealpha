@@ -6,9 +6,11 @@ describe('avatar candidate lab', () => {
   it('keeps TRELLIS explicit while defaulting to the approved-safe procedural avatar', () => {
     expect(resolveAvatarSelection('?avatar=trellis').id).toBe('trellis');
     expect(resolveAvatarSelection('').id).toBe('procedural');
-    expect(isExplicit3DSelection('')).toBe(true);
+    expect(isExplicit3DSelection('')).toBe(false);
     expect(isPortraitSelection('')).toBe(false);
     expect(isExplicit3DSelection('?visual=portrait')).toBe(false);
+    expect(isExplicit3DSelection('?visual=3d')).toBe(true);
+    expect(isExplicit3DSelection('?avatar=trellis')).toBe(true);
     expect(isPortraitSelection('?visual=portrait')).toBe(true);
   });
 

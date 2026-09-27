@@ -43,7 +43,7 @@ export function resolveAvatarSelection(search = '') {
 
 export function isExplicit3DSelection(search = '') {
   const params = new URLSearchParams(search);
-  return params.get('visual') !== 'portrait';
+  return params.get('visual') === '3d' || Boolean(params.get('avatar'));
 }
 
 export function isPortraitSelection(search = '') {

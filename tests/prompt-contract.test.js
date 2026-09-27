@@ -16,4 +16,10 @@ describe('Alice realtime prompt contract', () => {
     expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/unsichere Beobachtung, keine Diagnose/i);
     expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/nie vorwurfsvoll oder besitzergreifend/i);
   });
+
+  it('keeps Alice in whispered German with a French accent', () => {
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/durchgehend sehr leise.*Flüstern/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/französischen Akzent/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/Eigenschaft der Aussprache, nicht der Rechtschreibung/i);
+  });
 });
