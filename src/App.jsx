@@ -7,7 +7,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { isPortraitSelection } from './xr/avatarCatalog.js';
+import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
 
 const labels = {
   booting: 'Alice erwacht',
@@ -374,7 +374,12 @@ export default function App() {
     else await runLocalTurn(text);
   };
 
-  const portraitVisual = sessionMode === 'desktop' && (renderFallback || isPortraitSelection(globalThis.location?.search || ''));
+  const visualQuery = globalThis.location?.search || '';
+  const portraitVisual = sessionMode === 'desktop' && (
+    renderFallback
+    || isPortraitSelection(visualQuery)
+    || !isExplicit3DSelection(visualQuery)
+  );
   const live3DVisual = !portraitVisual;
 
   return (
@@ -398,7 +403,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{live3DVisual ? 'Live Antlitz · 3D' : 'Kanonisches Portrait'} · Sitzung {companionState.sessionCount || 1} · {confirmedMemoryCount} Erinnerungen</small></div>
+          <div><strong>Alice</strong><small>{live3DVisual ? 'verkörperte Präsenz · 3D' : 'Präsenzmodus'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
@@ -413,7 +418,7 @@ export default function App() {
 
       {hintVisible && (
         <div className="first-contact">
-          <p>Berühre Alice. Danach kannst du einfach sprechen.</p>
+          <p>Berühre Alice. Sprich einfach.</p>
           <small>{realtimeAvailable
             ? 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
             : localAIStatus === 'ready'
