@@ -28,6 +28,7 @@ export default function App() {
   const search = globalThis.location?.search || '';
   const demoMode = visualDemoEnabled(search);
   const callMode = callModeEnabled(search);
+  const talkingHeadMode = new URLSearchParams(search).get('embed') === 'talking-head';
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const worldRef = useRef(null);
@@ -59,6 +60,17 @@ export default function App() {
   const [companionState, setCompanionState] = useState({ sessionCount: 0, turnCount: 0 });
   const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
+
+  useEffect(() => {
+    const root = globalThis.document?.documentElement;
+    const body = globalThis.document?.body;
+    root?.classList.toggle('talking-head-page', talkingHeadMode);
+    body?.classList.toggle('talking-head-page', talkingHeadMode);
+    return () => {
+      root?.classList.remove('talking-head-page');
+      body?.classList.remove('talking-head-page');
+    };
+  }, [talkingHeadMode]);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -432,7 +444,7 @@ export default function App() {
   };
 
   const visualQuery = search;
-  const portraitVisual = sessionMode === 'desktop' && (
+  const portraitVisual = sessionMode === 'desktop' && !talkingHeadMode && (
     renderFallback
     || isPortraitSelection(visualQuery)
     || (!demoMode && !isExplicit3DSelection(visualQuery))
@@ -440,7 +452,7 @@ export default function App() {
   const live3DVisual = !portraitVisual;
 
   return (
-    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
+    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''} ${talkingHeadMode ? 'talking-head-embed' : ''}`} ref={overlayRef}>
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {portraitVisual && (
