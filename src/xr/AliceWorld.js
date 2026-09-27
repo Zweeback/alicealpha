@@ -3,6 +3,7 @@ import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
 import { sampleMicroMotion } from './microMotion.js';
+import { buildVisemeWeights, collectMorphVisemeChannels } from './lipSync.js';
 
 const cyan = new THREE.Color('#8eced0');
 const amber = new THREE.Color('#c18767');
@@ -273,6 +274,7 @@ async function createAlice() {
     },
     vrm: null,
     gltf: null,
+    morphVisemes: [],
   };
 
   const params = new URLSearchParams(window.location.search);
@@ -289,6 +291,7 @@ async function createAlice() {
       root.add(model);
       model.rotation.set(0, 0, 0);
       state.isProcedural = false;
+      state.morphVisemes = collectMorphVisemeChannels(model);
       if (gltf.userData.vrm) {
         state.vrm = gltf.userData.vrm;
         const vrm = state.vrm;
@@ -566,7 +569,7 @@ export class AliceWorld {
   #animate(time, delta) {
     if (!this.alice) return;
     const seconds = time / 1000;
-    const { headPivot, eyeRigs, browLeft, browRight, mouth, chestCore, arms, root, isProcedural, vrm } = this.alice;
+    const { headPivot, eyeRigs, browLeft, browRight, mouth, chestCore, arms, root, isProcedural, vrm, morphVisemes = [] } = this.alice;
     const xrCamera = this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera;
     const userX = this.mode === 'desktop' ? this.presence.x * 0.22 + this.pointer.x * 0.08 : 0;
     const userY = this.mode === 'desktop' ? this.presence.y * 0.14 + this.pointer.y * 0.05 : 0;
@@ -594,17 +597,44 @@ export class AliceWorld {
 
     const syntheticEnergy = timedPerformance ? 0.16 + Math.abs(Math.sin(elapsed * 0.019)) * 0.46 : 0;
     const speechEnergy = Math.max(this.speechEnergy, syntheticEnergy);
+    const visemes = buildVisemeWeights({
+      timeSeconds: seconds,
+      energy: speechEnergy,
+      speaking,
+    });
+    const roundedMouth = visemes.U + visemes.O;
+    const wideMouth = visemes.I + visemes.E;
+
     if (isProcedural && mouth) {
-      mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
-      mouth.scale.x = damp(mouth.scale.x, this.presence.expression === 'smile' ? 1.35 : 1.15, 8, delta);
+      mouth.scale.y = damp(
+        mouth.scale.y,
+        speaking ? 0.12 + speechEnergy * 0.58 + visemes.A * 0.16 : this.presence.expression === 'smile' ? 0.1 : 0.06,
+        18,
+        delta,
+      );
+      mouth.scale.x = damp(
+        mouth.scale.x,
+        this.presence.expression === 'smile' ? 1.35 : 1.15 + wideMouth * 0.2 - roundedMouth * 0.16,
+        10,
+        delta,
+      );
+      mouth.scale.z = damp(mouth.scale.z, 0.25 + roundedMouth * 0.14, 10, delta);
     }
+
+    morphVisemes.forEach(({ mesh, index, viseme }) => {
+      const influences = mesh?.morphTargetInfluences;
+      if (!influences || index < 0 || index >= influences.length) return;
+      influences[index] = damp(influences[index] || 0, visemes[viseme] * 0.92, 20, delta);
+    });
+
     if (vrm) {
       const expressionManager = vrm.expressionManager;
       if (expressionManager) {
-        const visemePhase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
-        expressionManager.setValue('aa', speaking ? speechEnergy * (0.68 + visemePhase * 0.22) : 0);
-        expressionManager.setValue('ih', speaking ? speechEnergy * (1 - visemePhase) * 0.22 : 0);
-        expressionManager.setValue('ou', speaking ? speechEnergy * visemePhase * 0.16 : 0);
+        expressionManager.setValue('aa', visemes.A);
+        expressionManager.setValue('ih', visemes.I);
+        expressionManager.setValue('ou', visemes.U);
+        expressionManager.setValue('ee', visemes.E);
+        expressionManager.setValue('oh', visemes.O);
         expressionManager.setValue('blink', 1 - blink);
         expressionManager.setValue('happy', this.presence.expression === 'smile' ? 1 : 0);
         expressionManager.update();
