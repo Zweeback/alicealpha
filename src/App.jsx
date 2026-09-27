@@ -7,7 +7,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
+import { isPortraitSelection } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
 
@@ -42,6 +42,7 @@ export default function App() {
   const presenceRef = useRef({ present: false, confidence: 0 });
   const sessionModeRef = useRef('desktop');
   const fallbackBusyRef = useRef(false);
+  const outfitRef = useRef('casual');
 
   const [phase, setPhase] = useState('booting');
   const [caption, setCaption] = useState('');
@@ -68,6 +69,7 @@ export default function App() {
 
   const chooseOutfit = useCallback((next) => {
     const normalized = next === 'dark-mage' ? 'dark-mage' : 'casual';
+    outfitRef.current = normalized;
     setOutfit(normalized);
     const applied = worldRef.current?.setOutfit?.(normalized);
     if (applied) {
@@ -247,7 +249,7 @@ export default function App() {
         onSessionChange: setMode,
       });
       world.init()
-        .then(() => world.setOutfit?.(outfit))
+        .then(() => world.setOutfit?.(outfitRef.current))
         .catch((error) => {
           console.warn('Alice 3D initialization failed; using portrait fallback:', error);
           setRenderFallback(true);
@@ -376,7 +378,7 @@ export default function App() {
           .catch(() => setCaption('Die Hardware-Verbindung wurde nicht geöffnet.'));
       }
       if (event.key.toLowerCase() === 'o') {
-        chooseOutfit(outfit === 'casual' ? 'dark-mage' : 'casual');
+        chooseOutfit(outfitRef.current === 'casual' ? 'dark-mage' : 'casual');
       }
     };
     window.addEventListener('keydown', keyHandler);
@@ -391,7 +393,7 @@ export default function App() {
       if (demoTimer) globalThis.clearTimeout(demoTimer);
       world.dispose();
     };
-  }, [setMode, demoMode, chooseOutfit, outfit]);
+  }, [setMode, demoMode, chooseOutfit]);
 
   const enterXR = async (mode) => {
     setHintVisible(false);
