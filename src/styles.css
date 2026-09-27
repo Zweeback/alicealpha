@@ -289,6 +289,48 @@ canvas {
   transform: translateX(-50%);
 }
 
+.outfit-switch {
+  position: absolute;
+  z-index: 8;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 999px;
+  background: rgba(5,7,8,0.46);
+  backdrop-filter: blur(16px);
+}
+
+.outfit-switch button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 11px;
+  color: rgba(216,220,216,0.52);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.outfit-switch button:hover,
+.outfit-switch button:focus-visible {
+  color: rgba(244,246,242,0.9);
+  outline: none;
+}
+
+.outfit-switch button.active {
+  color: #f5f4f1;
+  background: rgba(255,255,255,0.085);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+.call-mode .outfit-switch {
+  bottom: max(86px, calc(env(safe-area-inset-bottom) + 72px));
+}
+
 .xr-entry {
   position: absolute;
   z-index: 7;
@@ -447,6 +489,16 @@ canvas {
   .alice-caption {
     padding: 7px 10px 9px;
     font-size: clamp(16px, 4.7vw, 20px);
+  }
+
+  .outfit-switch {
+    left: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .outfit-switch button {
+    padding: 7px 9px;
+    font-size: 8px;
   }
 
   .xr-entry {

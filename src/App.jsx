@@ -7,7 +7,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
+import { isPortraitSelection } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
 
@@ -42,6 +42,7 @@ export default function App() {
   const presenceRef = useRef({ present: false, confidence: 0 });
   const sessionModeRef = useRef('desktop');
   const fallbackBusyRef = useRef(false);
+  const outfitRef = useRef('casual');
 
   const [phase, setPhase] = useState('booting');
   const [caption, setCaption] = useState('');
@@ -58,11 +59,22 @@ export default function App() {
   const [localAISupported, setLocalAISupported] = useState(null);
   const [companionState, setCompanionState] = useState({ sessionCount: 0, turnCount: 0 });
   const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
+  const [outfit, setOutfit] = useState('casual');
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
     setSessionMode(mode);
     if (mode === 'ar') setCaption('Tippe auf eine Fläche, um Alice dort zu platzieren.');
+  }, []);
+
+  const chooseOutfit = useCallback((next) => {
+    const normalized = next === 'dark-mage' ? 'dark-mage' : 'casual';
+    outfitRef.current = normalized;
+    setOutfit(normalized);
+    const applied = worldRef.current?.setOutfit?.(normalized);
+    if (applied) {
+      setCaption(normalized === 'dark-mage' ? 'Dunkle Magierin.' : 'Shirt, Jeans, Chucks.');
+    }
   }, []);
 
   const ensureCamera = useCallback(async () => {
@@ -236,10 +248,12 @@ export default function App() {
         onInteract: () => interactRef.current?.(),
         onSessionChange: setMode,
       });
-      world.init().catch((error) => {
-        console.warn('Alice 3D initialization failed; using portrait fallback:', error);
-        setRenderFallback(true);
-      });
+      world.init()
+        .then(() => world.setOutfit?.(outfitRef.current))
+        .catch((error) => {
+          console.warn('Alice 3D initialization failed; using portrait fallback:', error);
+          setRenderFallback(true);
+        });
       world.support().then(setXrSupport).catch(() => undefined);
     } catch (error) {
       console.warn('WebGL unavailable; using Alice portrait/text fallback:', error);
@@ -251,6 +265,8 @@ export default function App() {
         setSpeechEnergy() {},
         playPlan() {},
         playCue() {},
+        setOutfit() { return false; },
+        getOutfit() { return null; },
         dispose() {},
         async support() { return { ar: false, vr: false }; },
         async startXR() { throw new Error('webgl-unavailable'); },
@@ -361,6 +377,9 @@ export default function App() {
           .then(() => setCaption('Der animatronische Körper ist verbunden.'))
           .catch(() => setCaption('Die Hardware-Verbindung wurde nicht geöffnet.'));
       }
+      if (event.key.toLowerCase() === 'o') {
+        chooseOutfit(outfitRef.current === 'casual' ? 'dark-mage' : 'casual');
+      }
     };
     window.addEventListener('keydown', keyHandler);
 
@@ -374,7 +393,7 @@ export default function App() {
       if (demoTimer) globalThis.clearTimeout(demoTimer);
       world.dispose();
     };
-  }, [setMode, demoMode]);
+  }, [setMode, demoMode, chooseOutfit]);
 
   const enterXR = async (mode) => {
     setHintVisible(false);
@@ -415,7 +434,6 @@ export default function App() {
   const portraitVisual = sessionMode === 'desktop' && (
     renderFallback
     || isPortraitSelection(visualQuery)
-    || (!demoMode && !isExplicit3DSelection(visualQuery))
   );
   const live3DVisual = !portraitVisual;
 
@@ -510,6 +528,23 @@ export default function App() {
           </button>
         </div>
       )}
+
+      <div className="outfit-switch" aria-label="Alice Outfit wechseln">
+        <button
+          type="button"
+          className={outfit === 'casual' ? 'active' : ''}
+          onClick={() => chooseOutfit('casual')}
+        >
+          Shirt + Jeans
+        </button>
+        <button
+          type="button"
+          className={outfit === 'dark-mage' ? 'active' : ''}
+          onClick={() => chooseOutfit('dark-mage')}
+        >
+          Dark Mage
+        </button>
+      </div>
 
       <div className="xr-entry" aria-label="Räumlichen Modus starten" hidden={callMode}>
         {xrSupport.ar && <button type="button" onClick={() => enterXR('ar')}>Alice in meinen Raum</button>}
