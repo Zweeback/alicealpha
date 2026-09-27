@@ -5,6 +5,7 @@ import { handleAliceMcpHttp } from './aliceMcp.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
+import { getAvailableProviders, parseLlmChain, streamLlmChat } from './llmRouter.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -129,6 +130,8 @@ app.get('/api/health', (_request, response) => {
   const realtimeOperational = realtimeConfigured
     && !['quota-blocked', 'auth-failed', 'upstream-error', 'transport-error'].includes(realtimeRuntime.status);
 
+  const availableLlmProviders = getAvailableProviders(process.env);
+
   response.set('Cache-Control', 'no-store');
   response.json({
     ok: true,
@@ -147,6 +150,14 @@ app.get('/api/health', (_request, response) => {
     model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
     ollama: Boolean(process.env.ALICE_OLLAMA_URL),
     ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
+    voicePipeline: {
+      default: 'oss',
+      stt: Boolean(process.env.GROQ_API_KEY) ? 'groq-whisper-or-browser' : 'browser-whisper',
+      llmChain: parseLlmChain(process.env.ALICE_LLM_CHAIN).map((p) => p.provider),
+      availableLlmProviders: availableLlmProviders.map((p) => p.provider),
+      tts: process.env.ALICE_XTTS_URL ? ['xtts', 'piper', 'webspeech'] : ['piper', 'webspeech'],
+      openaiFallback: realtimeOperational,
+    },
     revision: kernel.revision,
   });
 });
@@ -154,6 +165,68 @@ app.get('/api/health', (_request, response) => {
 app.get('/api/alice', (_request, response) => {
   response.set('Cache-Control', 'no-store');
   response.json(buildAliceKernelSnapshot(process.env));
+});
+
+app.post('/api/chat', realtimeRateLimiter, express.json({ limit: '128kb' }), async (request, response) => {
+  if (!originAllowed(request)) {
+    response.status(403).json({ error: 'chat-origin-denied' });
+    return;
+  }
+
+  const { text, confirmed_memory, persona_state, companion_state, messages } = request.body || {};
+  if (!text && (!messages || !messages.length)) {
+    response.status(400).json({ error: 'missing-text-or-messages' });
+    return;
+  }
+
+  response.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  try {
+    await streamLlmChat(
+      { text, confirmed_memory, persona_state, companion_state, messages },
+      (chunk) => {
+        response.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      },
+      { env: process.env }
+    );
+    response.write('data: [DONE]\n\n');
+    response.end();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'chat-request-failed';
+    response.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+    response.end();
+  }
+});
+
+app.post('/api/stt', realtimeRateLimiter, express.raw({ type: '*/*', limit: '10mb' }), async (request, response) => {
+  if (!originAllowed(request)) {
+    response.status(403).json({ error: 'stt-origin-denied' });
+    return;
+  }
+  if (!process.env.GROQ_API_KEY) {
+    response.status(503).json({ error: 'groq-stt-not-configured' });
+    return;
+  }
+
+  try {
+    const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': request.headers['content-type'] || 'multipart/form-data',
+      },
+      body: request.body,
+    });
+
+    const data = await groqRes.json();
+    response.status(groqRes.status).json(data);
+  } catch (error) {
+    response.status(502).json({ error: 'stt-upstream-failed' });
+  }
 });
 
 app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request, response) => {
