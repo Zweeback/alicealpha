@@ -15,7 +15,9 @@ Alice Alpha is a live German 3D persona for desktop, mobile AR and VR. The cloud
 - camera-derived user presence and coarse expression; raw camera frames stay in the browser
 - immersive WebXR AR placement and a VR laboratory
 - explicit, provenance-aware memory Tribunal: `candidate → confirmed | rejected`
+- persistent local girl-companion livechat layered over text, local AI and Realtime voice
 - browser speech/text fallback when the cloud channel is unavailable
+- optional hyperreal neural TTS sidecar with browser speech fallback
 - optional Web Serial performance-plan bridge for a later animatronic body
 - installable PWA shell and responsive, menu-free German interface
 
@@ -51,6 +53,32 @@ OPENAI_REALTIME_MODEL=gpt-realtime-2.1
 OPENAI_REALTIME_VOICE=marin
 PORT=8787
 ```
+
+
+## Girl Companion livechat + neural voice
+
+The text fallback is now a real persistent companion chat instead of a one-shot caption box. The last 80 local messages survive reloads in browser storage, while the compact `companion_state` sent to model backends still contains only continuity counters — chat content is not silently added to that payload.
+
+For a local hyperreal voice, Alice can use the bundled Chatterbox Multilingual V3 sidecar. Use only a voice reference you own or have permission to use.
+
+```bash
+python -m venv .venv-tts
+. .venv-tts/bin/activate
+pip install -r requirements-tts.txt
+
+export ALICE_VOICE_REFERENCE=/absolute/path/to/reference.wav
+python tools/alice_tts_sidecar.py
+```
+
+Then point the Node app at it:
+
+```dotenv
+ALICE_TTS_URL=http://127.0.0.1:8799/tts
+ALICE_TTS_PROVIDER=chatterbox
+ALICE_TTS_LANGUAGE=de
+```
+
+When the sidecar is healthy, local Alice replies use neural audio. If it is unavailable, the existing browser TTS remains the fallback. OpenAI Realtime speech-to-speech remains unchanged.
 
 ## Live control loop
 
