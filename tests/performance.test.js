@@ -9,6 +9,12 @@ describe('performance plans', () => {
     expect(plan.timeline[0]).toMatchObject({ type: 'gesture', name: 'hand_to_core' });
     expect(plan.duration_ms).toBeGreaterThanOrEqual(900);
     expect(plan.safety.motion_profile).toBe('close_proximity');
+    expect(plan.voice).toMatchObject({
+      language: 'de-DE',
+      accent: 'fr-FR',
+      delivery: 'whisper',
+    });
+    expect(plan.voice.volume).toBeLessThan(0.5);
   });
 
   it('rejects malformed external plans', () => {
