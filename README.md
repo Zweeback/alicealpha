@@ -87,6 +87,26 @@ Every memory carries a SHA-256 hash, source and status. A model tool may only pr
 
 The intended asset look for Alice is **towel-Alice (red hair, blue eyes, white towel, photoreal)**, referencing concepts from Grok Imagine. When the asset is ready, drop it as `alice.glb` or `alice.vrm` in the `public/` directory.
 
+## Studio asset handoff
+
+Alice can now receive a candidate avatar directly from the shared 3D/film studio output without silently promoting it to canonical:
+
+```bash
+npm run asset:import -- \
+  --source /path/to/published/alice.glb \
+  --provenance "DortmundGameMap studio pipeline"
+```
+
+The importer:
+
+- accepts only `.glb` or `.vrm`;
+- copies the file into `public/alice.glb` or `public/alice.vrm`;
+- computes SHA-256;
+- updates `ALICE_CHARACTER_MANIFEST.json` as a **candidate**;
+- preserves the explicit promotion gate and procedural fallback.
+
+Use `--dry-run` to inspect the handoff without changing files.
+
 ## Honest limits
 
 - The current character mesh is procedural (with a GLB/VRM loader fallback), not yet the final sculpted/rigged Alice asset.
