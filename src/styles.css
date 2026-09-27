@@ -20,6 +20,13 @@ html, body, #root {
 
 button, input { font: inherit; }
 
+html.talking-head-page,
+html.talking-head-page body,
+html.talking-head-page #root {
+  background: transparent;
+}
+
+
 .alice-app {
   position: relative;
   width: 100%;
@@ -749,4 +756,29 @@ canvas {
   .chat-key {
     right: 14px;
   }
+}
+
+
+/* OBS / broadcast-safe Alice talking head */
+.talking-head-embed {
+  background: transparent;
+  isolation: auto;
+}
+
+.talking-head-embed::before,
+.talking-head-embed::after,
+.talking-head-embed .presence-header,
+.talking-head-embed .captions,
+.talking-head-embed .first-contact,
+.talking-head-embed .local-ai-entry,
+.talking-head-embed .xr-entry,
+.talking-head-embed .text-key,
+.talking-head-embed .call-controls,
+.talking-head-embed .text-fallback {
+  display: none !important;
+}
+
+.talking-head-embed canvas {
+  filter: none !important;
+  background: transparent;
 }
