@@ -147,6 +147,8 @@ app.get('/api/health', (_request, response) => {
     model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
     ollama: Boolean(process.env.ALICE_OLLAMA_URL),
     ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
+    tts: Boolean(process.env.ALICE_TTS_URL),
+    ttsProvider: process.env.ALICE_TTS_PROVIDER || (process.env.ALICE_TTS_URL ? 'sidecar' : null),
     revision: kernel.revision,
   });
 });
@@ -183,6 +185,60 @@ app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request,
     const message = error instanceof Error ? error.message : 'ollama-request-failed';
     console.error('Local Ollama request failed:', message);
     response.status(message === 'ollama-empty-response' ? 502 : 503).json({ error: message });
+  }
+});
+
+app.post('/api/tts', express.json({ limit: '64kb' }), async (request, response) => {
+  const target = process.env.ALICE_TTS_URL;
+  if (!target) {
+    response.status(503).json({ error: 'tts-not-configured' });
+    return;
+  }
+
+  const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+  if (!text) {
+    response.status(400).json({ error: 'missing-text' });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(target, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: text.slice(0, 4000),
+        language: request.body?.language || process.env.ALICE_TTS_LANGUAGE || 'de',
+        accent: request.body?.accent || null,
+        rate: Number(request.body?.rate || 1),
+        pitch: Number(request.body?.pitch || 1),
+        voice_reference: process.env.ALICE_TTS_REFERENCE || null,
+        provider: process.env.ALICE_TTS_PROVIDER || 'sidecar',
+      }),
+      signal: AbortSignal.timeout(Math.max(1000, Number(process.env.ALICE_TTS_TIMEOUT_MS || 45000))),
+    });
+
+    if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => '');
+      response.status(502).json({ error: 'tts-upstream-failed', status: upstream.status, detail: detail.slice(0, 240) });
+      return;
+    }
+
+    const audio = Buffer.from(await upstream.arrayBuffer());
+    if (!audio.length) {
+      response.status(502).json({ error: 'tts-empty-audio' });
+      return;
+    }
+
+    response.set({
+      'Cache-Control': 'no-store',
+      'Content-Type': upstream.headers.get('content-type') || 'audio/wav',
+      'Content-Length': String(audio.length),
+    });
+    response.send(audio);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'tts-request-failed';
+    console.error('TTS sidecar request failed:', message);
+    response.status(503).json({ error: 'tts-request-failed' });
   }
 });
 
