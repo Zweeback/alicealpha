@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
+import { sampleMicroMotion } from './microMotion.js';
 
 const cyan = new THREE.Color('#8eced0');
 const amber = new THREE.Color('#c18767');
@@ -572,26 +573,26 @@ export class AliceWorld {
     const targetYaw = THREE.MathUtils.clamp(userX, -0.28, 0.28);
     const targetPitch = THREE.MathUtils.clamp(-userY, -0.18, 0.18);
 
-    headPivot.rotation.y = damp(headPivot.rotation.y, targetYaw + Math.sin(seconds * 0.37) * 0.018, 5.5, delta);
-    headPivot.rotation.x = damp(headPivot.rotation.x, targetPitch + Math.sin(seconds * 0.29) * 0.012, 5.5, delta);
-    headPivot.rotation.z = damp(headPivot.rotation.z, Math.sin(seconds * 0.23) * 0.012, 3.2, delta);
+    const elapsed = this.performance ? time - this.performanceStartedAt : 0;
+    const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
+    const speaking = timedPerformance || this.speechEnergy > 0.035;
+    const micro = sampleMicroMotion(seconds, { speaking });
 
-    const blinkPhase = seconds % 4.7;
-    const naturalBlink = blinkPhase > 4.55 ? Math.max(0.08, 1 - (blinkPhase - 4.55) * 10) : 1;
-    const blink = Math.min(naturalBlink, 1 - (this.presence.blink || 0) * 0.55);
+    headPivot.rotation.y = damp(headPivot.rotation.y, targetYaw + micro.headNoiseYaw, 5.5, delta);
+    headPivot.rotation.x = damp(headPivot.rotation.x, targetPitch + micro.headNoisePitch, 5.5, delta);
+    headPivot.rotation.z = damp(headPivot.rotation.z, micro.sway * 1.25, 3.2, delta);
+
+    const blink = Math.min(micro.blinkOpen, 1 - (this.presence.blink || 0) * 0.55);
     // @ts-ignore
     if (isProcedural && eyeRigs) {
       eyeRigs.forEach(({ group, white }) => {
-        group.rotation.y = damp(group.rotation.y, targetYaw * 0.75, 10, delta);
-        group.rotation.x = damp(group.rotation.x, targetPitch * 0.7, 10, delta);
+        group.rotation.y = damp(group.rotation.y, targetYaw * 0.75 + micro.eyeYaw, 10, delta);
+        group.rotation.x = damp(group.rotation.x, targetPitch * 0.7 + micro.eyePitch, 10, delta);
         white.scale.y = damp(white.scale.y, 0.72 * blink, 22, delta);
       });
     }
 
-    const elapsed = this.performance ? time - this.performanceStartedAt : 0;
-    const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
-    const speaking = timedPerformance || this.speechEnergy > 0.035;
-    const syntheticEnergy = timedPerformance ? 0.2 + Math.abs(Math.sin(elapsed * 0.022)) * 0.52 : 0;
+    const syntheticEnergy = timedPerformance ? 0.16 + Math.abs(Math.sin(elapsed * 0.019)) * 0.46 : 0;
     const speechEnergy = Math.max(this.speechEnergy, syntheticEnergy);
     if (isProcedural && mouth) {
       mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
@@ -600,7 +601,10 @@ export class AliceWorld {
     if (vrm) {
       const expressionManager = vrm.expressionManager;
       if (expressionManager) {
-        expressionManager.setValue('aa', speaking ? speechEnergy : 0);
+        const visemePhase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
+        expressionManager.setValue('aa', speaking ? speechEnergy * (0.68 + visemePhase * 0.22) : 0);
+        expressionManager.setValue('ih', speaking ? speechEnergy * (1 - visemePhase) * 0.22 : 0);
+        expressionManager.setValue('ou', speaking ? speechEnergy * visemePhase * 0.16 : 0);
         expressionManager.setValue('blink', 1 - blink);
         expressionManager.setValue('happy', this.presence.expression === 'smile' ? 1 : 0);
         expressionManager.update();
@@ -620,7 +624,12 @@ export class AliceWorld {
     }
 
     this.#animateGesture(arms, delta, speaking);
-    root.rotation.z = Math.sin(seconds * 0.55) * 0.008;
+    root.rotation.z = micro.sway;
+    if (isProcedural) {
+      const breathLift = micro.breath * (speaking ? 0.0025 : 0.004);
+      arms.left.shoulder.position.y = damp(arms.left.shoulder.position.y, 0.66 + breathLift, 3.2, delta);
+      arms.right.shoulder.position.y = damp(arms.right.shoulder.position.y, 0.66 + breathLift, 3.2, delta);
+    }
 
     if (this.renderer.xr.isPresenting && (this.mode !== 'ar' || this.arPlaced)) {
       const cameraPosition = new THREE.Vector3();
