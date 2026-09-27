@@ -346,10 +346,11 @@ export class AliceWorld {
     this.arPlaced = false;
     this.hitTestSource = null;
     this.hitMatrix = null;
+    this.talkingHeadMode = new URLSearchParams(globalThis.location?.search || '').get('embed') === 'talking-head';
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#050607');
-    this.scene.fog = new THREE.FogExp2('#050607', 0.085);
+    this.scene.background = this.talkingHeadMode ? null : new THREE.Color('#050607');
+    this.scene.fog = this.talkingHeadMode ? null : new THREE.FogExp2('#050607', 0.085);
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
     this.camera.position.set(0, 0.35, 3.45);
     this.camera.lookAt(0, 0.35, 0);
@@ -364,6 +365,7 @@ export class AliceWorld {
     this.renderer.xr.enabled = true;
 
     this.lab = createLab();
+    this.lab.visible = !this.talkingHeadMode;
     this.scene.add(this.lab);
     this.alice = null;
 
@@ -458,9 +460,9 @@ export class AliceWorld {
     };
     const session = await navigator.xr.requestSession(sessionMode, options);
     this.mode = mode;
-    this.lab.visible = mode !== 'ar';
-    this.scene.background = mode === 'ar' ? null : new THREE.Color('#050607');
-    this.scene.fog = mode === 'ar' ? null : new THREE.FogExp2('#050607', 0.085);
+    this.lab.visible = !this.talkingHeadMode && mode !== 'ar';
+    this.scene.background = (this.talkingHeadMode || mode === 'ar') ? null : new THREE.Color('#050607');
+    this.scene.fog = (this.talkingHeadMode || mode === 'ar') ? null : new THREE.FogExp2('#050607', 0.085);
     this.alice.root.scale.setScalar(0.82);
     this.alice.root.position.set(0, 1.1, -1.7);
     this.lab.position.y = 1.15;
@@ -474,10 +476,10 @@ export class AliceWorld {
 
     session.addEventListener('end', () => {
       this.mode = 'desktop';
-      this.lab.visible = true;
+      this.lab.visible = !this.talkingHeadMode;
       this.lab.position.y = 0;
-      this.scene.background = new THREE.Color('#050607');
-      this.scene.fog = new THREE.FogExp2('#050607', 0.085);
+      this.scene.background = this.talkingHeadMode ? null : new THREE.Color('#050607');
+      this.scene.fog = this.talkingHeadMode ? null : new THREE.FogExp2('#050607', 0.085);
       this.alice.root.position.set(0, 0, 0);
       this.alice.root.scale.setScalar(1);
       this.placementRing.visible = false;
@@ -531,16 +533,18 @@ export class AliceWorld {
       viewportHeight: height,
       verticalFovDegrees: this.camera.fov,
       boundsWidth: size.x,
-      boundsHeight: desktopPortrait ? size.y * ((width / height) < 0.72 ? 0.76 : 0.64) : size.y,
+      boundsHeight: this.talkingHeadMode
+        ? size.y * 0.44
+        : desktopPortrait ? size.y * ((width / height) < 0.72 ? 0.76 : 0.64) : size.y,
       boundsDepth: size.z,
-      padding: desktopPortrait ? 1.0 : 1.2,
-      minimumDistance: desktopPortrait ? 2.05 : 3.35,
+      padding: this.talkingHeadMode ? 1.08 : desktopPortrait ? 1.0 : 1.2,
+      minimumDistance: this.talkingHeadMode ? 1.25 : desktopPortrait ? 2.05 : 3.35,
     });
 
     this.camera.aspect = frame.aspect;
     this.camera.updateProjectionMatrix();
     if (this.mode === 'desktop') {
-      const targetY = center.y + size.y * 0.24;
+      const targetY = center.y + size.y * (this.talkingHeadMode ? 0.31 : 0.24);
       this.camera.position.set(center.x, targetY, center.z + frame.distance);
       this.camera.lookAt(center.x, targetY, center.z);
     }
