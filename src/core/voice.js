@@ -3,11 +3,20 @@ function recognitionConstructor() {
 }
 
 export class VoiceChannel {
-  constructor({ onListeningChange = () => {}, onSpeechEnergy = () => {} } = {}) {
+  constructor({ onListeningChange = () => {}, onSpeechEnergy = () => {}, ttsEndpoint = '/api/tts' } = {}) {
     this.onListeningChange = onListeningChange;
     this.onSpeechEnergy = onSpeechEnergy;
+    this.ttsEndpoint = ttsEndpoint;
+    this.neuralTtsEnabled = false;
     this.recognition = null;
     this.activeUtterance = null;
+    this.activeAudio = null;
+    this.activeAudioUrl = null;
+    this.activeTtsController = null;
+  }
+
+  setNeuralTtsEnabled(enabled) {
+    this.neuralTtsEnabled = Boolean(enabled);
   }
 
   get canListen() {
@@ -72,7 +81,28 @@ export class VoiceChannel {
     this.onListeningChange(false);
   }
 
-  speak(plan, { onStart = () => {}, onBoundary = () => {}, onEnd = () => {} } = {}) {
+  speak(plan, callbacks = {}) {
+    const normalized = {
+      onStart: callbacks.onStart || (() => {}),
+      onBoundary: callbacks.onBoundary || (() => {}),
+      onEnd: callbacks.onEnd || (() => {}),
+    };
+
+    this.stopSpeaking();
+
+    if (this.neuralTtsEnabled && globalThis.fetch && globalThis.Audio) {
+      const controller = new AbortController();
+      this.activeTtsController = controller;
+      this.#speakNeural(plan, normalized, controller).catch(() => {
+        if (!controller.signal.aborted) this.#speakBrowser(plan, normalized);
+      });
+      return { cancel: () => this.stopSpeaking() };
+    }
+
+    return this.#speakBrowser(plan, normalized);
+  }
+
+  #speakBrowser(plan, { onStart, onBoundary, onEnd }) {
     if (!this.canSpeak) {
       onStart();
       const timer = globalThis.setTimeout(onEnd, plan.duration_ms);
@@ -102,7 +132,52 @@ export class VoiceChannel {
     return { cancel: () => this.stopSpeaking() };
   }
 
+  async #speakNeural(plan, { onStart, onEnd }, controller) {
+    const response = await fetch(this.ttsEndpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: plan.spoken_text,
+        language: plan.voice?.language || 'de-DE',
+        accent: plan.voice?.accent || null,
+        rate: plan.voice?.rate || 1,
+        pitch: plan.voice?.pitch || 1,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`neural-tts-${response.status}`);
+
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('neural-tts-empty');
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    this.activeAudio = audio;
+    this.activeAudioUrl = url;
+
+    audio.onplay = onStart;
+    audio.onended = () => {
+      this.#releaseAudio();
+      onEnd();
+    };
+    audio.onerror = () => {
+      this.#releaseAudio();
+      onEnd();
+    };
+    await audio.play();
+  }
+
+  #releaseAudio() {
+    this.activeAudio?.pause?.();
+    this.activeAudio = null;
+    if (this.activeAudioUrl) URL.revokeObjectURL(this.activeAudioUrl);
+    this.activeAudioUrl = null;
+    this.activeTtsController = null;
+  }
+
   stopSpeaking() {
+    this.activeTtsController?.abort?.();
+    this.activeTtsController = null;
+    this.#releaseAudio();
     globalThis.speechSynthesis?.cancel();
     this.activeUtterance = null;
   }
