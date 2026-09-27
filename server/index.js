@@ -5,6 +5,7 @@ import { handleAliceMcpHttp } from './aliceMcp.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
+import { createWebCaptureArtifact, fetchPublicWebPage, verifyWebIntakeBearer, WebIntakeError } from './webIntake.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -183,6 +184,52 @@ app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request,
     const message = error instanceof Error ? error.message : 'ollama-request-failed';
     console.error('Local Ollama request failed:', message);
     response.status(message === 'ollama-empty-response' ? 502 : 503).json({ error: message });
+  }
+});
+
+
+app.post('/api/web/intake', express.json({ limit: '32kb' }), async (request, response) => {
+  const token = process.env.ALICE_WEB_INTAKE_TOKEN;
+  if (!token) {
+    response.status(503).json({ error: 'web-intake-not-configured' });
+    return;
+  }
+
+  if (!verifyWebIntakeBearer(request.get('authorization'), token)) {
+    response.set('WWW-Authenticate', 'Bearer realm="alice-web-intake"');
+    response.status(401).json({ error: 'web-intake-unauthorized' });
+    return;
+  }
+
+  const url = typeof request.body?.url === 'string' ? request.body.url.trim() : '';
+  if (!url) {
+    response.status(400).json({ error: 'web-intake-missing-url' });
+    return;
+  }
+
+  try {
+    const capture = await fetchPublicWebPage(url, {
+      maxBytes: Math.max(1024, Number(process.env.ALICE_WEB_INTAKE_MAX_BYTES || 524288)),
+      timeoutMs: Math.max(1000, Number(process.env.ALICE_WEB_INTAKE_TIMEOUT_MS || 15000)),
+      maxRedirects: Math.max(0, Number(process.env.ALICE_WEB_INTAKE_MAX_REDIRECTS || 3)),
+    });
+    const artifact = createWebCaptureArtifact(capture, { purpose: request.body?.purpose });
+
+    response.set('Cache-Control', 'no-store');
+    response.json({
+      ok: true,
+      capture,
+      artifact,
+      contextEligible: false,
+    });
+  } catch (error) {
+    if (error instanceof WebIntakeError) {
+      response.status(error.status).json({ error: error.code });
+      return;
+    }
+
+    console.error('Web intake failed:', error instanceof Error ? error.message : 'unknown');
+    response.status(500).json({ error: 'web-intake-failed' });
   }
 });
 

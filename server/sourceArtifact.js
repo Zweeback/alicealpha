@@ -6,6 +6,7 @@ const KINDS = new Set([
   'library_form',
   'library_record',
   'research_brief',
+  'web_capture',
 ])
 
 const PROVIDERS = new Set([
@@ -17,6 +18,7 @@ const PROVIDERS = new Set([
   'notebooklm',
   'scriptdb',
   'supergrok',
+  'public_web',
 ])
 
 const APPROVALS = new Set(['pending', 'accepted', 'rejected'])

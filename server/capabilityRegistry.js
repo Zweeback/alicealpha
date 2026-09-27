@@ -72,6 +72,14 @@ const CAPABILITY_DEFINITIONS = Object.freeze([
     evidence: 'server/githubMcpExecutor.js + server/operatorPolicy.js',
   },
   {
+    id: 'research.web_intake',
+    layer: 'research',
+    authority: 'server-token+policy-gated',
+    transport: 'http-fetch',
+    status: (env) => env.ALICE_WEB_INTAKE_TOKEN ? 'configured' : 'unconfigured',
+    evidence: 'server/webIntake.js + server/sourceArtifact.js',
+  },
+  {
     id: 'surface.chatgpt_mcp',
     layer: 'surface',
     authority: 'host',
