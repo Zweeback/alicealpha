@@ -1,11 +1,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
+import NewsStudio from './news/NewsStudio.jsx';
 import './styles.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    {new URLSearchParams(globalThis.location?.search || '').get('studio') === 'news' ? <NewsStudio /> : <App />}
   </React.StrictMode>,
 );
 
