@@ -486,3 +486,123 @@ canvas {
     transition-duration: 1ms !important;
   }
 }
+
+
+/* Direct Alice call surface */
+.call-mode .presence-header {
+  top: max(16px, env(safe-area-inset-top));
+}
+
+.call-mode .first-contact {
+  bottom: max(34px, calc(env(safe-area-inset-bottom) + 20px));
+  width: min(420px, calc(100% - 34px));
+  pointer-events: auto;
+}
+
+.call-contact small {
+  display: block;
+  margin-top: 9px;
+}
+
+.call-primary,
+.call-hangup,
+.call-text {
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.call-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 176px;
+  min-height: 50px;
+  padding: 0 20px;
+  border-radius: 999px;
+  color: #101213;
+  background: rgba(239, 239, 233, 0.96);
+  box-shadow: 0 14px 42px rgba(0,0,0,0.36);
+  font: 500 13px/1 Manrope, sans-serif;
+  letter-spacing: 0.015em;
+}
+
+.call-primary:active {
+  transform: scale(0.985);
+}
+
+.call-icon {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 50%;
+  color: transparent;
+  background: #699d76;
+  box-shadow: 0 0 12px rgba(105,157,118,0.38);
+}
+
+.call-controls {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + 14px));
+  display: flex;
+  gap: 9px;
+  transform: translateX(-50%);
+}
+
+.call-controls button {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font: 500 10px/1 Manrope, sans-serif;
+  letter-spacing: 0.035em;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.3);
+}
+
+.call-hangup {
+  color: #fff6f3;
+  background: rgba(146, 54, 48, 0.9);
+}
+
+.call-text {
+  border: 1px solid rgba(255,255,255,0.09) !important;
+  color: rgba(241,243,239,0.86);
+  background: rgba(7,9,10,0.62);
+}
+
+.call-mode .captions {
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 82px));
+}
+
+.call-mode .text-key {
+  display: none;
+}
+
+.call-mode.visual-3d canvas {
+  filter: saturate(0.92) contrast(1.02);
+}
+
+@media (max-width: 720px) {
+  .call-mode .canonical-alice-portrait {
+    top: 46%;
+    height: 82dvh;
+  }
+
+  .call-mode .captions {
+    bottom: max(102px, calc(env(safe-area-inset-bottom) + 92px));
+  }
+
+  .call-mode .call-controls {
+    bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));
+  }
+
+  .call-primary {
+    min-width: 190px;
+    min-height: 54px;
+    font-size: 14px;
+  }
+}
