@@ -4,8 +4,8 @@ import { CompanionStore } from './core/companion.js';
 import { MemoryStore } from './core/memory.js';
 import { PersonaRuntime } from './core/runtime.js';
 import { RealtimeChannel } from './core/realtime.js';
-import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
+import { VoicePipeline } from './core/voicePipeline.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { isPortraitSelection } from './xr/avatarCatalog.js';
 
@@ -17,6 +17,7 @@ const labels = {
   listening: 'Ich höre zu',
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
+  oss: 'Live · Open Source',
   offline: 'Basismodus · keine Live-KI',
   local: 'Lokale KI · auf diesem Gerät',
   error: 'Verbindung unterbrochen',
@@ -26,9 +27,9 @@ export default function App() {
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const worldRef = useRef(null);
-  const cameraRef = useRef(null);
   const realtimeRef = useRef(null);
   const voiceRef = useRef(null);
+  const voicePipelineRef = useRef(null);
   const memoryRef = useRef(null);
   const companionRef = useRef(null);
   const runtimeRef = useRef(null);
@@ -58,15 +59,6 @@ export default function App() {
     sessionModeRef.current = mode;
     setSessionMode(mode);
     if (mode === 'ar') setCaption('Tippe auf eine Fläche, um Alice dort zu platzieren.');
-  }, []);
-
-  const ensureCamera = useCallback(async () => {
-    if (sessionModeRef.current !== 'desktop' || cameraRef.current?.running) return;
-    try {
-      await cameraRef.current?.start();
-    } catch {
-      // Eye contact still follows pointer or headset when camera access is declined.
-    }
   }, []);
 
   const runLocalTurn = useCallback(async (text) => {
@@ -157,7 +149,17 @@ export default function App() {
 
   const ensureLive = useCallback(async () => {
     setHintVisible(false);
-    await ensureCamera();
+    if (voicePipelineRef.current) {
+      setPhase('listening');
+      try {
+        await voicePipelineRef.current.startListening();
+        setCaption('Ich höre dir zu (Open Source Pipeline).');
+        return;
+      } catch {
+        // Fall back to local mode
+      }
+    }
+
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');
@@ -167,25 +169,14 @@ export default function App() {
         setCaption('Ich bin da. Sprich einfach mit mir.');
         setPhase('connected');
         return;
-      } catch (error) {
+      } catch {
         setRealtimeAvailable(false);
-        if (error.message && error.message.includes('webrtc-unavailable')) {
-          setCaption('Der Live-Kanal ist auf diesem Gerät nicht verfügbar. Ich wechsle in den lokalen Modus.');
-        } else if (error.message && error.message.includes('realtime-session-429')) {
-          setCaption('Der Live-Kanal hat gerade kein Kontingent. Ich wechsle in den lokalen Modus.');
-        } else {
-          setCaption('Der Live-Kanal ist gerade nicht erreichbar. Ich wechsle in den lokalen Modus.');
-        }
         await listenLocally();
         return;
       }
     }
-    if (realtime?.connected) {
-      setCaption('Ich höre dir zu.');
-      return;
-    }
     await listenLocally();
-  }, [ensureCamera, listenLocally, realtimeAvailable]);
+  }, [listenLocally, realtimeAvailable]);
 
   useEffect(() => {
     interactRef.current = ensureLive;
@@ -239,13 +230,17 @@ export default function App() {
     }
     worldRef.current = world;
 
-    const camera = new CameraPresence({
-      onPresence: (presence) => {
-        presenceRef.current = presence;
-        world.setPresence(presence);
+    const voicePipeline = new VoicePipeline({
+      onState: (st) => setPhase(st === 'idle' ? 'ready' : st),
+      onTranscript: (txt, done) => {
+        setCaption(txt);
+        if (!done) setPhase('speaking');
       },
+      onUserTranscript: (txt) => setUserCaption(txt),
+      onSpeechEnergy: (energy) => world.setSpeechEnergy(energy),
+      onViseme: (viseme) => world.setViseme?.(viseme),
     });
-    cameraRef.current = camera;
+    voicePipelineRef.current = voicePipeline;
 
     const realtime = new RealtimeChannel({
       onState: (state) => {
@@ -330,7 +325,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener('keydown', keyHandler);
-      camera.stop();
+      voicePipeline.stop();
       realtime.disconnect();
       voice.stopListening();
       voice.stopSpeaking();
@@ -358,7 +353,10 @@ export default function App() {
     setTextOpen(false);
     setHintVisible(false);
     setUserCaption(text);
-    await ensureCamera();
+    if (voicePipelineRef.current) {
+      voicePipelineRef.current.processUserTurn(text);
+      return;
+    }
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');

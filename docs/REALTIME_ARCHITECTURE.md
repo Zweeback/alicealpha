@@ -1,4 +1,16 @@
-# Alice realtime communication architecture
+# Alice realtime & OSS communication architecture
+
+## Default Pipeline: Open-Source Speech (OSS)
+
+Alice's default speech pipeline operates on a half-duplex barge-in model requiring zero paid API keys:
+1. **Input / VAD:** Browser audio stream evaluated by client VAD (`src/core/vad.js`). Barge-in during Alice's speech immediately cancels active streams and TTS audio.
+2. **STT:** Speech-to-text via Browser Whisper / Web Speech API (`src/core/stt.js`), with optional server Groq Whisper fallback (`POST /api/stt`) if configured.
+3. **LLM Router:** `POST /api/chat` streaming SSE endpoint using `ALICE_LLM_CHAIN` providers (Gemini Flash, Groq Llama, OpenRouter free models). Circuit breakers automatically bypass 429/5xx or timed-out providers (<= 4s).
+4. **TTS & Visemes:** Sentence-chunked synthesis using XTTS (if `ALICE_XTTS_URL` is responsive), Piper de_DE, or Web Speech API (`src/core/tts.js`). Mouth movement and visemes drive the 3D avatar during playback.
+
+## WebRTC Fallback Mode (OpenAI Realtime)
+
+The OpenAI Realtime WebRTC channel remains supported as an optional fallback when `realtimeOperational === true` and `ALICE_VOICE_MODE` is not set to `oss`.
 
 ## Where the AI is
 
