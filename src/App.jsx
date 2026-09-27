@@ -58,6 +58,7 @@ export default function App() {
   const [localAISupported, setLocalAISupported] = useState(null);
   const [companionState, setCompanionState] = useState({ sessionCount: 0, turnCount: 0 });
   const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
+  const [chatMessages, setChatMessages] = useState([]);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -74,15 +75,21 @@ export default function App() {
     }
   }, []);
 
-  const runLocalTurn = useCallback(async (text) => {
+  const runLocalTurn = useCallback(async (text, { recordUser = true } = {}) => {
     if (!text || fallbackBusyRef.current) return;
     fallbackBusyRef.current = true;
+    if (recordUser) {
+      companionRef.current?.recordMessage('user', text, 'local-input');
+      setChatMessages(companionRef.current?.history?.(60) || []);
+    }
     setUserCaption(text);
     setPhase('thinking');
     try {
       const result = await runtimeRef.current.respond(text);
       setCompanionState(companionRef.current?.snapshot?.() || { sessionCount: 0, turnCount: 0 });
       setConfirmedMemoryCount(memoryRef.current?.confirmed?.().length || 0);
+      companionRef.current?.recordMessage('alice', result.reply, result.source || 'local');
+      setChatMessages(companionRef.current?.history?.(60) || []);
       setCaption(result.reply);
       setPhase('speaking');
       worldRef.current?.playPlan(result.plan);
@@ -216,6 +223,7 @@ export default function App() {
     const openedCompanionState = companion.openSession();
     const runtime = new PersonaRuntime(memory, undefined, companion);
     setCompanionState(openedCompanionState);
+    setChatMessages(companion.history(60));
     setConfirmedMemoryCount(memory.confirmed().length);
     setLocalAISupported(runtime.browserAISupported);
     const hardware = new AnimatronicBridge();
@@ -297,8 +305,18 @@ export default function App() {
       onTranscript: (text, done) => {
         setCaption(text);
         setPhase(done ? 'connected' : 'speaking');
+        if (done && text?.trim()) {
+          companion.recordMessage('alice', text, 'realtime');
+          setChatMessages(companion.history(60));
+        }
       },
-      onUserTranscript: (text) => setUserCaption(text),
+      onUserTranscript: (text, done) => {
+        setUserCaption(text);
+        if (done && text?.trim()) {
+          companion.recordMessage('user', text, 'voice');
+          setChatMessages(companion.history(60));
+        }
+      },
       onSpeechEnergy: (energy) => world.setSpeechEnergy(energy),
       onTool: async (name, args) => {
         if (name === 'get_companion_state') {
@@ -342,6 +360,7 @@ export default function App() {
         const available = Boolean(health?.realtime) && canWebRTC;
         runtime.endpoint = health?.ollama ? '/api/local/respond' : null;
         setRealtimeAvailable(available);
+        voice.setNeuralTtsEnabled(Boolean(health?.tts));
         setPhase(available ? 'ready' : health?.ollama ? 'local' : 'offline');
         if (!available && health?.ollama) {
           setCaption(`Lokales Ollama ist verbunden · ${health.ollamaModel || 'Modell bereit'}`);
@@ -392,8 +411,9 @@ export default function App() {
     const text = textValue.trim();
     if (!text) return;
     setTextValue('');
-    setTextOpen(false);
     setHintVisible(false);
+    companionRef.current?.recordMessage('user', text, 'text');
+    setChatMessages(companionRef.current?.history?.(60) || []);
     setUserCaption(text);
     await ensureCamera();
     const realtime = realtimeRef.current;
@@ -408,7 +428,7 @@ export default function App() {
       }
     }
     if (realtime?.connected) realtime.sendText(text);
-    else await runLocalTurn(text);
+    else await runLocalTurn(text, { recordUser: false });
   };
 
   const visualQuery = search;
@@ -517,9 +537,26 @@ export default function App() {
       </div>
 
       {textOpen && (
-        <form className="text-fallback" onSubmit={submitText}>
-          <label htmlFor="alice-text">Mit Alice schreiben</label>
-          <div>
+        <form className="text-fallback live-chat-panel" onSubmit={submitText}>
+          <div className="live-chat-head">
+            <div>
+              <strong>Alice</strong>
+              <span>Girl Companion · Livechat</span>
+            </div>
+            <button type="button" className="live-chat-close" onClick={() => setTextOpen(false)} aria-label="Livechat schließen">×</button>
+          </div>
+          <div className="live-chat-history" aria-live="polite">
+            {chatMessages.length === 0 ? (
+              <p className="live-chat-empty">Noch leer. Schreib Alice einfach.</p>
+            ) : chatMessages.map((message) => (
+              <div className={`live-chat-message ${message.role}`} key={message.id}>
+                <small>{message.role === 'alice' ? 'Alice' : 'Du'}</small>
+                <p>{message.text}</p>
+              </div>
+            ))}
+          </div>
+          <label htmlFor="alice-text">Nachricht</label>
+          <div className="live-chat-compose">
             <input
               id="alice-text"
               autoFocus
@@ -533,8 +570,8 @@ export default function App() {
         </form>
       )}
 
-      <button className="text-key" type="button" onClick={() => setTextOpen((open) => !open)} aria-label="Texteingabe öffnen">
-        T
+      <button className="text-key chat-key" type="button" onClick={() => setTextOpen((open) => !open)} aria-label="Alice Livechat öffnen">
+        Chat
       </button>
     </div>
   );
