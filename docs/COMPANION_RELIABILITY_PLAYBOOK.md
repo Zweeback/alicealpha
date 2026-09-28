@@ -79,6 +79,8 @@ the attribution engine returns `PLAYBACK_TIMEOUT`, domain `playback`, owner `aud
 - `POST /api/reliability/diagnose` accepts a turn trace and returns the attributed component, failure code, fallback, degradation state, recovery sequence and regression test.
 - `GET /api/health` advertises the reliability schema and degraded text safe-mode.
 
+The browser Realtime boundary now emits the same contract from observed runtime events: microphone permission, VAD speech start, completed STT, first agent/audio output, remote-audio playback and the avatar speech-energy callback. Completed traces are posted to `/api/reliability/diagnose`; the last trace and diagnosis are also exposed as `window.__aliceLastTurnTrace` and `window.__aliceLastTurnDiagnosis` for live debugging.
+
 ## Example trace
 
 ```json
