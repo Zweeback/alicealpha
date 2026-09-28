@@ -1,0 +1,42 @@
+name: Alice Studio Screenshot
+
+on:
+  push:
+    branches: [feat/alice-news-studio-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start preview
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/alice-preview.log 2>&1 &
+      - name: Wait
+        run: |
+          for i in {1..60}; do
+            curl -fsS 'http://127.0.0.1:4173/?studio=news' >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/alice-preview.log
+          exit 1
+      - name: Capture
+        run: |
+          mkdir -p artifacts
+          npx playwright screenshot             --browser=chromium             --viewport-size="1440,900"             --wait-for-timeout=2500             'http://127.0.0.1:4173/?studio=news'             artifacts/alice-studio.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alice-studio-browser-proof
+          path: artifacts/alice-studio.png
