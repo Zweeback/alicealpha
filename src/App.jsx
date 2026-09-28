@@ -458,7 +458,7 @@ export default function App() {
           }}
         >
           <img
-            src="/alice-canonical.jpg"
+            src="/alice-reference.jpg"
             alt=""
             draggable="false"
             onError={(event) => {
