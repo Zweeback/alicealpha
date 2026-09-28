@@ -435,6 +435,7 @@ export default function App() {
   const portraitVisual = sessionMode === 'desktop' && (
     renderFallback
     || isPortraitSelection(visualQuery)
+    || (!demoMode && !isExplicit3DSelection(visualQuery))
   );
   const live3DVisual = !portraitVisual;
 
@@ -443,7 +444,19 @@ export default function App() {
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {portraitVisual && (
-        <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
+        <div
+          className="canonical-alice-portrait"
+          role="button"
+          tabIndex={0}
+          aria-label="Mit Alice sprechen"
+          onClick={ensureLive}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              ensureLive();
+            }
+          }}
+        >
           <img
             src="/alice-canonical.jpg"
             alt=""
@@ -459,7 +472,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin'}</small></div>
+          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · live'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
