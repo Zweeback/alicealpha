@@ -36,3 +36,8 @@ A model is not Alice merely because a generator returned a GLB. Every generated 
 - provenance and reproducibility
 
 No single score promotes a model automatically.
+
+## Registered Reference Sets & Candidate Assets
+
+- **Visual Reference Sets**: Stored under `resources/visual_refsets/` (includes `ALICE_MASTER_SOURCE_v2_PROVISIONAL.jpg`, `ALICE_MASTER_SOURCE_v2_candidates.jpg`, `ALICE_SOURCE_REFSET_v1_contact.jpg`, `ALICE_SOURCE_REFSET_v2_contact.jpg`, `contact_sheet.jpg`, and live UI references).
+- **FBX Avatar Candidate**: Stored under `public/avatars/candidates/model.fbx` (SHA-256: `da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59`).
