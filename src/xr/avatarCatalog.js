@@ -33,6 +33,18 @@ export const AVATAR_CATALOG = Object.freeze({
       approved: false,
     }),
   }),
+  rigged: Object.freeze({
+    id: 'rigged',
+    kind: 'glb',
+    status: 'candidate',
+    label: 'Rigged Alice candidate',
+    url: '/avatars/alice-rigged.glb',
+    provenance: Object.freeze({
+      source: 'owned-rigged-candidate',
+      generator: 'alice-rigged-exporter',
+      approved: false,
+    }),
+  }),
 });
 
 export function resolveAvatarSelection(search = '') {

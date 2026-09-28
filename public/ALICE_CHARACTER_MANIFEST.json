@@ -7,6 +7,13 @@
   "approvedAsset": null,
   "candidateAssets": [
     {
+      "path": "/avatars/alice-rigged.glb",
+      "kind": "glb",
+      "status": "candidate",
+      "provenance": "owned rigged candidate for runtime import contract verification",
+      "sha256": "552bb3ebb96cec13ef816458d15b26cfa863e3006748992e733cc25c0521d396"
+    },
+    {
       "path": "/alice.glb",
       "kind": "glb",
       "status": "candidate",
