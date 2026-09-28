@@ -19,9 +19,9 @@ const labels = {
   listening: 'Ich höre zu',
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
-  offline: 'Basismodus · keine Live-KI',
+  offline: 'Bereit · lokaler Modus',
   local: 'Lokale KI · auf diesem Gerät',
-  error: 'Verbindung unterbrochen',
+  error: 'Bereit · lokaler Modus',
 };
 
 export default function App() {
@@ -102,8 +102,8 @@ export default function App() {
       });
     } catch {
       fallbackBusyRef.current = false;
-      setPhase('error');
-      setCaption('Die Verbindung ist gerade abgerissen. Versuch es noch einmal.');
+      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setCaption('Ich laufe lokal weiter.');
     }
   }, []);
 
@@ -181,13 +181,7 @@ export default function App() {
         return;
       } catch (error) {
         setRealtimeAvailable(false);
-        if (error.message && error.message.includes('webrtc-unavailable')) {
-          setCaption('Der Live-Kanal ist auf diesem Gerät nicht verfügbar. Ich wechsle in den lokalen Modus.');
-        } else if (error.message && error.message.includes('realtime-session-429')) {
-          setCaption('Der Live-Kanal hat gerade kein Kontingent. Ich wechsle in den lokalen Modus.');
-        } else {
-          setCaption('Der Live-Kanal ist gerade nicht erreichbar. Ich wechsle in den lokalen Modus.');
-        }
+        setCaption('Ich bin da. Ich laufe lokal weiter.');
         await listenLocally();
         return;
       }
@@ -346,8 +340,9 @@ export default function App() {
         return { ok: false, error: 'unknown-tool' };
       },
       onError: () => {
-        setPhase('error');
-        setCaption('Der Live-Kanal wurde unterbrochen. Tippe Alice an, um es erneut zu versuchen.');
+        setRealtimeAvailable(false);
+        setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+        setCaption('Ich laufe lokal weiter.');
       },
     });
     realtimeRef.current = realtime;
@@ -489,7 +484,7 @@ export default function App() {
               : 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
             : localAIStatus === 'ready'
               ? 'Lokale KI läuft direkt auf diesem Gerät.'
-              : 'Lokaler Basismodus: Der Live-KI-Kanal ist nicht verbunden.'}</small>
+              : 'Alice ist bereit. Live-KI wird automatisch genutzt, wenn verfügbar.'}</small>
           {!realtimeAvailable && localAIStatus !== 'ready' && (
             <button
               className="local-ai-button"
