@@ -179,9 +179,9 @@ export class NewsWorld {
     this.scene.background = new THREE.Color('#07080b');
     this.scene.fog = new THREE.FogExp2('#07080b', 0.09);
 
-    this.camera = new THREE.PerspectiveCamera(30, 1, 0.01, 100);
-    this.camera.position.set(0, 0.45, 3.75);
-    this.camera.lookAt(0, 0.4, 0);
+    this.camera = new THREE.PerspectiveCamera(34, 1, 0.01, 100);
+    this.camera.position.set(0, 0.30, 5.6);
+    this.camera.lookAt(0, 0.35, 0);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -302,8 +302,8 @@ export class NewsWorld {
     if (this.anchor?.root) this.scene.remove(this.anchor.root);
     this.anchor = createAnchorAlice(style);
     this.scene.add(this.anchor.root);
-    this.camera.position.set(0, 0.45, style === 'anime' ? 3.6 : 3.75);
-    this.camera.lookAt(0, 0.4, 0);
+    this.camera.position.set(0, 0.30, style === 'anime' ? 5.6 : 5.8);
+    this.camera.lookAt(0, 0.35, 0);
   }
 
   setExpression(name) {
