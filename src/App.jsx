@@ -7,7 +7,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
+import { shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
 
@@ -50,6 +50,7 @@ export default function App() {
   const [xrSupport, setXrSupport] = useState({ ar: false, vr: false });
   const [realtimeAvailable, setRealtimeAvailable] = useState(false);
   const [renderFallback, setRenderFallback] = useState(false);
+  const [portraitFailed, setPortraitFailed] = useState(false);
   const [textOpen, setTextOpen] = useState(true);
   const [textValue, setTextValue] = useState('');
   const [hintVisible, setHintVisible] = useState(true);
@@ -432,11 +433,7 @@ export default function App() {
   };
 
   const visualQuery = search;
-  const portraitVisual = sessionMode === 'desktop' && (
-    renderFallback
-    || isPortraitSelection(visualQuery)
-    || (!demoMode && !isExplicit3DSelection(visualQuery))
-  );
+  const portraitVisual = shouldShowPortrait(visualQuery, { sessionMode, renderFallback, portraitFailed });
   const live3DVisual = !portraitVisual;
 
   return (
@@ -450,6 +447,11 @@ export default function App() {
             alt=""
             draggable="false"
             onError={(event) => {
+              // Broken portrait asset: if WebGL works, show live 3D Alice instead of the logo.
+              if (!renderFallback) {
+                setPortraitFailed(true);
+                return;
+              }
               const image = event.currentTarget;
               if (!image.src.endsWith('/alice-mark.svg')) image.src = '/alice-mark.svg';
             }}

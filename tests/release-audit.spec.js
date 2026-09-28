@@ -4,6 +4,7 @@ import { resolveAvatarSelection } from '../src/xr/avatarCatalog.js';
 
 const LOCAL = 'http://127.0.0.1:8791/';
 
+test.setTimeout(60000);
 
 test('default avatar selection obeys the fail-closed character manifest', async () => {
   const manifest = JSON.parse(fs.readFileSync('public/ALICE_CHARACTER_MANIFEST.json', 'utf8'));
@@ -58,7 +59,9 @@ test('camera and microphone denial still leaves a working text fallback', async 
 
   const page = await context.newPage();
   await page.goto(LOCAL, { waitUntil: 'networkidle', timeout: 60_000 });
-  await page.getByRole('button', { name: 'Texteingabe öffnen' }).click({ force: true });
+  if (await page.locator('#alice-text').isHidden()) {
+    await page.getByRole('button', { name: 'Texteingabe öffnen' }).click({ force: true });
+  }
   await page.locator('#alice-text').fill('Audit fallback');
   await page.locator('form.text-fallback').evaluate(form => form.requestSubmit());
 

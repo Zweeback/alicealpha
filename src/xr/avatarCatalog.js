@@ -43,9 +43,19 @@ export function resolveAvatarSelection(search = '') {
 
 export function isExplicit3DSelection(search = '') {
   const params = new URLSearchParams(search);
-  return params.get('visual') === '3d' || Boolean(params.get('avatar'));
+  return params.get('visual') === '3d'
+    || Boolean(params.get('avatar'))
+    || params.get('procedural') === '1';
 }
 
 export function isPortraitSelection(search = '') {
   return new URLSearchParams(search).get('visual') === 'portrait';
+}
+
+// Default (no query) = live 3D procedural Alice. Portrait only on explicit
+// ?visual=portrait or when WebGL/3D init really failed.
+export function shouldShowPortrait(search = '', { sessionMode = 'desktop', renderFallback = false, portraitFailed = false } = {}) {
+  if (sessionMode !== 'desktop') return false;
+  if (renderFallback) return true;
+  return isPortraitSelection(search) && !portraitFailed;
 }
