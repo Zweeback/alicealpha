@@ -50,7 +50,7 @@ export default function App() {
   const [xrSupport, setXrSupport] = useState({ ar: false, vr: false });
   const [realtimeAvailable, setRealtimeAvailable] = useState(false);
   const [renderFallback, setRenderFallback] = useState(false);
-  const [textOpen, setTextOpen] = useState(false);
+  const [textOpen, setTextOpen] = useState(true);
   const [textValue, setTextValue] = useState('');
   const [hintVisible, setHintVisible] = useState(true);
   const [localAIStatus, setLocalAIStatus] = useState('idle');
@@ -76,7 +76,12 @@ export default function App() {
   }, []);
 
   const runLocalTurn = useCallback(async (text, { recordUser = true } = {}) => {
-    if (!text || fallbackBusyRef.current) return;
+    if (!text) return;
+    if (fallbackBusyRef.current) {
+      voiceRef.current?.stopSpeaking();
+      worldRef.current?.stopPlan();
+      fallbackBusyRef.current = false;
+    }
     fallbackBusyRef.current = true;
     if (recordUser) {
       companionRef.current?.recordMessage('user', text, 'local-input');
@@ -410,7 +415,7 @@ export default function App() {
     companionRef.current?.recordMessage('user', text, 'text');
     setChatMessages(companionRef.current?.history?.(60) || []);
     setUserCaption(text);
-    await ensureCamera();
+    ensureCamera().catch(() => undefined);
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');
