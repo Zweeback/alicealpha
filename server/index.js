@@ -256,7 +256,8 @@ app.post('/api/realtime/session', realtimeRateLimiter, express.text({ type: ['ap
     return;
   }
 
-  const session = buildRealtimeSession(process.env);
+  const mode = request.query?.mode === 'studio' ? 'studio' : 'companion';
+  const session = buildRealtimeSession(process.env, { mode });
 
   const form = new FormData();
   form.set('sdp', request.body);
