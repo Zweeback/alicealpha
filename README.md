@@ -144,3 +144,8 @@ Use `--dry-run` to inspect the handoff without changing files.
 - GitHub is connected for source control. Codespaces and Copilot are configured at repository level. Jules, Gemini, NotebookLM, SuperGrok, DigiBib and ScriptDB have defined handoff contracts but are not callable connectors in this session.
 
 The older `aliceneu` repository should not be developed in parallel. Migrate useful material here and archive or redirect it afterward.
+
+
+## Alice Live Studio v2
+
+Open `?studio=news` for the clean newsroom runtime. It is a real Three.js/VRM scene, not an image: procedural Alice has a restrained news-anchor updo, idle motion, pointer gaze, expressions, gestures, browser TTS and A/I/U/E/O lip-sync. Candidate assets can replace the fallback via `/alice-news.vrm`, `/alice-news.glb`, `/alice.vrm` or `/alice.glb`.
