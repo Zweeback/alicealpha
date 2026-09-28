@@ -50,7 +50,8 @@ function createAnchorAlice(style = 'anime') {
   root.add(neck);
 
   const head = new THREE.Group();
-  head.position.y = 1.35;
+  head.position.y = 1.38;
+  head.scale.setScalar(1.10);
   root.add(head);
 
   const hairBack = new THREE.Mesh(new THREE.SphereGeometry(0.48, 40, 30), materials.hairDark);
@@ -85,6 +86,11 @@ function createAnchorAlice(style = 'anime') {
     tube([[0.31, 0.26, 0.16], [0.24, 0.35, 0.04], [0.12, 0.39, -0.05]], 0.05, materials.hair),
   );
 
+  const sideLockLeft = tube([[-0.33, 0.18, 0.23], [-0.43, -0.04, 0.21], [-0.36, -0.28, 0.14]], 0.038, materials.hair);
+  const sideLockRight = tube([[0.33, 0.18, 0.23], [0.43, -0.04, 0.21], [0.36, -0.28, 0.14]], 0.038, materials.hair);
+  const ahoge = tube([[0.02, 0.42, -0.02], [0.08, 0.58, -0.04], [0.18, 0.62, -0.02]], 0.025, materials.hair);
+  head.add(sideLockLeft, sideLockRight, ahoge);
+
   const eyes = [];
   [-1, 1].forEach((side) => {
     const rig = new THREE.Group();
@@ -94,7 +100,7 @@ function createAnchorAlice(style = 'anime') {
     const iris = new THREE.Mesh(new THREE.SphereGeometry(anime ? 0.052 : 0.036, 18, 14), materials.iris);
     iris.scale.z = 0.4;
     iris.position.z = 0.072;
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.015, 14, 10), materials.dark);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.020, 14, 10), materials.dark);
     pupil.position.z = 0.09;
     pupil.scale.z = 0.3;
     rig.add(white, iris, pupil);
