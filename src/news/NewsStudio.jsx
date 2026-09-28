@@ -22,6 +22,7 @@ export default function NewsStudio() {
   const [state, setState] = useState('IDLE');
   const [expression, setExpression] = useState('serious');
   const [asset, setAsset] = useState('procedural');
+  const [look, setLook] = useState('anime');
   const [assetStatus, setAssetStatus] = useState('ANIME VTUBER');
   const [avatarStyle, setAvatarStyle] = useState('anime');
 
@@ -40,6 +41,10 @@ export default function NewsStudio() {
   useEffect(() => {
     worldRef.current?.setExpression(expression);
   }, [expression]);
+
+  useEffect(() => {
+    worldRef.current?.setLook(look);
+  }, [look]);
 
   useEffect(() => {
     worldRef.current?.setAvatarStyle(avatarStyle);
