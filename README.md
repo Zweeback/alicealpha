@@ -135,6 +135,25 @@ The importer:
 
 Use `--dry-run` to inspect the handoff without changing files.
 
+### News-anchor appearance
+
+The embodied renderer now has a broadcast-specific Alice look. The procedural fallback can be opened with:
+
+```text
+?visual=3d&look=news
+```
+
+That mode gathers Alice's red hair into a restrained updo while keeping the existing gaze, blink, mouth, gesture and realtime performance loop.
+
+Two asset slots are also reserved for the final rigged broadcast model:
+
+```text
+/alice-news.glb  -> ?avatar=news-glb&visual=3d
+/alice-news.vrm  -> ?avatar=news-vrm&visual=3d
+```
+
+If a candidate asset is missing or fails to load, Alice falls back to the procedural renderer instead of disappearing.
+
 ## Honest limits
 
 - The current character mesh is procedural (with a GLB/VRM loader fallback), not yet the final sculpted/rigged Alice asset.
