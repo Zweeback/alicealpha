@@ -18,18 +18,19 @@ function capsule(radius, length, material) {
   return mesh;
 }
 
-function createAnchorAlice() {
+function createAnchorAlice(style = 'anime') {
   const root = new THREE.Group();
+  const anime = style === 'anime';
 
   const materials = {
-    skin: new THREE.MeshStandardMaterial({ color: '#e6b6a4', roughness: 0.56 }),
+    skin: new THREE.MeshStandardMaterial({ color: anime ? '#f0c4b6' : '#e6b6a4', roughness: anime ? 0.46 : 0.56 }),
     skinShadow: new THREE.MeshStandardMaterial({ color: '#c98d7b', roughness: 0.62 }),
     hair: new THREE.MeshStandardMaterial({ color: '#8d2a20', roughness: 0.7 }),
     hairDark: new THREE.MeshStandardMaterial({ color: '#431510', roughness: 0.78 }),
     jacket: new THREE.MeshStandardMaterial({ color: '#e7e6e2', roughness: 0.78 }),
     dark: new THREE.MeshStandardMaterial({ color: '#202229', roughness: 0.55, metalness: 0.08 }),
     eye: new THREE.MeshStandardMaterial({ color: '#f4f4f0', roughness: 0.3 }),
-    iris: new THREE.MeshStandardMaterial({ color: '#669db0', roughness: 0.34 }),
+    iris: new THREE.MeshStandardMaterial({ color: anime ? '#72b7d8' : '#669db0', roughness: anime ? 0.24 : 0.34, emissive: anime ? '#12324a' : '#000000', emissiveIntensity: anime ? 0.18 : 0 }),
     mouth: new THREE.MeshStandardMaterial({ color: '#8f4b52', roughness: 0.66 }),
   };
 
@@ -56,8 +57,8 @@ function createAnchorAlice() {
   hairBack.scale.set(0.92, 1.12, 0.78);
   head.add(hairBack);
 
-  const face = new THREE.Mesh(new THREE.SphereGeometry(0.42, 44, 34), materials.skin);
-  face.scale.set(0.82, 1.05, 0.69);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(anime ? 0.45 : 0.42, 44, 34), materials.skin);
+  face.scale.set(anime ? 0.86 : 0.82, anime ? 1.02 : 1.05, anime ? 0.66 : 0.69);
   face.position.z = 0.17;
   face.castShadow = true;
   head.add(face);
@@ -87,10 +88,10 @@ function createAnchorAlice() {
   const eyes = [];
   [-1, 1].forEach((side) => {
     const rig = new THREE.Group();
-    rig.position.set(side * 0.145, 0.055, 0.445);
-    const white = new THREE.Mesh(new THREE.SphereGeometry(0.082, 22, 16), materials.eye);
-    white.scale.set(1.15, 0.72, 0.4);
-    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.036, 18, 14), materials.iris);
+    rig.position.set(side * (anime ? 0.155 : 0.145), anime ? 0.06 : 0.055, anime ? 0.455 : 0.445);
+    const white = new THREE.Mesh(new THREE.SphereGeometry(anime ? 0.10 : 0.082, 22, 16), materials.eye);
+    white.scale.set(anime ? 1.12 : 1.15, anime ? 0.82 : 0.72, 0.4);
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(anime ? 0.052 : 0.036, 18, 14), materials.iris);
     iris.scale.z = 0.4;
     iris.position.z = 0.072;
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.015, 14, 10), materials.dark);
@@ -105,7 +106,7 @@ function createAnchorAlice() {
   const browRight = tube([[0.07, 0.19, 0.48], [0.14, 0.21, 0.49], [0.23, 0.18, 0.47]], 0.012, materials.hairDark);
   head.add(browLeft, browRight);
 
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.11, 14), materials.skinShadow);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(anime ? 0.022 : 0.038, anime ? 0.07 : 0.11, 14), materials.skinShadow);
   nose.rotation.x = Math.PI / 2;
   nose.position.set(0, -0.03, 0.49);
   head.add(nose);
@@ -174,7 +175,8 @@ export class NewsWorld {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
 
-    this.anchor = createAnchorAlice();
+    this.avatarStyle = 'anime';
+    this.anchor = createAnchorAlice(this.avatarStyle);
     this.scene.add(this.anchor.root);
 
     this.#buildStudio();
@@ -262,6 +264,21 @@ export class NewsWorld {
     model.position.y -= bounds.min.y + 1.12;
     this.camera.position.set(0, Math.max(0.4, size.y * 0.48), Math.max(2.8, size.y * 1.55));
     this.camera.lookAt(0, Math.max(0.35, size.y * 0.46), 0);
+  }
+
+  setAvatarStyle(style = 'anime') {
+    if (!['anime', 'broadcast'].includes(style)) return;
+    this.avatarStyle = style;
+    if (this.loaded) {
+      this.scene.remove(this.loaded);
+      this.loaded = null;
+      this.vrm = null;
+    }
+    if (this.anchor?.root) this.scene.remove(this.anchor.root);
+    this.anchor = createAnchorAlice(style);
+    this.scene.add(this.anchor.root);
+    this.camera.position.set(0, 0.45, style === 'anime' ? 3.6 : 3.75);
+    this.camera.lookAt(0, 0.4, 0);
   }
 
   setExpression(name) {
