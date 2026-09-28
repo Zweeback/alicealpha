@@ -78,6 +78,7 @@ function originAllowed(request) {
     process.env.ALICE_PUBLIC_ORIGIN,
     process.env.RENDER_EXTERNAL_URL,
     'https://alicealpha.onrender.com',
+    'https://app.buildy.so',
     'http://127.0.0.1:8787',
     'http://127.0.0.1:8790',
     'http://127.0.0.1:8791',
