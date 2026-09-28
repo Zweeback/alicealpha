@@ -294,6 +294,7 @@ export default function App() {
     cameraRef.current = camera;
 
     const realtime = new RealtimeChannel({
+      endpoint: studioMode ? '/api/realtime/session?mode=studio' : '/api/realtime/session',
       onState: (state) => {
         if (state === 'disconnected' && phase !== 'booting') setPhase('offline');
         else if (labels[state]) setPhase(state);
