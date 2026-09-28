@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NewsWorld } from './NewsWorld.js';
-import { CameraPresence } from '../core/vision.js';
 import './newsStudio.css';
 
 const defaultScript = 'Guten Abend. Hier ist Parallax News. Ich bin Alice.';
@@ -19,14 +18,12 @@ export default function NewsStudio() {
   const canvasRef = useRef(null);
   const worldRef = useRef(null);
   const visemeTimerRef = useRef(null);
-  const presenceRef = useRef(null);
   const [script, setScript] = useState(defaultScript);
   const [state, setState] = useState('IDLE');
   const [expression, setExpression] = useState('serious');
-  const [asset, setAsset] = useState('alice-glb');
+  const [asset, setAsset] = useState('procedural');
   const [look, setLook] = useState('anime');
-  const [assetStatus, setAssetStatus] = useState('LOADING ALICE GLB');
-  const [cameraStatus, setCameraStatus] = useState('CAMERA OFF');
+  const [assetStatus, setAssetStatus] = useState('ANIME VTUBER');
   const [avatarStyle, setAvatarStyle] = useState('anime');
 
   const voices = useMemo(() => globalThis.speechSynthesis?.getVoices?.() || [], [state]);
@@ -34,25 +31,10 @@ export default function NewsStudio() {
   useEffect(() => {
     const world = new NewsWorld(canvasRef.current);
     worldRef.current = world;
-    let cancelled = false;
-    world.loadAsset('/alice.glb')
-      .then((result) => {
-        if (cancelled) return;
-        setAsset('alice-glb');
-        setAssetStatus(result?.vrm ? 'VRM LIVE' : 'GLB LIVE');
-      })
-      .catch(() => {
-        if (cancelled) return;
-        world.setAvatarStyle('anime');
-        setAsset('procedural');
-        setAssetStatus('3D FALLBACK LIVE');
-      });
+    world.setAvatarStyle('anime');
     return () => {
-      cancelled = true;
       clearInterval(visemeTimerRef.current);
       globalThis.speechSynthesis?.cancel?.();
-      presenceRef.current?.stop?.();
-      presenceRef.current = null;
       world.dispose();
     };
   }, []);
@@ -135,27 +117,6 @@ export default function NewsStudio() {
     } catch {
       setAssetStatus('MISSING → FALLBACK');
       setAsset('procedural');
-    }
-  };
-
-  const toggleCamera = async () => {
-    if (presenceRef.current) {
-      presenceRef.current.stop();
-      presenceRef.current = null;
-      setCameraStatus('CAMERA OFF');
-      return;
-    }
-    const tracker = new CameraPresence({
-      onPresence: (observation) => worldRef.current?.setPresence(observation),
-      onError: () => setCameraStatus('TRACKING LIMITED'),
-    });
-    try {
-      await tracker.start();
-      presenceRef.current = tracker;
-      setCameraStatus('FACE TRACKING');
-    } catch {
-      tracker.stop();
-      setCameraStatus('CAMERA BLOCKED');
     }
   };
 
@@ -253,7 +214,6 @@ export default function NewsStudio() {
             <button type="button" onClick={() => worldRef.current?.playCue('present')}>PRÄSENTIEREN</button>
             <button type="button" onClick={() => worldRef.current?.playCue('consider')}>NACHDENKEN</button>
             <button type="button" onClick={() => worldRef.current?.playCue('listen')}>ZUHÖREN</button>
-            <button type="button" className={presenceRef.current ? 'selected' : ''} onClick={toggleCamera}>{cameraStatus}</button>
           </div>
         </section>
 
