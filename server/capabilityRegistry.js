@@ -87,6 +87,14 @@ const CAPABILITY_DEFINITIONS = Object.freeze([
     status: () => 'ready',
     evidence: 'server/operatorAudit.js + server/operatorTelemetry.js',
   },
+  {
+    id: 'reliability.attribution',
+    layer: 'resilience',
+    authority: 'deterministic',
+    transport: 'in-process',
+    status: () => 'ready',
+    evidence: 'data/failure-registry.yaml + server/companionReliability.js',
+  },
 ]);
 
 const EXECUTION_LAW = Object.freeze([

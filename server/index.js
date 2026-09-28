@@ -5,6 +5,7 @@ import { handleAliceMcpHttp } from './aliceMcp.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
+import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -152,6 +153,11 @@ app.get('/api/health', (_request, response) => {
     tts: Boolean(process.env.ALICE_TTS_URL),
     ttsProvider: process.env.ALICE_TTS_PROVIDER || (process.env.ALICE_TTS_URL ? 'sidecar' : null),
     revision: kernel.revision,
+    reliability: {
+      schema: getCompanionFailureMetadata().schema,
+      degradedModeSupported: true,
+      safeMode: 'text',
+    },
   });
 });
 
@@ -159,6 +165,33 @@ app.get('/api/alice', (_request, response) => {
   response.set('Cache-Control', 'no-store');
   response.json(buildAliceKernelSnapshot(process.env));
 });
+
+app.get('/api/reliability', (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  response.json({
+    ...getCompanionFailureMetadata(),
+    known_good_vertical_slice: verifyKnownGoodVerticalSlice({
+      mic: false,
+      stt: false,
+      agent: true,
+      tts: Boolean(process.env.ALICE_TTS_URL || process.env.OPENAI_API_KEY),
+      avatar: true,
+    }),
+    note: 'Server-only snapshot: client microphone/STT availability is verified in the browser turn trace.',
+  });
+});
+
+app.post('/api/reliability/diagnose', express.json({ limit: '64kb' }), (request, response) => {
+  try {
+    response.set('Cache-Control', 'no-store');
+    response.json(diagnosePipeline(request.body || {}));
+  } catch (error) {
+    response.status(400).json({
+      error: error instanceof Error ? error.message : 'reliability-diagnosis-failed',
+    });
+  }
+});
+
 
 app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request, response) => {
   if (!process.env.ALICE_OLLAMA_URL) {
