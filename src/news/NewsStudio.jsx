@@ -22,7 +22,8 @@ export default function NewsStudio() {
   const [state, setState] = useState('IDLE');
   const [expression, setExpression] = useState('serious');
   const [asset, setAsset] = useState('procedural');
-  const [assetStatus, setAssetStatus] = useState('PROCEDURAL');
+  const [assetStatus, setAssetStatus] = useState('ANIME VTUBER');
+  const [avatarStyle, setAvatarStyle] = useState('anime');
 
   const voices = useMemo(() => globalThis.speechSynthesis?.getVoices?.() || [], [state]);
 
@@ -39,6 +40,12 @@ export default function NewsStudio() {
   useEffect(() => {
     worldRef.current?.setExpression(expression);
   }, [expression]);
+
+  useEffect(() => {
+    worldRef.current?.setAvatarStyle(avatarStyle);
+    setAsset('procedural');
+    setAssetStatus(avatarStyle === 'anime' ? 'ANIME VTUBER' : 'BROADCAST 3D');
+  }, [avatarStyle]);
 
   const stop = () => {
     globalThis.speechSynthesis?.cancel?.();
@@ -123,7 +130,7 @@ export default function NewsStudio() {
 
         <div className="news-lower">
           <strong>ALICE</strong>
-          <span>AI ANCHOR · LIVE PUPPET RUNTIME</span>
+          <span>AI ANCHOR · ANIME VTUBER / VRM RUNTIME</span>
         </div>
       </section>
 
@@ -137,9 +144,29 @@ export default function NewsStudio() {
         </div>
 
         <section className="news-panel">
-          <label>Avatar</label>
+          <label>Darstellung</label>
+          <div className="news-grid two">
+            <button
+              type="button"
+              className={avatarStyle === 'anime' ? 'selected' : ''}
+              onClick={() => setAvatarStyle('anime')}
+            >
+              ANIME VTUBER
+            </button>
+            <button
+              type="button"
+              className={avatarStyle === 'broadcast' ? 'selected' : ''}
+              onClick={() => setAvatarStyle('broadcast')}
+            >
+              BROADCAST 3D
+            </button>
+          </div>
+        </section>
+
+        <section className="news-panel">
+          <label>Avatar-Asset</label>
           <select value={asset} onChange={(event) => selectAsset(event.target.value)}>
-            <option value="procedural">Prozedurale Alice · Hochsteckfrisur</option>
+            <option value="procedural">Prozedurale Alice · aktueller Stil</option>
             <option value="news-vrm">/alice-news.vrm</option>
             <option value="news-glb">/alice-news.glb</option>
             <option value="alice-vrm">/alice.vrm</option>
