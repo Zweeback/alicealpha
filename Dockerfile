@@ -18,6 +18,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY src/news/newsPipeline.js ./src/news/newsPipeline.js
 COPY data ./data
 
 RUN chown -R node:node /app

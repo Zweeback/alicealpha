@@ -5,6 +5,7 @@ import { handleAliceMcpHttp } from './aliceMcp.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
+import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 
 try {
@@ -221,6 +222,24 @@ app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request,
     console.error('Local Ollama request failed:', message);
     response.status(message === 'ollama-empty-response' ? 502 : 503).json({ error: message });
   }
+});
+
+app.post('/api/news/prepare', express.json({ limit: '2mb' }), (request, response) => {
+  const articles = Array.isArray(request.body?.articles)
+    ? request.body.articles
+    : request.body?.article
+      ? [request.body.article]
+      : [];
+
+  if (!articles.length) {
+    response.status(400).json({ error: 'missing-articles' });
+    return;
+  }
+
+  const requested = Number(request.body?.targetChars || 420);
+  const targetChars = Math.max(180, Math.min(1200, Number.isFinite(requested) ? requested : 420));
+  response.set('Cache-Control', 'no-store');
+  response.json(buildScenePlan(articles, { targetChars }));
 });
 
 app.post('/api/tts', express.json({ limit: '64kb' }), async (request, response) => {
