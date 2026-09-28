@@ -1,0 +1,54 @@
+name: Alice Work Partner Screenshot
+
+on:
+  push:
+    branches:
+      - feat/alice-work-partner-20260928
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start preview
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/alice-preview.log 2>&1 &
+          for i in {1..60}; do
+            curl -fsS 'http://127.0.0.1:4173/' >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/alice-preview.log
+          exit 1
+      - name: Capture default Alice work-partner surface
+        run: |
+          mkdir -p artifacts
+          npx playwright screenshot \
+            --browser=chromium \
+            --viewport-size="412,915" \
+            --wait-for-timeout=3500 \
+            'http://127.0.0.1:4173/' \
+            artifacts/alice-work-partner-mobile.png
+          npx playwright screenshot \
+            --browser=chromium \
+            --viewport-size="1440,900" \
+            --wait-for-timeout=3500 \
+            'http://127.0.0.1:4173/' \
+            artifacts/alice-work-partner-desktop.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-work-partner-proof
+          path: artifacts/*.png
+          if-no-files-found: warn

@@ -50,7 +50,7 @@ export default function App() {
   const [xrSupport, setXrSupport] = useState({ ar: false, vr: false });
   const [realtimeAvailable, setRealtimeAvailable] = useState(false);
   const [renderFallback, setRenderFallback] = useState(false);
-  const [textOpen, setTextOpen] = useState(true);
+  const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
   const [hintVisible, setHintVisible] = useState(true);
   const [localAIStatus, setLocalAIStatus] = useState('idle');
@@ -444,9 +444,21 @@ export default function App() {
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {portraitVisual && (
-        <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
+        <div
+          className="canonical-alice-portrait"
+          role="button"
+          tabIndex={0}
+          aria-label="Mit Alice sprechen"
+          onClick={ensureLive}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              ensureLive();
+            }
+          }}
+        >
           <img
-            src="/alice-canonical.jpg"
+            src="/alice-reference.jpg"
             alt=""
             draggable="false"
             onError={(event) => {
@@ -460,7 +472,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'verkörperte Präsenz · 3D' : 'Präsenzmodus'}</small></div>
+          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · live'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
@@ -481,7 +493,7 @@ export default function App() {
               Alice anrufen
             </button>
           ) : (
-            <p>Berühre Alice. Sprich einfach.</p>
+            <p>Alice ist da. Sag ihr, woran wir jetzt arbeiten.</p>
           )}
           <small>{realtimeAvailable
             ? callMode
