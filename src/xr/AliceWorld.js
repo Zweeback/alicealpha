@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
+import { loadAvatarCandidate, summarizeAvatarLoadResult } from './avatarLoadBoundary.js';
 import { sampleMicroMotion } from './microMotion.js';
 
 const cyan = new THREE.Color('#8eced0');
@@ -336,57 +337,63 @@ async function createAlice() {
   const useProcedural = procedural === '1' || selection.kind === 'procedural';
 
   if (!useProcedural && (selection.kind === 'glb' || selection.kind === 'vrm')) {
-    try {
-      const loader = getGLTFLoader();
-      const gltf = await loader.loadAsync(selection.url);
+    const loader = getGLTFLoader();
+    const loaded = await loadAvatarCandidate({
+      selection,
+      loader,
+      inspect: inspectAvatarCandidate,
+    });
+    state.candidateDiagnostics = loaded.diagnostics || {
+      reason: loaded.reason,
+      message: loaded.message,
+    };
+
+    console.info('[Alice avatar QA]', summarizeAvatarLoadResult(loaded));
+
+    if (!loaded.ok) {
+      console.warn(
+        `Avatar candidate ${selection.id} rejected (${loaded.reason}); falling back to procedural Alice.`,
+      );
+    } else {
+      const { gltf, model } = loaded;
       state.gltf = gltf;
-      const model = gltf.scene || gltf.scenes[0];
-      const diagnostics = inspectAvatarCandidate(gltf);
-      state.candidateDiagnostics = diagnostics;
+      root.add(model);
+      model.rotation.set(0, 0, 0);
+      state.isProcedural = false;
 
-      if (!diagnostics.rigged && !gltf.userData.vrm) {
-        console.warn(`Candidate avatar ${selection.id} is unrigged (${diagnostics.blocker.code}). Falling back to procedural Alice.`);
-      } else {
-        root.add(model);
-        model.rotation.set(0, 0, 0);
-        state.isProcedural = false;
-
-        if (gltf.userData.vrm) {
-          state.vrm = gltf.userData.vrm;
-          const vrm = state.vrm;
-          model.traverse((obj) => { if (obj.isMesh) obj.frustumCulled = false; });
-          if (vrm.humanoid) {
-            const getBone = (name) => vrm.humanoid.getRawBoneNode(name) || new THREE.Group();
-            state.headPivot = getBone('head');
-            state.arms.left.shoulder = getBone('leftUpperArm') || getBone('leftShoulder');
-            state.arms.left.elbow = getBone('leftLowerArm');
-            state.arms.right.shoulder = getBone('rightUpperArm') || getBone('rightShoulder');
-            state.arms.right.elbow = getBone('rightLowerArm');
-            state.chestCore = getBone('spine');
-            state.eyeBones.left = getBone('leftEye');
-            state.eyeBones.right = getBone('rightEye');
-          }
-        } else {
-          model.traverse((obj) => {
-            if (obj.isMesh) {
-              obj.frustumCulled = false;
-              if (obj.morphTargetDictionary) state.morphMeshes.push(obj);
-            }
-          });
-
-          state.headPivot = findBoneByNames(model, ['head']);
-          state.arms.left.shoulder = findBoneByNames(model, ['leftupperarm', 'leftarm', 'leftshoulder', 'mixamorigleftarm']);
-          state.arms.left.elbow = findBoneByNames(model, ['leftlowerarm', 'leftforearm', 'mixamorigleftforearm']);
-          state.arms.right.shoulder = findBoneByNames(model, ['rightupperarm', 'rightarm', 'rightshoulder', 'mixamorigrightarm']);
-          state.arms.right.elbow = findBoneByNames(model, ['rightlowerarm', 'rightforearm', 'mixamorigrightforearm']);
-          state.chestCore = findBoneByNames(model, ['spine', 'chest']);
-          state.eyeBones.left = findBoneByNames(model, ['lefteye', 'eye_l', 'eye.l']);
-          state.eyeBones.right = findBoneByNames(model, ['righteye', 'eye_r', 'eye.r']);
+      if (gltf.userData?.vrm) {
+        state.vrm = gltf.userData.vrm;
+        const vrm = state.vrm;
+        model.traverse((obj) => { if (obj.isMesh) obj.frustumCulled = false; });
+        if (vrm.humanoid) {
+          const getBone = (name) => vrm.humanoid.getRawBoneNode(name) || new THREE.Group();
+          state.headPivot = getBone('head');
+          state.arms.left.shoulder = getBone('leftUpperArm') || getBone('leftShoulder');
+          state.arms.left.elbow = getBone('leftLowerArm');
+          state.arms.right.shoulder = getBone('rightUpperArm') || getBone('rightShoulder');
+          state.arms.right.elbow = getBone('rightLowerArm');
+          state.chestCore = getBone('spine');
+          state.eyeBones.left = getBone('leftEye');
+          state.eyeBones.right = getBone('rightEye');
         }
-        return state;
+      } else {
+        model.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.frustumCulled = false;
+            if (obj.morphTargetDictionary) state.morphMeshes.push(obj);
+          }
+        });
+
+        state.headPivot = findBoneByNames(model, ['head']);
+        state.arms.left.shoulder = findBoneByNames(model, ['leftupperarm', 'leftarm', 'leftshoulder', 'mixamorigleftarm']);
+        state.arms.left.elbow = findBoneByNames(model, ['leftlowerarm', 'leftforearm', 'mixamorigleftforearm']);
+        state.arms.right.shoulder = findBoneByNames(model, ['rightupperarm', 'rightarm', 'rightshoulder', 'mixamorigrightarm']);
+        state.arms.right.elbow = findBoneByNames(model, ['rightlowerarm', 'rightforearm', 'mixamorigrightforearm']);
+        state.chestCore = findBoneByNames(model, ['spine', 'chest']);
+        state.eyeBones.left = findBoneByNames(model, ['lefteye', 'eye_l', 'eye.l']);
+        state.eyeBones.right = findBoneByNames(model, ['righteye', 'eye_r', 'eye.r']);
       }
-    } catch (err) {
-      console.warn(`Failed to load avatar candidate ${selection.id}; falling back to procedural Alice:`, err);
+      return state;
     }
   }
 
