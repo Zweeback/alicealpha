@@ -501,6 +501,7 @@ export class AliceWorld {
     this.arPlaced = false;
     this.hitTestSource = null;
     this.hitMatrix = null;
+    this.studioMode = new URLSearchParams(globalThis.location?.search || '').get('studio') === '1';
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(this.studioMode ? '#06080c' : '#050607');
@@ -518,7 +519,6 @@ export class AliceWorld {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.xr.enabled = true;
 
-    this.studioMode = new URLSearchParams(globalThis.location?.search || '').get('studio') === '1';
     this.lab = this.studioMode ? createBroadcastStudio() : createLab();
     this.scene.add(this.lab);
     this.alice = null;
