@@ -120,7 +120,7 @@ export default function NewsStudio() {
         <header className="news-topbar">
           <div className="news-brand">
             <strong>PARALLAX NEWS</strong>
-            <span>ALICE · LIVE 3D ANCHOR</span>
+            <span>ALICE · LIVE ANIME VTUBER</span>
           </div>
           <div className={`news-live ${state === 'ON AIR' ? 'active' : ''}`}>
             <i />
@@ -138,7 +138,7 @@ export default function NewsStudio() {
         <div className="news-heading">
           <div>
             <h1>Alice Live Studio</h1>
-            <p>Dynamische Figur. Kein Standbild.</p>
+            <p>Dynamischer Anime-VTuber. Kein Standbild.</p>
           </div>
           <span className="news-badge">{assetStatus}</span>
         </div>
