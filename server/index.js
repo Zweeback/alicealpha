@@ -79,6 +79,7 @@ function originAllowed(request) {
     process.env.RENDER_EXTERNAL_URL,
     'https://alicealpha.onrender.com',
     'https://app.buildy.so',
+    'https://charm.ing',
     'http://127.0.0.1:8787',
     'http://127.0.0.1:8790',
     'http://127.0.0.1:8791',
