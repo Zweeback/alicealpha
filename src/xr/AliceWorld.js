@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
-import { loadAvatarCandidate, summarizeAvatarLoadResult } from './avatarLoadBoundary.js';
 import { sampleMicroMotion } from './microMotion.js';
 
 const cyan = new THREE.Color('#8eced0');
@@ -337,32 +336,23 @@ async function createAlice() {
   const useProcedural = procedural === '1' || selection.kind === 'procedural';
 
   if (!useProcedural && (selection.kind === 'glb' || selection.kind === 'vrm')) {
-    const loader = getGLTFLoader();
-    const loaded = await loadAvatarCandidate({
-      selection,
-      loader,
-      inspect: inspectAvatarCandidate,
-    });
-    state.candidateDiagnostics = loaded.diagnostics || {
-      reason: loaded.reason,
-      message: loaded.message,
-    };
-
-    console.info('[Alice avatar QA]', summarizeAvatarLoadResult(loaded));
-
-    if (!loaded.ok) {
-      console.warn(
-        `Avatar candidate ${selection.id} rejected (${loaded.reason}); falling back to procedural Alice.`,
-      );
-    } else {
-      const { gltf, model } = loaded;
+    try {
+      const loader = getGLTFLoader();
+      const gltf = await loader.loadAsync(selection.url);
       state.gltf = gltf;
+      const model = gltf.scene || gltf.scenes[0];
+      const diagnostics = inspectAvatarCandidate(gltf);
+      state.candidateDiagnostics = diagnostics;
 
       root.add(model);
       model.rotation.set(0, 0, 0);
       state.isProcedural = false;
 
-      if (gltf.userData?.vrm) {
+      if (!diagnostics.rigged && !gltf.userData.vrm) {
+        console.info(`Candidate avatar ${selection.id} loaded as static candidate mesh (${diagnostics.blocker.code}).`);
+      }
+
+      if (gltf.userData.vrm) {
         state.vrm = gltf.userData.vrm;
         const vrm = state.vrm;
         model.traverse((obj) => { if (obj.isMesh) obj.frustumCulled = false; });
@@ -395,6 +385,8 @@ async function createAlice() {
         state.eyeBones.right = findBoneByNames(model, ['righteye', 'eye_r', 'eye.r']);
       }
       return state;
+    } catch (err) {
+      console.warn(`Failed to load avatar candidate ${selection.id}; falling back to procedural Alice:`, err);
     }
   }
 
