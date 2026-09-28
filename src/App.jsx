@@ -169,7 +169,7 @@ export default function App() {
 
   const ensureLive = useCallback(async () => {
     setHintVisible(false);
-    await ensureCamera();
+    ensureCamera().catch(() => undefined);
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');
@@ -570,7 +570,7 @@ export default function App() {
         </form>
       )}
 
-      <button className="text-key chat-key" type="button" onClick={() => setTextOpen((open) => !open)} aria-label="Alice Livechat öffnen">
+      <button className="text-key chat-key" type="button" onClick={() => setTextOpen((open) => !open)} aria-label="Texteingabe öffnen">
         Chat
       </button>
     </div>
