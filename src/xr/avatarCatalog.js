@@ -37,7 +37,7 @@ export const AVATAR_CATALOG = Object.freeze({
 
 export function resolveAvatarSelection(search = '') {
   const params = new URLSearchParams(search);
-  const requested = params.get('avatar') || 'procedural';
+  const requested = params.get('avatar') || 'glb';
   return AVATAR_CATALOG[requested] || AVATAR_CATALOG.procedural;
 }
 
