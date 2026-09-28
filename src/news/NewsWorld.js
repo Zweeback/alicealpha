@@ -86,6 +86,13 @@ function createAnchorAlice(style = 'anime') {
     tube([[0.31, 0.26, 0.16], [0.24, 0.35, 0.04], [0.12, 0.39, -0.05]], 0.05, materials.hair),
   );
 
+  if (look === 'anime') {
+    head.add(
+      tube([[-0.30, 0.18, 0.18], [-0.40, -0.08, 0.20], [-0.34, -0.35, 0.12]], 0.055, materials.hair),
+      tube([[0.30, 0.18, 0.18], [0.40, -0.08, 0.20], [0.34, -0.35, 0.12]], 0.055, materials.hair),
+    );
+  }
+
   const sideLockLeft = tube([[-0.33, 0.18, 0.23], [-0.43, -0.04, 0.21], [-0.36, -0.28, 0.14]], 0.038, materials.hair);
   const sideLockRight = tube([[0.33, 0.18, 0.23], [0.43, -0.04, 0.21], [0.36, -0.28, 0.14]], 0.038, materials.hair);
   const ahoge = tube([[0.02, 0.42, -0.02], [0.08, 0.58, -0.04], [0.18, 0.62, -0.02]], 0.025, materials.hair);
@@ -117,7 +124,7 @@ function createAnchorAlice(style = 'anime') {
   nose.position.set(0, -0.03, 0.49);
   head.add(nose);
 
-  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.09, 20, 14), materials.mouth);
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(look === 'anime' ? 0.075 : 0.09, 20, 14), materials.mouth);
   mouth.position.set(0, -0.19, 0.47);
   mouth.scale.set(1.08, 0.15, 0.24);
   head.add(mouth);
@@ -161,6 +168,7 @@ export class NewsWorld {
     this.clock = new THREE.Clock();
     this.pointer = new THREE.Vector2();
     this.expression = 'serious';
+    this.look = 'anime';
     this.cue = { name: 'idle', until: 0 };
     this.speechEnergy = 0;
     this.loaded = null;
@@ -289,6 +297,18 @@ export class NewsWorld {
 
   setExpression(name) {
     this.expression = name || 'serious';
+  }
+
+  setLook(name = 'anime') {
+    const next = name === 'news' ? 'news' : 'anime';
+    if (next === this.look || this.loaded) {
+      this.look = next;
+      return;
+    }
+    this.scene.remove(this.anchor.root);
+    this.look = next;
+    this.anchor = createAnchorAlice(this.look);
+    this.scene.add(this.anchor.root);
   }
 
   playCue(name, duration = 1800) {
