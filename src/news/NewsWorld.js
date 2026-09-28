@@ -86,7 +86,7 @@ function createAnchorAlice(style = 'anime') {
     tube([[0.31, 0.26, 0.16], [0.24, 0.35, 0.04], [0.12, 0.39, -0.05]], 0.05, materials.hair),
   );
 
-  if (look === 'anime') {
+  if (anime) {
     head.add(
       tube([[-0.30, 0.18, 0.18], [-0.40, -0.08, 0.20], [-0.34, -0.35, 0.12]], 0.055, materials.hair),
       tube([[0.30, 0.18, 0.18], [0.40, -0.08, 0.20], [0.34, -0.35, 0.12]], 0.055, materials.hair),
@@ -124,7 +124,7 @@ function createAnchorAlice(style = 'anime') {
   nose.position.set(0, -0.03, 0.49);
   head.add(nose);
 
-  const mouth = new THREE.Mesh(new THREE.SphereGeometry(look === 'anime' ? 0.075 : 0.09, 20, 14), materials.mouth);
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(anime ? 0.075 : 0.09, 20, 14), materials.mouth);
   mouth.position.set(0, -0.19, 0.47);
   mouth.scale.set(1.08, 0.15, 0.24);
   head.add(mouth);
@@ -173,6 +173,7 @@ export class NewsWorld {
     this.speechEnergy = 0;
     this.loaded = null;
     this.vrm = null;
+    this.loadedFace = { head: null, mouth: [] };
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#07080b');
@@ -258,6 +259,16 @@ export class NewsWorld {
     if (this.loaded) this.scene.remove(this.loaded);
     this.loaded = model;
     this.vrm = gltf.userData.vrm || null;
+    this.loadedFace = { head: null, mouth: [] };
+    model.traverse((object) => {
+      const name = String(object.name || '').toLowerCase();
+      if (!this.loadedFace.head && /head|neck/.test(name)) this.loadedFace.head = object;
+      if (object.isMesh && object.morphTargetDictionary && object.morphTargetInfluences) {
+        const dict = object.morphTargetDictionary;
+        const candidates = Object.entries(dict).filter(([key]) => /jawopen|mouthopen|aa|viseme.*a|mouth.*a/i.test(key));
+        for (const [, index] of candidates) this.loadedFace.mouth.push({ mesh: object, index });
+      }
+    });
     this.anchor.root.visible = false;
     model.position.set(0, -1.12, 0);
     model.traverse((object) => {
@@ -297,6 +308,17 @@ export class NewsWorld {
 
   setExpression(name) {
     this.expression = name || 'serious';
+  }
+
+  setPresence(observation = {}) {
+    if (!observation?.present) return;
+    this.pointer.x = THREE.MathUtils.clamp(Number(observation.x) || 0, -1, 1);
+    this.pointer.y = THREE.MathUtils.clamp(Number(observation.y) || 0, -1, 1);
+    if (observation.expression === 'smile') this.expression = 'warm';
+    else if (observation.expression === 'curious') this.expression = 'curious';
+    if (this.vrm?.expressionManager && Number.isFinite(observation.blink)) {
+      try { this.vrm.expressionManager.setValue('blink', THREE.MathUtils.clamp(observation.blink, 0, 1)); } catch {}
+    }
   }
 
   setLook(name = 'anime') {
@@ -398,6 +420,19 @@ export class NewsWorld {
 
       if (this.speechEnergy > 0.01) {
         a.mouth.scale.y = damp(a.mouth.scale.y, 0.18 + this.speechEnergy * 0.42, 12, dt);
+      }
+    }
+
+    if (this.loaded && !this.vrm) {
+      this.loaded.rotation.y = damp(this.loaded.rotation.y, this.pointer.x * 0.05 + Math.sin(t * 0.5) * 0.01, 5, dt);
+      this.loaded.rotation.x = damp(this.loaded.rotation.x, -this.pointer.y * 0.025, 5, dt);
+      this.loaded.position.y += Math.sin(t * 1.7) * 0.00035;
+      if (this.loadedFace?.head) {
+        this.loadedFace.head.rotation.y = damp(this.loadedFace.head.rotation.y, this.pointer.x * 0.10, 7, dt);
+        this.loadedFace.head.rotation.x = damp(this.loadedFace.head.rotation.x, -this.pointer.y * 0.05, 7, dt);
+      }
+      for (const target of this.loadedFace?.mouth || []) {
+        target.mesh.morphTargetInfluences[target.index] = damp(target.mesh.morphTargetInfluences[target.index] || 0, this.speechEnergy * 0.9, 14, dt);
       }
     }
 
