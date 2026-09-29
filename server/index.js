@@ -7,6 +7,7 @@ import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
 import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
+import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -132,6 +133,8 @@ app.get('/api/health', (_request, response) => {
   const realtimeConfigured = Boolean(process.env.OPENAI_API_KEY);
   const realtimeOperational = realtimeConfigured
     && !['quota-blocked', 'auth-failed', 'upstream-error', 'transport-error'].includes(realtimeRuntime.status);
+  const availableChatProviders = getAvailableProviders(process.env);
+  const configuredChatChain = parseLlmChain(process.env.ALICE_LLM_CHAIN);
 
   response.set('Cache-Control', 'no-store');
   response.json({
@@ -153,6 +156,17 @@ app.get('/api/health', (_request, response) => {
     ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
     tts: Boolean(process.env.ALICE_TTS_URL),
     ttsProvider: process.env.ALICE_TTS_PROVIDER || (process.env.ALICE_TTS_URL ? 'sidecar' : null),
+    chat: {
+      endpoint: '/api/chat',
+      operational: availableChatProviders.length > 0,
+      defaultProvider: availableChatProviders[0]?.provider || null,
+      availableProviders: availableChatProviders.map(({ provider, model }) => ({ provider, model })),
+      configuredChain: configuredChatChain.map(({ provider, model }) => ({
+        provider,
+        model,
+        available: availableChatProviders.some((item) => item.provider === provider && item.model === model),
+      })),
+    },
     revision: kernel.revision,
     reliability: {
       schema: getCompanionFailureMetadata().schema,
@@ -193,6 +207,40 @@ app.post('/api/reliability/diagnose', express.json({ limit: '64kb' }), (request,
   }
 });
 
+
+app.post('/api/chat', realtimeRateLimiter, express.json({ limit: '128kb' }), async (request, response) => {
+  if (!originAllowed(request)) {
+    response.status(403).json({ error: 'chat-origin-denied' });
+    return;
+  }
+
+  const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+  const messages = Array.isArray(request.body?.messages) ? request.body.messages : null;
+  if (!text && !messages?.length) {
+    response.status(400).json({ error: 'missing-text-or-messages' });
+    return;
+  }
+
+  try {
+    const result = await completeLlmChat({
+      text,
+      messages,
+      confirmed_memory: request.body?.confirmed_memory,
+      persona_state: request.body?.persona_state,
+      companion_state: request.body?.companion_state,
+    }, { env: process.env });
+
+    response.set('Cache-Control', 'no-store');
+    response.json(result);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'chat-request-failed';
+    const noProvider = code === 'llm-router-no-provider';
+    console.error('Alice chat router failed:', code);
+    response.status(noProvider ? 503 : 502).json({
+      error: noProvider ? 'chat-no-provider' : 'chat-provider-failed',
+    });
+  }
+});
 
 app.post('/api/local/respond', express.json({ limit: '128kb' }), async (request, response) => {
   if (!process.env.ALICE_OLLAMA_URL) {
