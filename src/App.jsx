@@ -7,7 +7,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
+import { shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
 
@@ -464,11 +464,7 @@ export default function App() {
   };
 
   const visualQuery = search;
-  const portraitVisual = sessionMode === 'desktop' && (
-    renderFallback
-    || isPortraitSelection(visualQuery)
-    || (!demoMode && !isExplicit3DSelection(visualQuery))
-  );
+  const portraitVisual = shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
   const live3DVisual = !portraitVisual;
 
   return (
