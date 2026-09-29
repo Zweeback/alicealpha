@@ -112,8 +112,9 @@ function makeArm(side, materials) {
   return { shoulder, elbow, hand };
 }
 
-function createProceduralAlice() {
+function createProceduralAlice(look = 'default') {
   const root = new THREE.Group();
+  const newsLook = look === 'news';
   const materials = {
     skin: new THREE.MeshStandardMaterial({ color: '#e7b5a3', roughness: 0.54, metalness: 0 }),
     skinShadow: new THREE.MeshStandardMaterial({ color: '#c98f7d', roughness: 0.62, metalness: 0 }),
@@ -179,17 +180,36 @@ function createProceduralAlice() {
   hairCap.castShadow = true;
   headPivot.add(hairCap);
 
-  const curls = [
-    [[-0.33, 0.26, 0.19], [-0.48, -0.03, 0.18], [-0.42, -0.39, 0.14], [-0.34, -0.67, 0.05]],
-    [[-0.25, 0.3, 0.12], [-0.37, -0.03, 0.25], [-0.3, -0.43, 0.2], [-0.38, -0.72, 0.02]],
-    [[0.34, 0.24, 0.17], [0.47, -0.08, 0.16], [0.39, -0.4, 0.13], [0.34, -0.64, 0.02]],
-    [[0.27, 0.28, 0.1], [0.36, -0.02, 0.24], [0.28, -0.38, 0.2], [0.38, -0.66, 0.02]],
-  ];
-  curls.forEach((points, index) => {
-    const curl = tube(points, index % 2 ? 0.055 : 0.07, materials.hair);
-    curl.castShadow = true;
-    headPivot.add(curl);
-  });
+  if (newsLook) {
+    // Broadcast look: hair is gathered away from the face into a restrained updo.
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.23, 36, 28), materials.hairDark);
+    bun.scale.set(1.18, 0.9, 0.95);
+    bun.position.set(0, 0.36, -0.17);
+    bun.castShadow = true;
+    headPivot.add(bun);
+
+    const crownRoll = new THREE.Mesh(new THREE.TorusGeometry(0.235, 0.055, 12, 40, Math.PI * 1.72), materials.hair);
+    crownRoll.rotation.set(Math.PI / 2, 0, 0.42);
+    crownRoll.position.set(0, 0.25, -0.07);
+    crownRoll.castShadow = true;
+    headPivot.add(crownRoll);
+
+    const sideSweepLeft = tube([[-0.31, 0.26, 0.16], [-0.25, 0.35, 0.04], [-0.13, 0.39, -0.05]], 0.052, materials.hair);
+    const sideSweepRight = tube([[0.31, 0.26, 0.16], [0.25, 0.35, 0.04], [0.13, 0.39, -0.05]], 0.052, materials.hair);
+    headPivot.add(sideSweepLeft, sideSweepRight);
+  } else {
+    const curls = [
+      [[-0.33, 0.26, 0.19], [-0.48, -0.03, 0.18], [-0.42, -0.39, 0.14], [-0.34, -0.67, 0.05]],
+      [[-0.25, 0.3, 0.12], [-0.37, -0.03, 0.25], [-0.3, -0.43, 0.2], [-0.38, -0.72, 0.02]],
+      [[0.34, 0.24, 0.17], [0.47, -0.08, 0.16], [0.39, -0.4, 0.13], [0.34, -0.64, 0.02]],
+      [[0.27, 0.28, 0.1], [0.36, -0.02, 0.24], [0.28, -0.38, 0.2], [0.38, -0.66, 0.02]],
+    ];
+    curls.forEach((points, index) => {
+      const curl = tube(points, index % 2 ? 0.055 : 0.07, materials.hair);
+      curl.castShadow = true;
+      headPivot.add(curl);
+    });
+  }
 
   const eyeRigs = [];
   [-1, 1].forEach((side) => {
@@ -277,6 +297,7 @@ async function createAlice() {
 
   const params = new URLSearchParams(window.location.search);
   const procedural = params.get('procedural');
+  const look = params.get('look') || 'default';
   const selection = resolveAvatarSelection(window.location.search);
   const useProcedural = procedural === '1' || selection.kind === 'procedural';
 
@@ -320,7 +341,7 @@ async function createAlice() {
     }
   }
   // Procedural fallback
-  const proceduralState = createProceduralAlice();
+  const proceduralState = createProceduralAlice(look);
   state.isProcedural = true;
   state.root.add(proceduralState.root);
   return proceduralState;

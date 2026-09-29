@@ -19,6 +19,20 @@ export const AVATAR_CATALOG = Object.freeze({
     label: 'VRM candidate',
     url: '/alice.vrm',
   }),
+  newsGlb: Object.freeze({
+    id: 'news-glb',
+    kind: 'glb',
+    status: 'candidate',
+    label: 'News anchor GLB',
+    url: '/alice-news.glb',
+  }),
+  newsVrm: Object.freeze({
+    id: 'news-vrm',
+    kind: 'vrm',
+    status: 'candidate',
+    label: 'News anchor VRM',
+    url: '/alice-news.vrm',
+  }),
   trellis: Object.freeze({
     id: 'trellis',
     kind: 'glb',
