@@ -36,3 +36,9 @@ A model is not Alice merely because a generator returned a GLB. Every generated 
 - provenance and reproducibility
 
 No single score promotes a model automatically.
+
+## Registered FBX source candidate
+
+- `public/avatars/candidates/model.fbx`
+- SHA-256: `da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59`
+- State: **candidate only**. It must be converted/validated against the existing promotion gate before it can become Alice's canonical runtime asset.
