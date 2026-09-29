@@ -23,8 +23,11 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
 const realtimeBuckets = new Map();
+const chatBuckets = new Map();
 const realtimeWindowMs = Math.max(1000, Number(process.env.ALICE_REALTIME_RATE_WINDOW_MS || 60000));
 const realtimeMaxRequests = Math.max(1, Number(process.env.ALICE_REALTIME_RATE_MAX || 8));
+const chatWindowMs = Math.max(1000, Number(process.env.ALICE_CHAT_RATE_WINDOW_MS || 60000));
+const chatMaxRequests = Math.max(1, Number(process.env.ALICE_CHAT_RATE_MAX || 30));
 const realtimeRuntime = {
   status: process.env.OPENAI_API_KEY ? 'unknown' : 'unconfigured',
   lastUpstreamStatus: null,
@@ -58,6 +61,33 @@ function realtimeRateLimiter(request, response, next) {
   if (realtimeBuckets.size > 2048) {
     for (const [candidateKey, candidate] of realtimeBuckets) {
       if (now - candidate.startedAt >= realtimeWindowMs) realtimeBuckets.delete(candidateKey);
+    }
+  }
+
+  next();
+}
+
+function chatRateLimiter(request, response, next) {
+  const now = Date.now();
+  const key = request.ip || request.socket?.remoteAddress || 'unknown';
+  const existing = chatBuckets.get(key);
+  const bucket = !existing || now - existing.startedAt >= chatWindowMs
+    ? { startedAt: now, count: 0 }
+    : existing;
+
+  bucket.count += 1;
+  chatBuckets.set(key, bucket);
+
+  if (bucket.count > chatMaxRequests) {
+    const retryAfterMs = Math.max(0, chatWindowMs - (now - bucket.startedAt));
+    response.set('Retry-After', String(Math.max(1, Math.ceil(retryAfterMs / 1000))));
+    response.status(429).json({ error: 'chat-rate-limited', retryAfterMs });
+    return;
+  }
+
+  if (chatBuckets.size > 2048) {
+    for (const [candidateKey, candidate] of chatBuckets) {
+      if (now - candidate.startedAt >= chatWindowMs) chatBuckets.delete(candidateKey);
     }
   }
 
@@ -208,7 +238,7 @@ app.post('/api/reliability/diagnose', express.json({ limit: '64kb' }), (request,
 });
 
 
-app.post('/api/chat', realtimeRateLimiter, express.json({ limit: '128kb' }), async (request, response) => {
+app.post('/api/chat', chatRateLimiter, express.json({ limit: '128kb' }), async (request, response) => {
   if (!originAllowed(request)) {
     response.status(403).json({ error: 'chat-origin-denied' });
     return;
