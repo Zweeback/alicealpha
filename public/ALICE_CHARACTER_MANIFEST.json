@@ -19,6 +19,13 @@
       "status": "optional_candidate",
       "provenance": "loader-supported fallback slot",
       "sha256": null
+    },
+    {
+      "path": "/avatars/candidates/model.fbx",
+      "kind": "fbx",
+      "status": "candidate",
+      "provenance": "FBX avatar candidate source from context attachments",
+      "sha256": "da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59"
     }
   ],
   "requiredHumanoidBones": [
