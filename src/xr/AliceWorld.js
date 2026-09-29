@@ -87,6 +87,144 @@ function createLab() {
   return group;
 }
 
+
+function createBroadcastStudio() {
+  const group = new THREE.Group();
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(8.4, 128),
+    new THREE.MeshPhysicalMaterial({
+      color: '#07090c',
+      roughness: 0.26,
+      metalness: 0.5,
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.28,
+    }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -1.17;
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  const cyclorama = new THREE.Mesh(
+    new THREE.CylinderGeometry(7.2, 7.2, 5.8, 96, 1, true, -Math.PI * 0.82, Math.PI * 1.64),
+    new THREE.MeshStandardMaterial({
+      color: '#0a0c10',
+      roughness: 0.8,
+      metalness: 0.08,
+      side: THREE.BackSide,
+    }),
+  );
+  cyclorama.position.y = 1.35;
+  group.add(cyclorama);
+
+  const ledMaterial = new THREE.MeshBasicMaterial({ color: '#7f1015' });
+  const ledSoft = new THREE.MeshBasicMaterial({ color: '#261015' });
+
+  const mainWall = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 2.6), ledSoft);
+  mainWall.position.set(0, 1.18, -3.28);
+  group.add(mainWall);
+
+  const wallFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(5.15, 2.95, 0.08),
+    new THREE.MeshStandardMaterial({ color: '#171b21', metalness: 0.7, roughness: 0.34 }),
+  );
+  wallFrame.position.set(0, 1.18, -3.36);
+  group.add(wallFrame);
+  mainWall.position.z = -3.30;
+
+  const ledGrid = new THREE.Group();
+  for (let row = 0; row < 5; row += 1) {
+    for (let col = 0; col < 10; col += 1) {
+      const tile = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.42, 0.36),
+        new THREE.MeshBasicMaterial({
+          color: (row + col) % 4 === 0 ? '#b31f24' : '#2a1518',
+          transparent: true,
+          opacity: 0.9,
+        }),
+      );
+      tile.position.set(-1.95 + col * 0.43, 0.45 + row * 0.37, -3.245);
+      ledGrid.add(tile);
+    }
+  }
+  group.add(ledGrid);
+
+  const sidePanelMaterial = new THREE.MeshBasicMaterial({ color: '#0e2732' });
+  [-1, 1].forEach((side) => {
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), sidePanelMaterial);
+    panel.position.set(side * 4.08, 1.12, -2.2);
+    panel.rotation.y = side * -0.58;
+    group.add(panel);
+
+    const pillar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 4.0, 0.16),
+      new THREE.MeshStandardMaterial({ color: '#2c3036', metalness: 0.78, roughness: 0.28 }),
+    );
+    pillar.position.set(side * 2.92, 0.8, -2.8);
+    group.add(pillar);
+  });
+
+  const desk = new THREE.Group();
+  const deskTop = new THREE.Mesh(
+    new THREE.BoxGeometry(2.9, 0.12, 0.92),
+    new THREE.MeshPhysicalMaterial({
+      color: '#191d23',
+      metalness: 0.7,
+      roughness: 0.24,
+      clearcoat: 0.35,
+    }),
+  );
+  deskTop.position.y = -0.40;
+  deskTop.position.z = 0.20;
+  desk.add(deskTop);
+
+  const deskFace = new THREE.Mesh(
+    new THREE.BoxGeometry(2.52, 0.68, 0.12),
+    new THREE.MeshStandardMaterial({ color: '#101318', metalness: 0.55, roughness: 0.4 }),
+  );
+  deskFace.position.set(0, -0.77, 0.58);
+  desk.add(deskFace);
+
+  const deskGlow = new THREE.Mesh(new THREE.PlaneGeometry(2.22, 0.34), ledMaterial);
+  deskGlow.position.set(0, -0.75, 0.645);
+  desk.add(deskGlow);
+
+  desk.position.z = 0.68;
+  group.add(desk);
+
+  const lightRing = new THREE.Mesh(
+    new THREE.TorusGeometry(3.8, 0.055, 16, 128),
+    new THREE.MeshBasicMaterial({ color: '#f0f2f2', transparent: true, opacity: 0.72 }),
+  );
+  lightRing.rotation.x = Math.PI / 2;
+  lightRing.position.y = 3.65;
+  group.add(lightRing);
+
+  const redRing = new THREE.Mesh(
+    new THREE.TorusGeometry(3.18, 0.028, 12, 128),
+    new THREE.MeshBasicMaterial({ color: '#d52722', transparent: true, opacity: 0.8 }),
+  );
+  redRing.rotation.x = Math.PI / 2;
+  redRing.position.y = 3.48;
+  group.add(redRing);
+
+  const floorRing = new THREE.Mesh(
+    new THREE.RingGeometry(2.75, 2.79, 128),
+    new THREE.MeshBasicMaterial({
+      color: '#d52722',
+      transparent: true,
+      opacity: 0.32,
+      side: THREE.DoubleSide,
+    }),
+  );
+  floorRing.rotation.x = -Math.PI / 2;
+  floorRing.position.y = -1.155;
+  group.add(floorRing);
+
+  return group;
+}
+
 function makeArm(side, materials) {
   const shoulder = new THREE.Group();
   shoulder.position.set(side * 0.58, 0.66, 0);
@@ -112,7 +250,7 @@ function makeArm(side, materials) {
   return { shoulder, elbow, hand };
 }
 
-function createProceduralAlice() {
+function createProceduralAlice({ newsMode = false } = {}) {
   const root = new THREE.Group();
   const materials = {
     skin: new THREE.MeshStandardMaterial({ color: '#e7b5a3', roughness: 0.54, metalness: 0 }),
@@ -179,17 +317,37 @@ function createProceduralAlice() {
   hairCap.castShadow = true;
   headPivot.add(hairCap);
 
-  const curls = [
-    [[-0.33, 0.26, 0.19], [-0.48, -0.03, 0.18], [-0.42, -0.39, 0.14], [-0.34, -0.67, 0.05]],
-    [[-0.25, 0.3, 0.12], [-0.37, -0.03, 0.25], [-0.3, -0.43, 0.2], [-0.38, -0.72, 0.02]],
-    [[0.34, 0.24, 0.17], [0.47, -0.08, 0.16], [0.39, -0.4, 0.13], [0.34, -0.64, 0.02]],
-    [[0.27, 0.28, 0.1], [0.36, -0.02, 0.24], [0.28, -0.38, 0.2], [0.38, -0.66, 0.02]],
-  ];
-  curls.forEach((points, index) => {
-    const curl = tube(points, index % 2 ? 0.055 : 0.07, materials.hair);
-    curl.castShadow = true;
-    headPivot.add(curl);
-  });
+  if (newsMode) {
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.23, 32, 24), materials.hairDark);
+    bun.scale.set(1.02, 0.9, 0.88);
+    bun.position.set(0, 0.46, -0.02);
+    bun.castShadow = true;
+    headPivot.add(bun);
+
+    const sideSweepLeft = tube(
+      [[-0.3, 0.30, 0.19], [-0.38, 0.18, 0.21], [-0.34, -0.03, 0.22]],
+      0.045,
+      materials.hair,
+    );
+    const sideSweepRight = tube(
+      [[0.3, 0.30, 0.19], [0.38, 0.18, 0.21], [0.34, -0.03, 0.22]],
+      0.045,
+      materials.hair,
+    );
+    headPivot.add(sideSweepLeft, sideSweepRight);
+  } else {
+    const curls = [
+      [[-0.33, 0.26, 0.19], [-0.48, -0.03, 0.18], [-0.42, -0.39, 0.14], [-0.34, -0.67, 0.05]],
+      [[-0.25, 0.3, 0.12], [-0.37, -0.03, 0.25], [-0.3, -0.43, 0.2], [-0.38, -0.72, 0.02]],
+      [[0.34, 0.24, 0.17], [0.47, -0.08, 0.16], [0.39, -0.4, 0.13], [0.34, -0.64, 0.02]],
+      [[0.27, 0.28, 0.1], [0.36, -0.02, 0.24], [0.28, -0.38, 0.2], [0.38, -0.66, 0.02]],
+    ];
+    curls.forEach((points, index) => {
+      const curl = tube(points, index % 2 ? 0.055 : 0.07, materials.hair);
+      curl.castShadow = true;
+      headPivot.add(curl);
+    });
+  }
 
   const eyeRigs = [];
   [-1, 1].forEach((side) => {
@@ -320,7 +478,7 @@ async function createAlice() {
     }
   }
   // Procedural fallback
-  const proceduralState = createProceduralAlice();
+  const proceduralState = createProceduralAlice({ newsMode: params.get('studio') === '1' || params.get('news') === '1' });
   state.isProcedural = true;
   state.root.add(proceduralState.root);
   return proceduralState;
@@ -343,10 +501,11 @@ export class AliceWorld {
     this.arPlaced = false;
     this.hitTestSource = null;
     this.hitMatrix = null;
+    this.studioMode = new URLSearchParams(globalThis.location?.search || '').get('studio') === '1';
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#050607');
-    this.scene.fog = new THREE.FogExp2('#050607', 0.085);
+    this.scene.background = new THREE.Color(this.studioMode ? '#06080c' : '#050607');
+    this.scene.fog = new THREE.FogExp2(this.studioMode ? '#06080c' : '#050607', this.studioMode ? 0.045 : 0.085);
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
     this.camera.position.set(0, 0.35, 3.45);
     this.camera.lookAt(0, 0.35, 0);
@@ -355,12 +514,12 @@ export class AliceWorld {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.9;
+    this.renderer.toneMappingExposure = this.studioMode ? 1.06 : 0.9;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.xr.enabled = true;
 
-    this.lab = createLab();
+    this.lab = this.studioMode ? createBroadcastStudio() : createLab();
     this.scene.add(this.lab);
     this.alice = null;
 
@@ -531,7 +690,7 @@ export class AliceWorld {
       boundsHeight: desktopPortrait ? size.y * ((width / height) < 0.72 ? 0.76 : 0.64) : size.y,
       boundsDepth: size.z,
       padding: desktopPortrait ? 1.0 : 1.2,
-      minimumDistance: desktopPortrait ? 2.05 : 3.35,
+      minimumDistance: desktopPortrait ? (this.studioMode ? 3.15 : 2.05) : 3.35,
     });
 
     this.camera.aspect = frame.aspect;

@@ -10,6 +10,7 @@ import { AliceWorld } from './xr/AliceWorld.js';
 import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
+import { StudioOverlay } from './studio/StudioOverlay.jsx';
 
 const labels = {
   booting: 'Alice erwacht',
@@ -28,6 +29,7 @@ export default function App() {
   const search = globalThis.location?.search || '';
   const demoMode = visualDemoEnabled(search);
   const callMode = callModeEnabled(search);
+  const studioMode = new URLSearchParams(search).get('studio') === '1';
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const worldRef = useRef(null);
@@ -311,6 +313,7 @@ export default function App() {
     cameraRef.current = camera;
 
     const realtime = new RealtimeChannel({
+      endpoint: studioMode ? '/api/realtime/session?mode=studio' : '/api/realtime/session',
       onState: (state) => {
         if (state === 'disconnected' && phase !== 'booting') setPhase('offline');
         else if (labels[state]) setPhase(state);
@@ -464,7 +467,7 @@ export default function App() {
   };
 
   const visualQuery = search;
-  const portraitVisual = sessionMode === 'desktop' && (
+  const portraitVisual = !studioMode && sessionMode === 'desktop' && (
     renderFallback
     || isPortraitSelection(visualQuery)
     || (!demoMode && !isExplicit3DSelection(visualQuery))
@@ -472,7 +475,7 @@ export default function App() {
   const live3DVisual = !portraitVisual;
 
   return (
-    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
+    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''} ${studioMode ? 'studio-mode' : ''}`} ref={overlayRef}>
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {portraitVisual && (
@@ -619,6 +622,23 @@ export default function App() {
       <button className="text-key chat-key" type="button" onClick={() => setTextOpen((open) => !open)} aria-label="Texteingabe öffnen">
         Chat
       </button>
+
+      {studioMode && (
+        <StudioOverlay
+          phase={phase}
+          caption={caption}
+          realtimeAvailable={realtimeAvailable}
+          onListen={ensureLive}
+          onCueAlice={(gesture) => worldRef.current?.playCue({
+            dialogue_act: gesture === 'consider' ? 'explain' : 'greeting',
+            emotion: gesture === 'consider' ? 'focused' : 'warm',
+            gesture,
+            gaze: 'direct',
+            intensity: 0.62,
+            duration_ms: 4200,
+          })}
+        />
+      )}
     </div>
   );
 }

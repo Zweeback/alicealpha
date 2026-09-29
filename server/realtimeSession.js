@@ -1,10 +1,11 @@
 import { ALICE_REALTIME_INSTRUCTIONS, ALICE_TOOLS } from './alicePrompt.js';
+import { ALICE_STUDIO_INSTRUCTIONS } from './studioPrompt.js';
 
-export function buildRealtimeSession(env = process.env) {
+export function buildRealtimeSession(env = process.env, { mode = 'companion' } = {}) {
   return {
     type: 'realtime',
     model: env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
-    instructions: ALICE_REALTIME_INSTRUCTIONS,
+    instructions: mode === 'studio' ? ALICE_STUDIO_INSTRUCTIONS : ALICE_REALTIME_INSTRUCTIONS,
     tools: ALICE_TOOLS,
     tool_choice: 'auto',
     audio: {
