@@ -49,6 +49,7 @@ export default function App() {
   const [sessionMode, setSessionMode] = useState('desktop');
   const [xrSupport, setXrSupport] = useState({ ar: false, vr: false });
   const [realtimeAvailable, setRealtimeAvailable] = useState(false);
+  const [chatAvailable, setChatAvailable] = useState(false);
   const [renderFallback, setRenderFallback] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
@@ -102,7 +103,11 @@ export default function App() {
       voiceRef.current?.speak(result.plan, {
         onEnd: () => {
           fallbackBusyRef.current = false;
-          setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+          setPhase(result.source?.startsWith('llm-router:')
+            ? 'ready'
+            : runtimeRef.current?.browserAIReady
+              ? 'local'
+              : 'offline');
         },
       });
     } catch {
@@ -116,7 +121,11 @@ export default function App() {
     const voice = voiceRef.current;
     if (!voice?.canListen) {
       setTextOpen(true);
-      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setPhase(runtimeRef.current?.endpoint === '/api/chat'
+        ? 'ready'
+        : runtimeRef.current?.browserAIReady
+          ? 'local'
+          : 'offline');
       return;
     }
     if (fallbackBusyRef.current) {
@@ -130,7 +139,11 @@ export default function App() {
     try {
       await runLocalTurn(await voice.listen());
     } catch (error) {
-      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setPhase(runtimeRef.current?.endpoint === '/api/chat'
+        ? 'ready'
+        : runtimeRef.current?.browserAIReady
+          ? 'local'
+          : 'offline');
       if (error?.message !== 'aborted') setTextOpen(true);
     }
   }, [runLocalTurn]);
@@ -174,7 +187,14 @@ export default function App() {
 
   const ensureLive = useCallback(async () => {
     setHintVisible(false);
-    ensureCamera().catch(() => undefined);
+
+    // The provider-neutral chat gateway is the default brain when available.
+    // It reuses the existing browser speech channel and local avatar/memory runtime.
+    if (chatAvailable) {
+      await listenLocally();
+      return;
+    }
+
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');
@@ -196,7 +216,7 @@ export default function App() {
       return;
     }
     await listenLocally();
-  }, [ensureCamera, listenLocally, realtimeAvailable]);
+  }, [chatAvailable, listenLocally, realtimeAvailable]);
 
   const endCall = useCallback(() => {
     realtimeRef.current?.disconnect();
@@ -209,8 +229,8 @@ export default function App() {
     setUserCaption('');
     setTextOpen(false);
     setHintVisible(true);
-    setPhase(realtimeAvailable ? 'ready' : runtimeRef.current?.browserAIReady ? 'local' : 'offline');
-  }, [realtimeAvailable]);
+    setPhase(chatAvailable || realtimeAvailable ? 'ready' : runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+  }, [chatAvailable, realtimeAvailable]);
 
   useEffect(() => {
     interactRef.current = ensureLive;
@@ -358,11 +378,20 @@ export default function App() {
         // Client diagnostics: also require WebRTC capability
         const canWebRTC = Boolean(globalThis.RTCPeerConnection && navigator.mediaDevices?.getUserMedia);
         const available = Boolean(health?.realtime) && canWebRTC;
-        runtime.endpoint = health?.ollama ? '/api/local/respond' : null;
+        const routedChat = Boolean(health?.chat?.operational);
+        runtime.endpoint = routedChat
+          ? '/api/chat'
+          : health?.ollama
+            ? '/api/local/respond'
+            : null;
+        setChatAvailable(routedChat);
         setRealtimeAvailable(available);
         voice.setNeuralTtsEnabled(Boolean(health?.tts));
-        setPhase(available ? 'ready' : health?.ollama ? 'local' : 'offline');
-        if (!available && health?.ollama) {
+        setPhase(routedChat || available ? 'ready' : health?.ollama ? 'local' : 'offline');
+        if (routedChat) {
+          const provider = health?.chat?.defaultProvider;
+          setCaption(provider ? `Alice-Chatrouter verbunden · ${provider}` : 'Alice-Chatrouter verbunden.');
+        } else if (!available && health?.ollama) {
           setCaption(`Lokales Ollama ist verbunden · ${health.ollamaModel || 'Modell bereit'}`);
         }
       })
@@ -415,7 +444,10 @@ export default function App() {
     companionRef.current?.recordMessage('user', text, 'text');
     setChatMessages(companionRef.current?.history?.(60) || []);
     setUserCaption(text);
-    ensureCamera().catch(() => undefined);
+    if (chatAvailable) {
+      await runLocalTurn(text, { recordUser: false });
+      return;
+    }
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');
@@ -495,14 +527,16 @@ export default function App() {
           ) : (
             <p>Alice ist da. Sag ihr, woran wir jetzt arbeiten.</p>
           )}
-          <small>{realtimeAvailable
+          <small>{chatAvailable
+            ? 'Standardpfad: Browser-Sprache → Alice-Chatrouter → Stimme + Avatar. Keine Kamera nötig.'
+            : realtimeAvailable
             ? callMode
-              ? 'Mikrofon und Kamera starten erst nach deinem Tippen.'
-              : 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
+              ? 'Das Mikrofon startet erst nach deinem Tippen.'
+              : 'Das Mikrofon beginnt erst nach deiner Berührung.'
             : localAIStatus === 'ready'
               ? 'Lokale KI läuft direkt auf diesem Gerät.'
               : 'Alice ist bereit. Live-KI wird automatisch genutzt, wenn verfügbar.'}</small>
-          {!realtimeAvailable && localAIStatus !== 'ready' && (
+          {!chatAvailable && !realtimeAvailable && localAIStatus !== 'ready' && (
             <button
               className="local-ai-button"
               type="button"
@@ -526,7 +560,7 @@ export default function App() {
         </div>
       )}
 
-      {!hintVisible && !realtimeAvailable && localAIStatus !== 'ready' && (
+      {!hintVisible && !chatAvailable && !realtimeAvailable && localAIStatus !== 'ready' && (
         <div className="local-ai-entry">
           <button
             className="local-ai-button"
