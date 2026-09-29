@@ -103,7 +103,11 @@ export default function App() {
       voiceRef.current?.speak(result.plan, {
         onEnd: () => {
           fallbackBusyRef.current = false;
-          setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+          setPhase(result.source?.startsWith('llm-router:')
+            ? 'ready'
+            : runtimeRef.current?.browserAIReady
+              ? 'local'
+              : 'offline');
         },
       });
     } catch {
@@ -117,7 +121,11 @@ export default function App() {
     const voice = voiceRef.current;
     if (!voice?.canListen) {
       setTextOpen(true);
-      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setPhase(runtimeRef.current?.endpoint === '/api/chat'
+        ? 'ready'
+        : runtimeRef.current?.browserAIReady
+          ? 'local'
+          : 'offline');
       return;
     }
     if (fallbackBusyRef.current) {
@@ -131,7 +139,11 @@ export default function App() {
     try {
       await runLocalTurn(await voice.listen());
     } catch (error) {
-      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setPhase(runtimeRef.current?.endpoint === '/api/chat'
+        ? 'ready'
+        : runtimeRef.current?.browserAIReady
+          ? 'local'
+          : 'offline');
       if (error?.message !== 'aborted') setTextOpen(true);
     }
   }, [runLocalTurn]);
@@ -217,8 +229,8 @@ export default function App() {
     setUserCaption('');
     setTextOpen(false);
     setHintVisible(true);
-    setPhase(realtimeAvailable ? 'ready' : runtimeRef.current?.browserAIReady ? 'local' : 'offline');
-  }, [realtimeAvailable]);
+    setPhase(chatAvailable || realtimeAvailable ? 'ready' : runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+  }, [chatAvailable, realtimeAvailable]);
 
   useEffect(() => {
     interactRef.current = ensureLive;
@@ -524,7 +536,7 @@ export default function App() {
             : localAIStatus === 'ready'
               ? 'Lokale KI läuft direkt auf diesem Gerät.'
               : 'Alice ist bereit. Live-KI wird automatisch genutzt, wenn verfügbar.'}</small>
-          {!realtimeAvailable && localAIStatus !== 'ready' && (
+          {!chatAvailable && !realtimeAvailable && localAIStatus !== 'ready' && (
             <button
               className="local-ai-button"
               type="button"
@@ -548,7 +560,7 @@ export default function App() {
         </div>
       )}
 
-      {!hintVisible && !realtimeAvailable && localAIStatus !== 'ready' && (
+      {!hintVisible && !chatAvailable && !realtimeAvailable && localAIStatus !== 'ready' && (
         <div className="local-ai-entry">
           <button
             className="local-ai-button"
