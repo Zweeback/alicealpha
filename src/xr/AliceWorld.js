@@ -321,9 +321,7 @@ async function createAlice() {
   }
   // Procedural fallback
   const proceduralState = createProceduralAlice();
-  state.isProcedural = true;
-  state.root.add(proceduralState.root);
-  return proceduralState;
+  return { ...proceduralState, isProcedural: true, vrm: null, gltf: null };
 }
 
 export class AliceWorld {
@@ -381,7 +379,12 @@ export class AliceWorld {
     this.renderer.setAnimationLoop(this.#render);
   }
   async init() {
-    this.alice = await createAlice();
+    try {
+      this.alice = await createAlice();
+    } catch (error) {
+      console.warn('Alice avatar init failed; using procedural Alice:', error);
+      this.alice = { ...createProceduralAlice(), isProcedural: true, vrm: null, gltf: null };
+    }
     this.scene.add(this.alice.root);
     this.alice.root.updateMatrixWorld(true);
     this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
