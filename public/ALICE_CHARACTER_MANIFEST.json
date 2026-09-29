@@ -19,6 +19,13 @@
       "status": "optional_candidate",
       "provenance": "loader-supported fallback slot",
       "sha256": null
+    },
+    {
+      "path": "/avatars/candidates/model.fbx",
+      "kind": "fbx",
+      "status": "candidate",
+      "provenance": "FBX avatar candidate source imported from validated PR #97; not canonical until promotion gate approval",
+      "sha256": "da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59"
     }
   ],
   "requiredHumanoidBones": [
@@ -47,9 +54,18 @@
     "jawOpen",
     "smile"
   ],
-  "requiredVisemes": ["A", "I", "U", "E", "O"],
+  "requiredVisemes": [
+    "A",
+    "I",
+    "U",
+    "E",
+    "O"
+  ],
   "bounds": {
-    "heightMeters": { "min": 1.35, "max": 2.05 },
+    "heightMeters": {
+      "min": 1.35,
+      "max": 2.05
+    },
     "originCentered": true,
     "forwardAxis": "-Z"
   },
