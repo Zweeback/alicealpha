@@ -33,6 +33,19 @@ export const AVATAR_CATALOG = Object.freeze({
       approved: false,
     }),
   }),
+  rigged: Object.freeze({
+    id: 'rigged',
+    kind: 'glb',
+    status: 'candidate',
+    label: 'Rigged Alice candidate',
+    url: '/avatars/alice-rigged.glb',
+    provenance: Object.freeze({
+      source: '/avatars/candidates/model.fbx',
+      sourceSha256: 'da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59',
+      outputSha256: 'a2c599215b80fc2bef8f1ff8d16378d0b47755b61cc680e013d8af0b0825bd46',
+      approved: false,
+    }),
+  }),
 });
 
 export function resolveAvatarSelection(search = '') {

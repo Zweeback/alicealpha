@@ -60,6 +60,7 @@ export default function App() {
   const [companionState, setCompanionState] = useState({ sessionCount: 0, turnCount: 0 });
   const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
+  const [avatarState, setAvatarState] = useState({ id: 'procedural', status: 'fallback', procedural: true });
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -262,6 +263,7 @@ export default function App() {
         overlayRoot: overlayRef.current,
         onInteract: () => interactRef.current?.(),
         onSessionChange: setMode,
+        onAvatarState: setAvatarState,
       });
       world.init().catch((error) => {
         console.warn('Alice 3D initialization failed; using portrait fallback:', error);
@@ -500,7 +502,13 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · live'}</small></div>
+          <div><strong>Alice</strong><small>{avatarState.id !== 'procedural'
+            ? `${avatarState.id} · 3D-Kandidatin · nicht freigegeben`
+            : demoMode
+              ? 'visual lab · live'
+              : live3DVisual
+                ? 'Arbeitspartnerin · live 3D'
+                : 'Arbeitspartnerin · live'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
