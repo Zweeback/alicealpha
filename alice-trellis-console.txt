@@ -1,8 +1,0 @@
-warning: THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
-warning: [GroupMarkerNotSet(crbug.com/242999)!:A07020001C260000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.
-warning: THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.
-warning: [.WebGL-0x2734000eaa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
-warning: [.WebGL-0x2734000eaa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
-warning: [.WebGL-0x2734000eaa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
-warning: [.WebGL-0x2734000eaa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
-warning: Candidate avatar trellis is unrigged (unrigged_asset_missing_bones). Falling back to procedural Alice.
