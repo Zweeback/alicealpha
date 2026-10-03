@@ -47,18 +47,21 @@ describe('operator dispatch boundary', () => {
       .rejects.toThrow('operator-envelope-not-executable');
   });
 
-  it('does not invoke the executor for a validated but unsupported operation', async () => {
+  it('dispatches a validated pr.create envelope and verifies the pull request number', async () => {
     const envelope = createOperatorEnvelope({
-      id: 'unsupported-dispatch-proof',
+      id: 'pr-create-dispatch-proof',
       operation: 'pr.create',
       repository: 'Zweeback/alicealpha',
       payload: { head: 'probe', base: 'main' },
     }, () => '2026-09-21T19:10:00.000Z');
-    const executor = vi.fn();
+    const executor = vi.fn(async () => ({ number: 73 }));
 
-    await expect(dispatchOperatorEnvelope(envelope, executor))
-      .rejects.toThrow('operator-executor-not-supported');
-    expect(executor).not.toHaveBeenCalled();
+    const result = await dispatchOperatorEnvelope(envelope, executor);
+
+    expect(executor).toHaveBeenCalledOnce();
+    expect(result.accepted.status).toBe('accepted');
+    expect(result.completed.status).toBe('succeeded');
+    expect(result.completed.detail.result.number).toBe(73);
   });
 
   it('does not invoke the executor for pr.merge without explicit human approval', async () => {
