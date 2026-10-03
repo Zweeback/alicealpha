@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
+import { loadAvatarCandidate, summarizeAvatarLoadResult } from './avatarLoadBoundary.js';
 import { sampleMicroMotion } from './microMotion.js';
 
 const cyan = new THREE.Color('#8eced0');
@@ -256,6 +257,58 @@ function createProceduralAlice() {
 }
 
 
+export function inspectAvatarCandidate(gltf) {
+  let boneCount = 0;
+  const morphTargets = new Set();
+  const bonesFound = [];
+  const model = gltf?.scene || gltf?.scenes?.[0];
+
+  if (model) {
+    model.traverse((obj) => {
+      if (obj.isBone) {
+        boneCount++;
+        bonesFound.push(obj.name);
+      }
+      if (obj.isMesh && obj.morphTargetDictionary) {
+        Object.keys(obj.morphTargetDictionary).forEach((k) => morphTargets.add(k));
+      }
+    });
+  }
+
+  const isRigged = boneCount > 0;
+  const blocker = isRigged
+    ? null
+    : {
+        code: 'unrigged_asset_missing_bones',
+        message: 'Candidate asset contains no skeletal bones or morph targets for embodiment drive.',
+        boneCount,
+        morphTargetCount: morphTargets.size,
+      };
+
+  return {
+    rigged: isRigged,
+    boneCount,
+    bonesFound,
+    morphTargets: Array.from(morphTargets),
+    blocker,
+  };
+}
+
+function findBoneByNames(model, candidates) {
+  let found = null;
+  model.traverse((obj) => {
+    if (found) return;
+    const name = obj.name.toLowerCase();
+    for (const cand of candidates) {
+      if (name === cand.toLowerCase() || name.includes(cand.toLowerCase())) {
+        found = obj;
+        break;
+      }
+    }
+  });
+  return found || new THREE.Group();
+}
+
 async function createAlice() {
   const root = new THREE.Group();
   const state = {
@@ -263,6 +316,8 @@ async function createAlice() {
     isProcedural: true,
     headPivot: new THREE.Group(),
     eyeRigs: [],
+    eyeBones: { left: null, right: null },
+    morphMeshes: [],
     browLeft: new THREE.Group(),
     browRight: new THREE.Group(),
     mouth: new THREE.Group(),
@@ -273,6 +328,7 @@ async function createAlice() {
     },
     vrm: null,
     gltf: null,
+    candidateDiagnostics: null,
   };
 
   const params = new URLSearchParams(window.location.search);
@@ -281,47 +337,82 @@ async function createAlice() {
   const useProcedural = procedural === '1' || selection.kind === 'procedural';
 
   if (!useProcedural && (selection.kind === 'glb' || selection.kind === 'vrm')) {
-    try {
-      const loader = getGLTFLoader();
-      const gltf = await loader.loadAsync(selection.url);
+    const loader = getGLTFLoader();
+    const loaded = await loadAvatarCandidate({
+      selection,
+      loader,
+      inspect: inspectAvatarCandidate,
+    });
+    state.candidateDiagnostics = loaded.diagnostics || {
+      reason: loaded.reason,
+      message: loaded.message,
+    };
+
+    console.info('[Alice avatar QA]', summarizeAvatarLoadResult(loaded));
+
+    if (!loaded.ok) {
+      console.warn(
+        `Avatar candidate ${selection.id} rejected (${loaded.reason}); falling back to procedural Alice.`,
+      );
+    } else {
+      const { gltf, model } = loaded;
       state.gltf = gltf;
-      const model = gltf.scene || gltf.scenes[0];
+
       root.add(model);
       model.rotation.set(0, 0, 0);
       state.isProcedural = false;
-      if (gltf.userData.vrm) {
+
+      if (loaded.mode === 'static-candidate') {
+        console.info(
+          `Candidate avatar ${selection.id} loaded as static candidate mesh (${loaded.diagnostics?.blocker?.code || 'unrigged'}).`,
+        );
+      }
+
+      if (gltf.userData?.vrm) {
         state.vrm = gltf.userData.vrm;
         const vrm = state.vrm;
         model.traverse((obj) => { if (obj.isMesh) obj.frustumCulled = false; });
         if (vrm.humanoid) {
           const getBone = (name) => vrm.humanoid.getRawBoneNode(name) || new THREE.Group();
           state.headPivot = getBone('head');
-          state.arms.left.shoulder = getBone('leftShoulder');
+          state.arms.left.shoulder = getBone('leftUpperArm') || getBone('leftShoulder');
           state.arms.left.elbow = getBone('leftLowerArm');
-          state.arms.right.shoulder = getBone('rightShoulder');
+          state.arms.right.shoulder = getBone('rightUpperArm') || getBone('rightShoulder');
           state.arms.right.elbow = getBone('rightLowerArm');
           state.chestCore = getBone('spine');
+          state.eyeBones.left = getBone('leftEye');
+          state.eyeBones.right = getBone('rightEye');
         }
       } else {
         model.traverse((obj) => {
-          if (obj.isMesh) obj.frustumCulled = false;
-          const name = obj.name.toLowerCase();
-          if (name.includes('head')) state.headPivot = obj;
-          else if (name.includes('leftshoulder')) state.arms.left.shoulder = obj;
-          else if (name.includes('leftforearm') || name.includes('leftlowerarm')) state.arms.left.elbow = obj;
-          else if (name.includes('rightshoulder')) state.arms.right.shoulder = obj;
-          else if (name.includes('rightforearm') || name.includes('rightlowerarm')) state.arms.right.elbow = obj;
-          else if (name.includes('spine')) state.chestCore = obj;
+          if (obj.isMesh) {
+            obj.frustumCulled = false;
+            if (obj.morphTargetDictionary) state.morphMeshes.push(obj);
+          }
         });
+
+        state.headPivot = findBoneByNames(model, ['head']);
+        state.arms.left.shoulder = findBoneByNames(model, ['leftupperarm', 'leftarm', 'leftshoulder', 'mixamorigleftarm']);
+        state.arms.left.elbow = findBoneByNames(model, ['leftlowerarm', 'leftforearm', 'mixamorigleftforearm']);
+        state.arms.right.shoulder = findBoneByNames(model, ['rightupperarm', 'rightarm', 'rightshoulder', 'mixamorigrightarm']);
+        state.arms.right.elbow = findBoneByNames(model, ['rightlowerarm', 'rightforearm', 'mixamorigrightforearm']);
+        state.chestCore = findBoneByNames(model, ['spine', 'chest']);
+        state.eyeBones.left = findBoneByNames(model, ['lefteye', 'eye_l', 'eye.l']);
+        state.eyeBones.right = findBoneByNames(model, ['righteye', 'eye_r', 'eye.r']);
       }
       return state;
-    } catch (err) {
-      console.warn(`Failed to load avatar candidate ${selection.id}; falling back to procedural Alice:`, err);
     }
   }
+
   // Procedural fallback
   const proceduralState = createProceduralAlice();
-  return { ...proceduralState, isProcedural: true, vrm: null, gltf: null };
+  return {
+    ...proceduralState,
+    isProcedural: true,
+    vrm: null,
+    gltf: null,
+    candidateDiagnostics: state.candidateDiagnostics,
+  };
 }
 
 export class AliceWorld {
@@ -569,7 +660,7 @@ export class AliceWorld {
   #animate(time, delta) {
     if (!this.alice) return;
     const seconds = time / 1000;
-    const { headPivot, eyeRigs, browLeft, browRight, mouth, chestCore, arms, root, isProcedural, vrm } = this.alice;
+    const { headPivot, eyeRigs, eyeBones, morphMeshes, browLeft, browRight, mouth, chestCore, arms, root, isProcedural, vrm } = this.alice;
     const xrCamera = this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera;
     const userX = this.mode === 'desktop' ? this.presence.x * 0.22 + this.pointer.x * 0.08 : 0;
     const userY = this.mode === 'desktop' ? this.presence.y * 0.14 + this.pointer.y * 0.05 : 0;
@@ -581,9 +672,11 @@ export class AliceWorld {
     const speaking = timedPerformance || this.speechEnergy > 0.035;
     const micro = sampleMicroMotion(seconds, { speaking });
 
-    headPivot.rotation.y = damp(headPivot.rotation.y, targetYaw + micro.headNoiseYaw, 5.5, delta);
-    headPivot.rotation.x = damp(headPivot.rotation.x, targetPitch + micro.headNoisePitch, 5.5, delta);
-    headPivot.rotation.z = damp(headPivot.rotation.z, micro.sway * 1.25, 3.2, delta);
+    if (headPivot) {
+      headPivot.rotation.y = damp(headPivot.rotation.y, targetYaw + micro.headNoiseYaw, 5.5, delta);
+      headPivot.rotation.x = damp(headPivot.rotation.x, targetPitch + micro.headNoisePitch, 5.5, delta);
+      headPivot.rotation.z = damp(headPivot.rotation.z, micro.sway * 1.25, 3.2, delta);
+    }
 
     const blink = Math.min(micro.blinkOpen, 1 - (this.presence.blink || 0) * 0.55);
     // @ts-ignore
@@ -595,11 +688,43 @@ export class AliceWorld {
       });
     }
 
+    if (eyeBones?.left) {
+      eyeBones.left.rotation.y = damp(eyeBones.left.rotation.y, targetYaw * 0.5 + micro.eyeYaw, 10, delta);
+      eyeBones.left.rotation.x = damp(eyeBones.left.rotation.x, targetPitch * 0.5 + micro.eyePitch, 10, delta);
+    }
+    if (eyeBones?.right) {
+      eyeBones.right.rotation.y = damp(eyeBones.right.rotation.y, targetYaw * 0.5 + micro.eyeYaw, 10, delta);
+      eyeBones.right.rotation.x = damp(eyeBones.right.rotation.x, targetPitch * 0.5 + micro.eyePitch, 10, delta);
+    }
+
     const syntheticEnergy = timedPerformance ? 0.16 + Math.abs(Math.sin(elapsed * 0.019)) * 0.46 : 0;
     const speechEnergy = Math.max(this.speechEnergy, syntheticEnergy);
     if (isProcedural && mouth) {
       mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
       mouth.scale.x = damp(mouth.scale.x, this.presence.expression === 'smile' ? 1.35 : 1.15, 8, delta);
+    }
+
+    if (!isProcedural && morphMeshes && morphMeshes.length > 0) {
+      const blinkValue = 1 - blink;
+      const mouthOpenValue = speaking ? speechEnergy * 0.85 : 0;
+      const smileValue = this.presence.expression === 'smile' ? 0.75 : 0;
+
+      morphMeshes.forEach((mesh) => {
+        const dict = mesh.morphTargetDictionary;
+        const infl = mesh.morphTargetInfluences;
+        if (!dict || !infl) return;
+
+        const setWeight = (keys, val) => {
+          for (const key of keys) {
+            const idx = dict[key];
+            if (idx !== undefined) infl[idx] = val;
+          }
+        };
+
+        setWeight(['blink', 'blinkLeft', 'blinkRight', 'eyeBlinkLeft', 'eyeBlinkRight'], blinkValue);
+        setWeight(['jawOpen', 'mouthOpen', 'viseme_aa', 'aa', 'A'], mouthOpenValue);
+        setWeight(['smile', 'mouthSmile', 'happy'], smileValue);
+      });
     }
     if (vrm) {
       const expressionManager = vrm.expressionManager;
