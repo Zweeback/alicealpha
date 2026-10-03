@@ -11,6 +11,7 @@ describe('Alice capability registry', () => {
     expect(byId['inference.ollama'].status).toBe('unconfigured');
     expect(byId['realtime.webrtc'].status).toBe('unconfigured');
     expect(byId['operator.github'].status).toBe('bounded');
+    expect(byId['reliability.attribution'].status).toBe('ready');
   });
 
   it('reports configured server transports without exposing credential values', () => {

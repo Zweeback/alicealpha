@@ -7,7 +7,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { isExplicit3DSelection, isPortraitSelection } from './xr/avatarCatalog.js';
+import { shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
 
@@ -19,9 +19,9 @@ const labels = {
   listening: 'Ich höre zu',
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
-  offline: 'Basismodus · keine Live-KI',
+  offline: 'Bereit · lokaler Modus',
   local: 'Lokale KI · auf diesem Gerät',
-  error: 'Verbindung unterbrochen',
+  error: 'Bereit · lokaler Modus',
 };
 
 export default function App() {
@@ -49,6 +49,7 @@ export default function App() {
   const [sessionMode, setSessionMode] = useState('desktop');
   const [xrSupport, setXrSupport] = useState({ ar: false, vr: false });
   const [realtimeAvailable, setRealtimeAvailable] = useState(false);
+  const [chatAvailable, setChatAvailable] = useState(false);
   const [renderFallback, setRenderFallback] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
@@ -76,7 +77,12 @@ export default function App() {
   }, []);
 
   const runLocalTurn = useCallback(async (text, { recordUser = true } = {}) => {
-    if (!text || fallbackBusyRef.current) return;
+    if (!text) return;
+    if (fallbackBusyRef.current) {
+      voiceRef.current?.stopSpeaking();
+      worldRef.current?.stopPlan();
+      fallbackBusyRef.current = false;
+    }
     fallbackBusyRef.current = true;
     if (recordUser) {
       companionRef.current?.recordMessage('user', text, 'local-input');
@@ -97,13 +103,17 @@ export default function App() {
       voiceRef.current?.speak(result.plan, {
         onEnd: () => {
           fallbackBusyRef.current = false;
-          setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+          setPhase(result.source?.startsWith('llm-router:')
+            ? 'ready'
+            : runtimeRef.current?.browserAIReady
+              ? 'local'
+              : 'offline');
         },
       });
     } catch {
       fallbackBusyRef.current = false;
-      setPhase('error');
-      setCaption('Die Verbindung ist gerade abgerissen. Versuch es noch einmal.');
+      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setCaption('Ich laufe lokal weiter.');
     }
   }, []);
 
@@ -111,7 +121,11 @@ export default function App() {
     const voice = voiceRef.current;
     if (!voice?.canListen) {
       setTextOpen(true);
-      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setPhase(runtimeRef.current?.endpoint === '/api/chat'
+        ? 'ready'
+        : runtimeRef.current?.browserAIReady
+          ? 'local'
+          : 'offline');
       return;
     }
     if (fallbackBusyRef.current) {
@@ -125,7 +139,11 @@ export default function App() {
     try {
       await runLocalTurn(await voice.listen());
     } catch (error) {
-      setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+      setPhase(runtimeRef.current?.endpoint === '/api/chat'
+        ? 'ready'
+        : runtimeRef.current?.browserAIReady
+          ? 'local'
+          : 'offline');
       if (error?.message !== 'aborted') setTextOpen(true);
     }
   }, [runLocalTurn]);
@@ -169,7 +187,14 @@ export default function App() {
 
   const ensureLive = useCallback(async () => {
     setHintVisible(false);
-    await ensureCamera();
+
+    // The provider-neutral chat gateway is the default brain when available.
+    // It reuses the existing browser speech channel and local avatar/memory runtime.
+    if (chatAvailable) {
+      await listenLocally();
+      return;
+    }
+
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');
@@ -181,13 +206,7 @@ export default function App() {
         return;
       } catch (error) {
         setRealtimeAvailable(false);
-        if (error.message && error.message.includes('webrtc-unavailable')) {
-          setCaption('Der Live-Kanal ist auf diesem Gerät nicht verfügbar. Ich wechsle in den lokalen Modus.');
-        } else if (error.message && error.message.includes('realtime-session-429')) {
-          setCaption('Der Live-Kanal hat gerade kein Kontingent. Ich wechsle in den lokalen Modus.');
-        } else {
-          setCaption('Der Live-Kanal ist gerade nicht erreichbar. Ich wechsle in den lokalen Modus.');
-        }
+        setCaption('Ich bin da. Ich laufe lokal weiter.');
         await listenLocally();
         return;
       }
@@ -197,7 +216,7 @@ export default function App() {
       return;
     }
     await listenLocally();
-  }, [ensureCamera, listenLocally, realtimeAvailable]);
+  }, [chatAvailable, listenLocally, realtimeAvailable]);
 
   const endCall = useCallback(() => {
     realtimeRef.current?.disconnect();
@@ -210,8 +229,8 @@ export default function App() {
     setUserCaption('');
     setTextOpen(false);
     setHintVisible(true);
-    setPhase(realtimeAvailable ? 'ready' : runtimeRef.current?.browserAIReady ? 'local' : 'offline');
-  }, [realtimeAvailable]);
+    setPhase(chatAvailable || realtimeAvailable ? 'ready' : runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+  }, [chatAvailable, realtimeAvailable]);
 
   useEffect(() => {
     interactRef.current = ensureLive;
@@ -346,8 +365,9 @@ export default function App() {
         return { ok: false, error: 'unknown-tool' };
       },
       onError: () => {
-        setPhase('error');
-        setCaption('Der Live-Kanal wurde unterbrochen. Tippe Alice an, um es erneut zu versuchen.');
+        setRealtimeAvailable(false);
+        setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
+        setCaption('Ich laufe lokal weiter.');
       },
     });
     realtimeRef.current = realtime;
@@ -358,11 +378,20 @@ export default function App() {
         // Client diagnostics: also require WebRTC capability
         const canWebRTC = Boolean(globalThis.RTCPeerConnection && navigator.mediaDevices?.getUserMedia);
         const available = Boolean(health?.realtime) && canWebRTC;
-        runtime.endpoint = health?.ollama ? '/api/local/respond' : null;
+        const routedChat = Boolean(health?.chat?.operational);
+        runtime.endpoint = routedChat
+          ? '/api/chat'
+          : health?.ollama
+            ? '/api/local/respond'
+            : null;
+        setChatAvailable(routedChat);
         setRealtimeAvailable(available);
         voice.setNeuralTtsEnabled(Boolean(health?.tts));
-        setPhase(available ? 'ready' : health?.ollama ? 'local' : 'offline');
-        if (!available && health?.ollama) {
+        setPhase(routedChat || available ? 'ready' : health?.ollama ? 'local' : 'offline');
+        if (routedChat) {
+          const provider = health?.chat?.defaultProvider;
+          setCaption(provider ? `Alice-Chatrouter verbunden · ${provider}` : 'Alice-Chatrouter verbunden.');
+        } else if (!available && health?.ollama) {
           setCaption(`Lokales Ollama ist verbunden · ${health.ollamaModel || 'Modell bereit'}`);
         }
       })
@@ -415,7 +444,10 @@ export default function App() {
     companionRef.current?.recordMessage('user', text, 'text');
     setChatMessages(companionRef.current?.history?.(60) || []);
     setUserCaption(text);
-    await ensureCamera();
+    if (chatAvailable) {
+      await runLocalTurn(text, { recordUser: false });
+      return;
+    }
     const realtime = realtimeRef.current;
     if (realtimeAvailable && realtime && !realtime.connected) {
       setPhase('connecting');
@@ -432,11 +464,7 @@ export default function App() {
   };
 
   const visualQuery = search;
-  const portraitVisual = sessionMode === 'desktop' && (
-    renderFallback
-    || isPortraitSelection(visualQuery)
-    || (!demoMode && !isExplicit3DSelection(visualQuery))
-  );
+  const portraitVisual = shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
   const live3DVisual = !portraitVisual;
 
   return (
@@ -444,9 +472,21 @@ export default function App() {
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {portraitVisual && (
-        <div className="canonical-alice-portrait" aria-label="Kanonische visuelle Identität von Alice">
+        <div
+          className="canonical-alice-portrait"
+          role="button"
+          tabIndex={0}
+          aria-label="Mit Alice sprechen"
+          onClick={ensureLive}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              ensureLive();
+            }
+          }}
+        >
           <img
-            src="/alice-canonical.jpg"
+            src="/alice-reference.jpg"
             alt=""
             draggable="false"
             onError={(event) => {
@@ -460,7 +500,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'verkörperte Präsenz · 3D' : 'Präsenzmodus'}</small></div>
+          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · live'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
@@ -481,16 +521,18 @@ export default function App() {
               Alice anrufen
             </button>
           ) : (
-            <p>Berühre Alice. Sprich einfach.</p>
+            <p>Alice ist da. Sag ihr, woran wir jetzt arbeiten.</p>
           )}
-          <small>{realtimeAvailable
+          <small>{chatAvailable
+            ? 'Standardpfad: Browser-Sprache → Alice-Chatrouter → Stimme + Avatar. Keine Kamera nötig.'
+            : realtimeAvailable
             ? callMode
-              ? 'Mikrofon und Kamera starten erst nach deinem Tippen.'
-              : 'Kamera und Mikrofon beginnen erst nach deiner Berührung.'
+              ? 'Das Mikrofon startet erst nach deinem Tippen.'
+              : 'Das Mikrofon beginnt erst nach deiner Berührung.'
             : localAIStatus === 'ready'
               ? 'Lokale KI läuft direkt auf diesem Gerät.'
-              : 'Lokaler Basismodus: Der Live-KI-Kanal ist nicht verbunden.'}</small>
-          {!realtimeAvailable && localAIStatus !== 'ready' && (
+              : 'Alice ist bereit. Live-KI wird automatisch genutzt, wenn verfügbar.'}</small>
+          {!chatAvailable && !realtimeAvailable && localAIStatus !== 'ready' && (
             <button
               className="local-ai-button"
               type="button"
@@ -514,7 +556,7 @@ export default function App() {
         </div>
       )}
 
-      {!hintVisible && !realtimeAvailable && localAIStatus !== 'ready' && (
+      {!hintVisible && !chatAvailable && !realtimeAvailable && localAIStatus !== 'ready' && (
         <div className="local-ai-entry">
           <button
             className="local-ai-button"
@@ -570,7 +612,7 @@ export default function App() {
         </form>
       )}
 
-      <button className="text-key chat-key" type="button" onClick={() => setTextOpen((open) => !open)} aria-label="Alice Livechat öffnen">
+      <button className="text-key chat-key" type="button" onClick={() => setTextOpen((open) => !open)} aria-label="Texteingabe öffnen">
         Chat
       </button>
     </div>

@@ -1,10 +1,27 @@
 # Alice realtime communication architecture
 
-## Where the AI is
+## Default interaction path
+
+Alice no longer needs OpenAI Realtime as the normal conversation brain. When at least one provider in `ALICE_LLM_CHAIN` is configured, the app uses the existing browser speech channel and the provider-neutral server gateway:
+
+```
+user gesture → browser speech recognition → /api/chat → PersonaRuntime → performance plan → TTS → AliceWorld
+```
+
+- `/api/chat` keeps all provider credentials on the server and enforces the same origin boundary used by Realtime.
+- The configured provider chain is tried in order. 429/5xx/timeout failures open a short circuit breaker and fall through to the next configured provider.
+- The default chain is Gemini → Groq → OpenRouter free-model route; OpenAI is not in the default chain.
+- If no chat provider is configured, the existing Ollama, browser-WebLLM, deterministic persona and optional Realtime paths remain available.
+- Camera access is not part of this voice/text path. CameraPresence stays a separate local perception capability and is not started by normal chat or voice interaction.
+- Health reports provider/model names and availability only; it never returns credentials.
+
+## Optional OpenAI Realtime path
+
+### Where the Realtime AI is
 
 The model runs in the provider cloud. Alice's browser is the sensory, rendering and interaction client. The Node server owns the secret and creates the WebRTC session; it does not stream the API key to the browser.
 
-## Session sequence
+### Realtime session sequence
 
 1. A user gesture starts microphone permission.
 2. The browser creates an `RTCPeerConnection`, adds one microphone track and opens the `oai-events` data channel.
@@ -15,7 +32,7 @@ The model runs in the provider cloud. Alice's browser is the sensory, rendering 
 7. The model calls `drive_avatar`. The client validates and maps the cue to a local animation state.
 8. Remote audio energy drives Alice's mouth while `AliceWorld` interpolates the body at the device frame rate.
 
-## Performance tool contract
+### Performance tool contract
 
 ```json
 {
@@ -30,7 +47,7 @@ The model runs in the provider cloud. Alice's browser is the sensory, rendering 
 
 Allowed gestures are deliberately finite. This prevents the model from inventing bone names or commanding unsafe physical motion.
 
-## Perception boundary
+### Perception boundary
 
 `CameraPresence` performs face landmarks locally and emits only:
 
@@ -44,7 +61,7 @@ The raw video track is attached only to a hidden local video element. It is not 
 
 In AR and VR, the XR camera/head pose becomes the primary gaze target, so face camera access is unnecessary during the immersive session.
 
-## Memory Tribunal
+### Memory Tribunal
 
 `propose_memory` creates a hashed candidate. The tool result tells the model to ask for confirmation. Only after a clear decision may `resolve_memory` transition it to `confirmed` or `rejected`. Only confirmed memories are eligible for future context.
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateAvatarManifest } from '../src/xr/avatarQuality.js';
-import { isExplicit3DSelection, isPortraitSelection, resolveAvatarSelection } from '../src/xr/avatarCatalog.js';
+import { isExplicit3DSelection, isPortraitSelection, resolveAvatarSelection, shouldShowPortrait } from '../src/xr/avatarCatalog.js';
 
 describe('avatar candidate lab', () => {
   it('keeps TRELLIS explicit while defaulting to the approved-safe procedural avatar', () => {
@@ -12,6 +12,16 @@ describe('avatar candidate lab', () => {
     expect(isExplicit3DSelection('?visual=3d')).toBe(true);
     expect(isExplicit3DSelection('?avatar=trellis')).toBe(true);
     expect(isPortraitSelection('?visual=portrait')).toBe(true);
+    expect(isExplicit3DSelection('?procedural=1')).toBe(true);
+  });
+
+  it('shows live 3D by default and portrait only when explicitly requested or 3D fails', () => {
+    expect(shouldShowPortrait('')).toBe(false);
+    expect(shouldShowPortrait('?procedural=1')).toBe(false);
+    expect(shouldShowPortrait('?avatar=glb')).toBe(false);
+    expect(shouldShowPortrait('?visual=portrait')).toBe(true);
+    expect(shouldShowPortrait('', { renderFallback: true })).toBe(true);
+    expect(shouldShowPortrait('?visual=portrait', { sessionMode: 'ar' })).toBe(false);
   });
 
   it('keeps unapproved candidates out of approval state', () => {

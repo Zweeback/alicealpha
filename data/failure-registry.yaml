@@ -1,0 +1,756 @@
+{
+  "schema_version": "1.0.0",
+  "schema": "alice.failure-registry.v1",
+  "contract": [
+    "INPUT",
+    "PRECONDITION",
+    "STATE",
+    "OPERATION",
+    "OUTPUT",
+    "TIMEOUT",
+    "ERROR_CLASS",
+    "FALLBACK",
+    "RECOVERY",
+    "VERIFY"
+  ],
+  "recovery_ladder": [
+    "RETRY",
+    "RESET",
+    "RECONNECT",
+    "RESTART_WORKER",
+    "SUBSTITUTE",
+    "DEGRADE",
+    "RESTORE",
+    "ESCALATE"
+  ],
+  "runtime_states": [
+    "OFFLINE",
+    "BOOTING",
+    "SELF_TEST",
+    "READY",
+    "LISTENING",
+    "TRANSCRIBING",
+    "THINKING",
+    "SPEAKING",
+    "INTERRUPTED",
+    "DEGRADED_AUDIO",
+    "DEGRADED_VISION",
+    "DEGRADED_MEMORY",
+    "DEGRADED_AVATAR",
+    "DEGRADED_NETWORK",
+    "RECOVERING",
+    "FAILED_COMPONENT",
+    "SAFE_MODE"
+  ],
+  "liveness": {
+    "statement": "Alice is alive when identity/persistent state is valid and at least one interaction input and one output path are usable.",
+    "requires": [
+      "persistent_state_valid",
+      "interaction_input_available",
+      "output_path_available"
+    ],
+    "does_not_require": [
+      "camera",
+      "cloud",
+      "vrm",
+      "lip_sync",
+      "neural_tts",
+      "local_llm"
+    ]
+  },
+  "pipeline_order": [
+    "mic",
+    "vad",
+    "stt",
+    "agent",
+    "tts",
+    "playback",
+    "avatar"
+  ],
+  "failures": [
+    {
+      "code": "BOOT_CONFIG_INVALID",
+      "domain": "boot",
+      "owner": "runtime",
+      "observed": "companion does not start",
+      "probe": "validate config/env/ports before boot",
+      "timeout_ms": 5000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "known-good config",
+      "recovery": [
+        "RESET",
+        "RESTORE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "DEPENDENCY_DRIFT",
+      "domain": "dependencies",
+      "owner": "packaging",
+      "observed": "worked yesterday, fails today",
+      "probe": "compare lockfile/runtime version matrix",
+      "timeout_ms": 10000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "locked container/image",
+      "recovery": [
+        "RESTORE",
+        "SUBSTITUTE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "GPU_OOM",
+      "domain": "gpu",
+      "owner": "compute",
+      "observed": "crash or allocation failure",
+      "probe": "memory pressure / model residency",
+      "timeout_ms": 3000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 500
+      },
+      "fallback": "quantized/offloaded model",
+      "recovery": [
+        "RESET",
+        "RESTART_WORKER",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "ASSET_INVALID",
+      "domain": "asset",
+      "owner": "avatar",
+      "observed": "GLB/VRM will not load",
+      "probe": "asset validator + loader smoke",
+      "timeout_ms": 8000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 250
+      },
+      "fallback": "approved portrait/procedural avatar",
+      "recovery": [
+        "RETRY",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AVATAR",
+      "regression_test": "tests/avatarCandidate.test.js"
+    },
+    {
+      "code": "RIG_MAPPING_INVALID",
+      "domain": "rig",
+      "owner": "avatar",
+      "observed": "deformed body / wrong pose",
+      "probe": "required bone map + rest pose validation",
+      "timeout_ms": 3000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "non-rigged portrait/procedural avatar",
+      "recovery": [
+        "RESET",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AVATAR",
+      "regression_test": "tests/aliceCharacterManifest.test.js"
+    },
+    {
+      "code": "ANIMATION_BLEND_CONFLICT",
+      "domain": "animation",
+      "owner": "avatar",
+      "observed": "T-pose, jitter or conflicting motion",
+      "probe": "single-writer animation mixer invariant",
+      "timeout_ms": 1500,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 100
+      },
+      "fallback": "idle-only animation",
+      "recovery": [
+        "RESET",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AVATAR",
+      "regression_test": "tests/microMotion.test.js"
+    },
+    {
+      "code": "RENDER_WEBGL_FAILED",
+      "domain": "rendering",
+      "owner": "avatar",
+      "observed": "black frame or unusable FPS",
+      "probe": "WebGL init + frame-time sample",
+      "timeout_ms": 5000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 250
+      },
+      "fallback": "canonical portrait",
+      "recovery": [
+        "RESET",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AVATAR",
+      "regression_test": "tests/release-audit.spec.js"
+    },
+    {
+      "code": "HITBOX_FRAME_BUDGET",
+      "domain": "rendering",
+      "owner": "avatar",
+      "observed": "UI lag / frame drops",
+      "probe": "per-frame hitbox/bone cost budget",
+      "timeout_ms": 1000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "disable or decimate hitboxes",
+      "recovery": [
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AVATAR",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "MIC_UNAVAILABLE",
+      "domain": "microphone",
+      "owner": "input",
+      "observed": "no audio input",
+      "probe": "permission + device + sample-rate probe",
+      "timeout_ms": 5000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 500
+      },
+      "fallback": "text input",
+      "recovery": [
+        "RECONNECT",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "AEC_SELF_INTERRUPT",
+      "domain": "aec",
+      "owner": "audio",
+      "observed": "Alice interrupts herself",
+      "probe": "correlate playback energy with VAD speech_start",
+      "timeout_ms": 1200,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 100
+      },
+      "fallback": "half-duplex / suppression warmup",
+      "recovery": [
+        "RESET",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "VAD_FALSE_TRIGGER",
+      "domain": "vad",
+      "owner": "audio",
+      "observed": "constant false interruption",
+      "probe": "noise floor + threshold + speech duration",
+      "timeout_ms": 1200,
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_ms": 100
+      },
+      "fallback": "adaptive VAD / push-to-talk",
+      "recovery": [
+        "RESET",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "STT_LOW_CONFIDENCE",
+      "domain": "stt",
+      "owner": "transcription",
+      "observed": "nonsensical transcript",
+      "probe": "confidence/language/noise gate",
+      "timeout_ms": 8000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 200
+      },
+      "fallback": "secondary STT or text input",
+      "recovery": [
+        "RETRY",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "TURN_END_EARLY",
+      "domain": "turn_taking",
+      "owner": "dialogue",
+      "observed": "Alice answers before user finished",
+      "probe": "semantic end-of-turn + silence timeout",
+      "timeout_ms": 1800,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "longer EOT guard / manual send",
+      "recovery": [
+        "RESET",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "LLM_TIMEOUT",
+      "domain": "llm",
+      "owner": "reasoning",
+      "observed": "no model response",
+      "probe": "deadline + context size + provider status",
+      "timeout_ms": 30000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 500
+      },
+      "fallback": "browser/local/alternate model",
+      "recovery": [
+        "RETRY",
+        "RECONNECT",
+        "RESTART_WORKER",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/ollama.test.js"
+    },
+    {
+      "code": "AGENT_RACE",
+      "domain": "agent_state",
+      "owner": "orchestrator",
+      "observed": "duplicate or overlapping answers",
+      "probe": "single active turn invariant + turn id",
+      "timeout_ms": 1000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "cancel older turn",
+      "recovery": [
+        "RESET",
+        "ESCALATE"
+      ],
+      "degrade_state": "RECOVERING",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "MEMORY_VOLATILE",
+      "domain": "memory",
+      "owner": "persistence",
+      "observed": "restart causes amnesia",
+      "probe": "durable store write/read verification",
+      "timeout_ms": 3000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 250
+      },
+      "fallback": "browser-local confirmed store / persisted snapshot",
+      "recovery": [
+        "RETRY",
+        "RESTORE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_MEMORY",
+      "regression_test": "tests/memory.test.js"
+    },
+    {
+      "code": "RETRIEVAL_UNTRUSTED",
+      "domain": "retrieval",
+      "owner": "memory",
+      "observed": "retrieves false memory",
+      "probe": "provenance + canonical truth gate",
+      "timeout_ms": 2000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "confirmed memory only",
+      "recovery": [
+        "RESET",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_MEMORY",
+      "regression_test": "tests/memory.test.js"
+    },
+    {
+      "code": "PERSONA_DRIFT",
+      "domain": "personality",
+      "owner": "identity",
+      "observed": "Alice changes character unexpectedly",
+      "probe": "identity revision + prompt/memory conflict check",
+      "timeout_ms": 1500,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "versioned canonical identity",
+      "recovery": [
+        "RESTORE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/persona.test.js"
+    },
+    {
+      "code": "TOOL_TIMEOUT",
+      "domain": "tool_calling",
+      "owner": "tools",
+      "observed": "external tool hangs",
+      "probe": "per-tool deadline + circuit state",
+      "timeout_ms": 15000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 500
+      },
+      "fallback": "alternate tool / no-op with evidence",
+      "recovery": [
+        "RETRY",
+        "RECONNECT",
+        "RESTART_WORKER",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "RECOVERING",
+      "regression_test": "tests/operatorDispatch.test.js"
+    },
+    {
+      "code": "TTS_EMPTY_AUDIO",
+      "domain": "tts",
+      "owner": "audio_output",
+      "observed": "text exists but no synthesized audio",
+      "probe": "audio bytes/chunks > 0",
+      "timeout_ms": 12000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 250
+      },
+      "fallback": "browser OS speech",
+      "recovery": [
+        "RETRY",
+        "RESTART_WORKER",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "VOICE_CLONE_SLOW",
+      "domain": "tts",
+      "owner": "audio_output",
+      "observed": "voice clone latency unacceptable",
+      "probe": "first-audio latency budget",
+      "timeout_ms": 2500,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "fast default voice",
+      "recovery": [
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "PLAYBACK_TIMEOUT",
+      "domain": "playback",
+      "owner": "audio_output",
+      "observed": "audio generated but playback never starts",
+      "probe": "playback_started after accepted audio",
+      "timeout_ms": 2500,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 150
+      },
+      "fallback": "text output",
+      "recovery": [
+        "RETRY",
+        "RECONNECT",
+        "RESET",
+        "RESTART_WORKER",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AUDIO",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "LIPSYNC_NO_SIGNAL",
+      "domain": "lip_sync",
+      "owner": "avatar",
+      "observed": "mouth does not move while speech plays",
+      "probe": "viseme or amplitude stream present",
+      "timeout_ms": 1000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "amplitude-driven mouth",
+      "recovery": [
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AVATAR",
+      "regression_test": "tests/performance.test.js"
+    },
+    {
+      "code": "EXPRESSION_WRITER_CONFLICT",
+      "domain": "expressions",
+      "owner": "avatar",
+      "observed": "face twitches or expression oscillates",
+      "probe": "priority mixer single effective writer",
+      "timeout_ms": 1000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "neutral expression",
+      "recovery": [
+        "RESET",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_AVATAR",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "REALTIME_TRANSPORT_LOSS",
+      "domain": "realtime_transport",
+      "owner": "network",
+      "observed": "audio/session dropouts",
+      "probe": "ICE/datachannel/session heartbeat",
+      "timeout_ms": 8000,
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_ms": 500
+      },
+      "fallback": "local/text session",
+      "recovery": [
+        "RECONNECT",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_NETWORK",
+      "regression_test": "tests/live-webrtc.spec.js"
+    },
+    {
+      "code": "NETWORK_OFFLINE",
+      "domain": "network",
+      "owner": "network",
+      "observed": "cloud features unavailable",
+      "probe": "connectivity/provider reachability",
+      "timeout_ms": 5000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 1000
+      },
+      "fallback": "local/browser/text mode",
+      "recovery": [
+        "RECONNECT",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_NETWORK",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "PERSISTENCE_WRITE_FAILED",
+      "domain": "persistence",
+      "owner": "memory",
+      "observed": "state not durable",
+      "probe": "write + read-after-write hash",
+      "timeout_ms": 3000,
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_ms": 250
+      },
+      "fallback": "secondary local store/export snapshot",
+      "recovery": [
+        "RETRY",
+        "RECONNECT",
+        "RESTORE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_MEMORY",
+      "regression_test": "tests/memory.test.js"
+    },
+    {
+      "code": "SCHEMA_MIGRATION_FAILED",
+      "domain": "schemas",
+      "owner": "persistence",
+      "observed": "update breaks stored state",
+      "probe": "schema version + migration dry-run",
+      "timeout_ms": 5000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "last compatible schema snapshot",
+      "recovery": [
+        "RESTORE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "DEGRADED_MEMORY",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "PACKAGING_DRIFT",
+      "domain": "packaging",
+      "owner": "release",
+      "observed": "works only on dev machine",
+      "probe": "clean reproducible build + runtime smoke",
+      "timeout_ms": 120000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "known-good image/artifact",
+      "recovery": [
+        "RESTORE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "docs/OPERATIONS_MVD.md"
+    },
+    {
+      "code": "MOBILE_RESOURCE_PRESSURE",
+      "domain": "mobile",
+      "owner": "compute",
+      "observed": "device overheats or stalls",
+      "probe": "frame time + thermal/memory pressure",
+      "timeout_ms": 3000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "remote compute / quality scaling",
+      "recovery": [
+        "DEGRADE",
+        "SUBSTITUTE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "ATTRIBUTION_GAP",
+      "domain": "observability",
+      "owner": "telemetry",
+      "observed": "system hangs but cause is unknown",
+      "probe": "turn trace has terminal state for every stage",
+      "timeout_ms": 1000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "SAFE_MODE with diagnostic trace",
+      "recovery": [
+        "RESET",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "WORKER_HUNG",
+      "domain": "watchdog",
+      "owner": "runtime",
+      "observed": "worker never returns",
+      "probe": "heartbeat/deadline exceeded",
+      "timeout_ms": 15000,
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_ms": 500
+      },
+      "fallback": "restart isolated worker",
+      "recovery": [
+        "RESTART_WORKER",
+        "SUBSTITUTE",
+        "DEGRADE",
+        "ESCALATE"
+      ],
+      "degrade_state": "RECOVERING",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "REGRESSION_DETECTED",
+      "domain": "regression",
+      "owner": "release",
+      "observed": "new fix breaks known-good slice",
+      "probe": "golden vertical-slice test",
+      "timeout_ms": 120000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "last known-good revision",
+      "recovery": [
+        "RESTORE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/reliability.test.js"
+    },
+    {
+      "code": "MONOLITH_FAILURE_PROPAGATION",
+      "domain": "recovery",
+      "owner": "orchestrator",
+      "observed": "one subsystem failure kills Alice",
+      "probe": "independent lifecycle/restart boundary",
+      "timeout_ms": 2000,
+      "retry_policy": {
+        "max_attempts": 0
+      },
+      "fallback": "keep text core alive",
+      "recovery": [
+        "RESTART_WORKER",
+        "DEGRADE",
+        "RESTORE",
+        "ESCALATE"
+      ],
+      "degrade_state": "SAFE_MODE",
+      "regression_test": "tests/reliability.test.js"
+    }
+  ]
+}

@@ -48,14 +48,22 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
 test('touching Alice degrades to free local input when Realtime quota is unavailable', async () => {
   test.setTimeout(120_000);
   const browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
-  const context=await browser.newContext({permissions:['microphone','camera']});const page=await context.newPage();
+  const context=await browser.newContext({permissions:['microphone','camera']});
+  await context.route('**/api/health',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,realtime:true,model:'audit-model'})}));
+  await context.route('**/api/realtime/session',route=>route.fulfill({status:429,contentType:'application/json',body:JSON.stringify({error:'audit-quota'})}));
+  const page=await context.newPage();
   await page.addInitScript(()=>{window.SpeechRecognition=undefined;window.webkitSpeechRecognition=undefined;window.__aliceVoiceFallbackProbe={peerCreated:false,dataChannelCreated:false,microphoneGranted:false,sessionStatus:null};const NativePC=window.RTCPeerConnection;class ProbedRTCPeerConnection extends NativePC{constructor(...args){super(...args);window.__aliceVoiceFallbackProbe.peerCreated=true;}createDataChannel(label,options){window.__aliceVoiceFallbackProbe.dataChannelCreated=true;return super.createDataChannel(label,options);}}window.RTCPeerConnection=ProbedRTCPeerConnection;const originalGetUserMedia=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);navigator.mediaDevices.getUserMedia=async(...args)=>{const stream=await originalGetUserMedia(...args);if(stream.getAudioTracks().length>0)window.__aliceVoiceFallbackProbe.microphoneGranted=true;return stream;};});
   page.on('response',response=>{if(response.url().includes('/api/realtime/session'))page.evaluate(status=>{window.__aliceVoiceFallbackProbe.sessionStatus=status;},response.status()).catch(()=>undefined);});
-  await page.goto(APP_URL,{waitUntil:'networkidle',timeout:90_000});await expect(page.locator('.live-state')).toContainText('Bereit',{timeout:30_000});
+  await page.goto(LOCAL_APP_URL,{waitUntil:'networkidle',timeout:90_000});
+  await expect(page.locator('.live-state')).toContainText('Bereit',{timeout:30_000});
   await page.keyboard.press('Space');
-  await expect.poll(async()=>page.evaluate(()=>window.__aliceVoiceFallbackProbe.sessionStatus),{timeout:45_000}).not.toBeNull();
-  const probe=await page.evaluate(()=>window.__aliceVoiceFallbackProbe);expect(probe.sessionStatus).toBe(429);expect(probe.peerCreated).toBe(true);expect(probe.dataChannelCreated).toBe(true);expect(probe.microphoneGranted).toBe(true);
-  await expect(page.locator('#alice-text')).toBeVisible({timeout:30_000});await expect(page.locator('.live-state')).toContainText('Basismodus',{timeout:30_000});console.log('ALICE_FREE_FALLBACK_PROBE',JSON.stringify(probe));await context.close();await browser.close();
+  await expect.poll(async()=>page.evaluate(()=>window.__aliceVoiceFallbackProbe.sessionStatus),{timeout:45_000}).toBe(429);
+  const probe=await page.evaluate(()=>window.__aliceVoiceFallbackProbe);
+  expect(probe.peerCreated).toBe(true);expect(probe.dataChannelCreated).toBe(true);expect(probe.microphoneGranted).toBe(true);
+  await expect(page.locator('#alice-text')).toBeVisible({timeout:30_000});
+  await expect(page.locator('.live-state')).toContainText('Basismodus',{timeout:30_000});
+  console.log('ALICE_FREE_FALLBACK_PROBE',JSON.stringify(probe));
+  await context.close();await browser.close();
 });
 
 test('quota failure exposes the zero-cost browser AI entry and WebLLM can produce local output', async () => {

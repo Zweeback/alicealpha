@@ -55,9 +55,17 @@ export function resolveAvatarSelection(search = '') {
 
 export function isExplicit3DSelection(search = '') {
   const params = new URLSearchParams(search);
-  return params.get('visual') === '3d' || Boolean(params.get('avatar'));
+  return params.get('visual') === '3d'
+    || Boolean(params.get('avatar'))
+    || params.get('procedural') === '1';
 }
 
 export function isPortraitSelection(search = '') {
   return new URLSearchParams(search).get('visual') === 'portrait';
+}
+
+export function shouldShowPortrait(search = '', { sessionMode = 'desktop', renderFallback = false } = {}) {
+  if (sessionMode !== 'desktop') return false;
+  if (renderFallback) return true;
+  return isPortraitSelection(search);
 }
