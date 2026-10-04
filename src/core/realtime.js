@@ -41,6 +41,8 @@ export class RealtimeChannel {
     this.turnTrace = new BrowserTurnTrace();
     this.micReadyAt = null;
     this.receivedAudio = false;
+    this.responseCompleted = false;
+    this.traceFinishTimer = null;
   }
 
   get connected() {
@@ -207,7 +209,22 @@ export class RealtimeChannel {
   markAvatarSignal(detail = null) {
     if (!this.turnTrace.active) return false;
     this.turnTrace.mark('avatar', 'ok', { detail });
+    this.#finishAudioTraceIfReady();
     return true;
+  }
+
+  completeResponse() {
+    if (!this.turnTrace.active) return false;
+    this.responseCompleted = true;
+    if (!this.receivedAudio) {
+      this.#publishTrace(this.turnTrace.finish({ textOnly: true }));
+      return true;
+    }
+    if (this.#finishAudioTraceIfReady()) return true;
+    this.traceFinishTimer = globalThis.setTimeout(() => {
+      if (this.turnTrace.active) this.#publishTrace(this.turnTrace.finish());
+    }, 1800);
+    return false;
   }
 
   disconnect() {
@@ -226,6 +243,9 @@ export class RealtimeChannel {
     this.audio = null;
     this.micReadyAt = null;
     this.micLatencyMs = null;
+    if (this.traceFinishTimer) globalThis.clearTimeout(this.traceFinishTimer);
+    this.traceFinishTimer = null;
+    this.responseCompleted = false;
     this.#setState('disconnected');
   }
 
@@ -240,8 +260,20 @@ export class RealtimeChannel {
     return true;
   }
 
+  #finishAudioTraceIfReady() {
+    if (!this.turnTrace.active || !this.responseCompleted) return false;
+    const stages = this.turnTrace.snapshot()?.stages || [];
+    const status = (name) => stages.find((stage) => stage.stage === name)?.status;
+    if (status('playback') !== 'ok' || status('avatar') !== 'ok') return false;
+    this.#publishTrace(this.turnTrace.finish());
+    return true;
+  }
+
   #publishTrace(trace) {
     if (!trace) return;
+    if (this.traceFinishTimer) globalThis.clearTimeout(this.traceFinishTimer);
+    this.traceFinishTimer = null;
+    this.responseCompleted = false;
     this.onTrace(trace);
     globalThis.__aliceLastTurnTrace = trace;
     reportTurnTrace(trace)
@@ -257,6 +289,9 @@ export class RealtimeChannel {
     this.onEvent(event);
 
     if (event.type === 'input_audio_buffer.speech_started') {
+      if (this.traceFinishTimer) globalThis.clearTimeout(this.traceFinishTimer);
+      this.traceFinishTimer = null;
+      this.responseCompleted = false;
       this.receivedAudio = false;
       this.turnTrace.begin({
         stages: [
@@ -317,11 +352,10 @@ export class RealtimeChannel {
       return;
     }
     if (event.type === 'response.done') {
-      if (this.turnTrace.active) {
-        const textOnly = !this.receivedAudio;
-        if (textOnly) this.turnTrace.mark('agent', 'ok', { detail: { event: event.type } });
-        this.#publishTrace(this.turnTrace.finish({ textOnly }));
+      if (this.turnTrace.active && !this.receivedAudio) {
+        this.turnTrace.mark('agent', 'ok', { detail: { event: event.type } });
       }
+      this.completeResponse();
       this.onState('connected');
       return;
     }
@@ -347,11 +381,10 @@ export class RealtimeChannel {
         analyser.getByteFrequencyData(data);
         const mean = data.reduce((sum, value) => sum + value, 0) / Math.max(1, data.length);
         const energy = Math.min(1, mean / 92);
-        this.onSpeechEnergy(energy);
         if (energy > 0.035 && this.turnTrace.active) {
           this.turnTrace.mark('playback', 'ok', { detail: { source: 'remote-audio-analyser' } });
-          this.markAvatarSignal({ source: 'speech-energy-callback' });
         }
+        this.onSpeechEnergy(energy);
         this.energyFrame = requestAnimationFrame(frame);
       };
       frame();
