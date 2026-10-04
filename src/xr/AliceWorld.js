@@ -510,6 +510,7 @@ export class AliceWorld {
 
   setSpeechEnergy(value) {
     this.speechEnergy = THREE.MathUtils.clamp(Number(value) || 0, 0, 1);
+    return Boolean(this.alice);
   }
 
   stopPlan() {
