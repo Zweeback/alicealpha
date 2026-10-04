@@ -316,7 +316,14 @@ export default function App() {
           setChatMessages(companion.history(60));
         }
       },
-      onSpeechEnergy: (energy) => world.setSpeechEnergy(energy),
+      onSpeechEnergy: (energy) => {
+        const applied = world.setSpeechEnergy(energy);
+        if (energy > 0.035 && applied) {
+          realtimeRef.current?.markAvatarSignal({
+            source: 'AliceWorld.setSpeechEnergy',
+          });
+        }
+      },
       onTool: async (name, args) => {
         if (name === 'get_companion_state') {
           const state = companion.snapshot();
