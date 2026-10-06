@@ -15,6 +15,7 @@ describe('Alice MCP App', () => {
 
     const tools = dispatchAliceMcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     expect(tools.result.tools.map((tool) => tool.name)).toContain('open_alice');
+    expect(tools.result.tools.map((tool) => tool.name)).toContain('continue_alice');
   });
 
   it('returns a UI-backed 3D companion tool result', () => {
@@ -28,6 +29,34 @@ describe('Alice MCP App', () => {
     expect(result.result.structuredContent.identity).toBe('alice');
     expect(result.result.structuredContent.surface).toBe('chatgpt-mcp-app');
     expect(result.result._meta.ui.resourceUri).toBe(aliceMcp.resourceUri);
+  });
+
+  it('invokes exactly one configured continue handler and returns verified state', async () => {
+    let calls = 0;
+    const result = await dispatchAliceMcp({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: { name: 'continue_alice', arguments: {} },
+    }, {
+      continueHandler: async () => {
+        calls += 1;
+        return {
+          status: 'complete',
+          executed: true,
+          state: {
+            current_step_id: null,
+            next_step: null,
+            verified_evidence: ['test:green'],
+          },
+        };
+      },
+    });
+
+    expect(calls).toBe(1);
+    expect(result.result.structuredContent.status).toBe('complete');
+    expect(result.result.structuredContent.executed).toBe(true);
+    expect(result.result.structuredContent.verifiedEvidence).toEqual(['test:green']);
   });
 
   it('serves a ChatGPT MCP App resource that embeds the live Alice runtime', () => {
