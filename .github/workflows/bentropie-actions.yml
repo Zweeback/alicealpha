@@ -1,0 +1,27 @@
+name: Bentropie Actions Control
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bentropie-actions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Actions baseline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Repository status
+        shell: bash
+        run: |
+          echo "GitHub Actions is active for: $GITHUB_REPOSITORY"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          echo "Runner: $RUNNER_OS"
