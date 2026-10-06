@@ -7,6 +7,16 @@
   "approvedAsset": null,
   "candidateAssets": [
     {
+      "path": "/avatars/alice-rigged.glb",
+      "kind": "glb",
+      "status": "candidate",
+      "provenance": "deterministic neutral-material conversion of registered FBX source; explicit selector only",
+      "sha256": "a2c599215b80fc2bef8f1ff8d16378d0b47755b61cc680e013d8af0b0825bd46",
+      "sourcePath": "/avatars/candidates/model.fbx",
+      "sourceSha256": "da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59",
+      "diagnostics": "/avatars/alice-rigged.json"
+    },
+    {
       "path": "/alice.glb",
       "kind": "glb",
       "status": "candidate",
