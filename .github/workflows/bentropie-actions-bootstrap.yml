@@ -1,0 +1,30 @@
+name: BENTROPIE Actions Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bentropie-actions-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    name: Verify GitHub Actions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show repository context
+        shell: bash
+        run: |
+          echo "repository=${{ github.repository }}"
+          echo "ref=${{ github.ref }}"
+          echo "sha=${{ github.sha }}"
+          echo "runner=${{ runner.os }}"
+          git status --short
+          find . -maxdepth 2 -type f | sort | head -200
