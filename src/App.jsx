@@ -213,6 +213,8 @@ export default function App() {
       setPhase('connecting');
       try {
         await realtime.connect();
+        realtime.setOutputMuted(true);
+        realtime.sendModeContext(voiceModeRef.current);
         realtime.sendPresence(presenceRef.current);
         setCaption('Ich bin da. Sprich einfach mit mir.');
         setPhase('connected');
@@ -475,6 +477,8 @@ export default function App() {
       setPhase('connecting');
       try {
         await realtime.connect();
+        realtime.setOutputMuted(true);
+        realtime.sendModeContext(voiceModeRef.current);
         realtime.sendPresence(presenceRef.current);
         setPhase('connected');
       } catch {
