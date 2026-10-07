@@ -154,6 +154,20 @@ def health():
     return result
 
 
+@app.get("/probe.wav")
+def probe():
+    try:
+        return Response(
+            content=synthesize_glados("Benjamin. The system is awake."),
+            media_type="audio/wav",
+            headers={"Cache-Control": "no-store"},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"glados-probe-failed:{type(exc).__name__}") from exc
+
+
 @app.post("/tts")
 def tts(request: TTSRequest):
     provider = (request.provider or os.getenv("ALICE_TTS_PROVIDER", "chatterbox")).strip().lower()
