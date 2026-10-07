@@ -186,6 +186,7 @@ app.get('/api/health', (_request, response) => {
     ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
     tts: Boolean(process.env.ALICE_TTS_URL),
     ttsProvider: process.env.ALICE_TTS_PROVIDER || (process.env.ALICE_TTS_URL ? 'sidecar' : null),
+    gladosTts: Boolean(process.env.ALICE_GLADOS_TTS_URL),
     chat: {
       endpoint: '/api/chat',
       operational: availableChatProviders.length > 0,
@@ -371,6 +372,59 @@ app.post('/api/tts', express.json({ limit: '64kb' }), async (request, response) 
     const message = error instanceof Error ? error.message : 'tts-request-failed';
     console.error('TTS sidecar request failed:', message);
     response.status(503).json({ error: 'tts-request-failed' });
+  }
+});
+
+app.post('/api/glados-tts', express.json({ limit: '64kb' }), async (request, response) => {
+  const target = process.env.ALICE_GLADOS_TTS_URL;
+  if (!target) {
+    response.status(503).json({ error: 'glados-tts-not-configured' });
+    return;
+  }
+
+  const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+  if (!text) {
+    response.status(400).json({ error: 'missing-text' });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(target, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: text.slice(0, 1600),
+        language: 'en',
+        provider: 'glados',
+      }),
+      signal: AbortSignal.timeout(Math.max(1000, Number(process.env.ALICE_GLADOS_TTS_TIMEOUT_MS || 45000))),
+    });
+
+    if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => '');
+      response.status(502).json({
+        error: 'glados-tts-upstream-failed',
+        status: upstream.status,
+        detail: detail.slice(0, 240),
+      });
+      return;
+    }
+
+    const audio = Buffer.from(await upstream.arrayBuffer());
+    if (!audio.length) {
+      response.status(502).json({ error: 'glados-tts-empty-audio' });
+      return;
+    }
+
+    response.set({
+      'Cache-Control': 'no-store',
+      'Content-Type': upstream.headers.get('content-type') || 'audio/wav',
+      'Content-Length': String(audio.length),
+    });
+    response.send(audio);
+  } catch (error) {
+    console.error('GLaDOS TTS sidecar request failed:', error instanceof Error ? error.message : 'unknown');
+    response.status(503).json({ error: 'glados-tts-request-failed' });
   }
 });
 
