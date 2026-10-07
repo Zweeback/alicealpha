@@ -2,17 +2,68 @@ function recognitionConstructor() {
   return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition || null;
 }
 
+const voiceModes = Object.freeze({
+  french: Object.freeze({
+    provider: 'browser',
+    language: 'de-DE',
+    accent: 'fr-FR',
+    delivery: 'natural',
+    rate: 0.9,
+    pitch: 1.02,
+    volume: 0.72,
+  }),
+  whisper: Object.freeze({
+    provider: 'browser',
+    language: 'de-DE',
+    accent: 'de-DE',
+    delivery: 'whisper',
+    rate: 0.76,
+    pitch: 0.96,
+    volume: 0.28,
+  }),
+  hev: Object.freeze({
+    provider: 'browser',
+    language: 'de-DE',
+    accent: 'de-DE',
+    delivery: 'system',
+    rate: 0.88,
+    pitch: 0.68,
+    volume: 0.86,
+  }),
+  glados: Object.freeze({
+    provider: 'glados',
+    language: 'en-US',
+    accent: 'en-US',
+    delivery: 'synthetic',
+    rate: 0.9,
+    pitch: 1,
+    volume: 1,
+  }),
+});
+
 export class VoiceChannel {
-  constructor({ onListeningChange = () => {}, onSpeechEnergy = () => {}, ttsEndpoint = '/api/tts' } = {}) {
+  constructor({
+    onListeningChange = () => {},
+    onSpeechEnergy = () => {},
+    ttsEndpoint = '/api/tts',
+    gladosEndpoint = '/api/glados-tts',
+  } = {}) {
     this.onListeningChange = onListeningChange;
     this.onSpeechEnergy = onSpeechEnergy;
     this.ttsEndpoint = ttsEndpoint;
+    this.gladosEndpoint = gladosEndpoint;
+    this.mode = 'french';
     this.neuralTtsEnabled = false;
     this.recognition = null;
     this.activeUtterance = null;
     this.activeAudio = null;
     this.activeAudioUrl = null;
     this.activeTtsController = null;
+  }
+
+  setMode(mode) {
+    if (voiceModes[mode]) this.mode = mode;
+    return this.mode;
   }
 
   setNeuralTtsEnabled(enabled) {
@@ -90,16 +141,34 @@ export class VoiceChannel {
 
     this.stopSpeaking();
 
-    if (this.neuralTtsEnabled && globalThis.fetch && globalThis.Audio) {
+    const modeVoice = voiceModes[this.mode] || voiceModes.french;
+    const voicedPlan = {
+      ...plan,
+      voice: {
+        ...(plan.voice || {}),
+        ...modeVoice,
+      },
+    };
+
+    if (this.mode === 'glados' && globalThis.fetch && globalThis.Audio) {
       const controller = new AbortController();
       this.activeTtsController = controller;
-      this.#speakNeural(plan, normalized, controller).catch(() => {
-        if (!controller.signal.aborted) this.#speakBrowser(plan, normalized);
+      this.#speakRemote(this.gladosEndpoint, voicedPlan, normalized, controller, 'glados').catch(() => {
+        if (!controller.signal.aborted) this.#speakBrowser(voicedPlan, normalized);
       });
       return { cancel: () => this.stopSpeaking() };
     }
 
-    return this.#speakBrowser(plan, normalized);
+    if (this.neuralTtsEnabled && globalThis.fetch && globalThis.Audio) {
+      const controller = new AbortController();
+      this.activeTtsController = controller;
+      this.#speakRemote(this.ttsEndpoint, voicedPlan, normalized, controller, null).catch(() => {
+        if (!controller.signal.aborted) this.#speakBrowser(voicedPlan, normalized);
+      });
+      return { cancel: () => this.stopSpeaking() };
+    }
+
+    return this.#speakBrowser(voicedPlan, normalized);
   }
 
   #speakBrowser(plan, { onStart, onBoundary, onEnd }) {
@@ -132,8 +201,8 @@ export class VoiceChannel {
     return { cancel: () => this.stopSpeaking() };
   }
 
-  async #speakNeural(plan, { onStart, onEnd }, controller) {
-    const response = await fetch(this.ttsEndpoint, {
+  async #speakRemote(endpoint, plan, { onStart, onEnd }, controller, provider) {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -142,13 +211,14 @@ export class VoiceChannel {
         accent: plan.voice?.accent || null,
         rate: plan.voice?.rate || 1,
         pitch: plan.voice?.pitch || 1,
+        provider,
       }),
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`neural-tts-${response.status}`);
+    if (!response.ok) throw new Error(`tts-${this.mode}-${response.status}`);
 
     const blob = await response.blob();
-    if (!blob.size) throw new Error('neural-tts-empty');
+    if (!blob.size) throw new Error('tts-empty');
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     this.activeAudio = audio;
@@ -188,8 +258,8 @@ export class VoiceChannel {
 
     const accentPrefix = String(accent || '').slice(0, 2).toLowerCase();
     const accented = voices.filter((voice) => voice.lang?.toLowerCase().startsWith(accentPrefix));
-    const frenchFemale = accented.find((voice) => /female|amelie|amélie|audrey|marie|hortense|celine|céline|lea|léa|julie/i.test(voice.name));
-    if (frenchFemale || accented[0]) return frenchFemale || accented[0];
+    const preferred = accented.find((voice) => /female|amelie|amélie|audrey|marie|hortense|celine|céline|lea|léa|julie|zira|samantha/i.test(voice.name));
+    if (preferred || accented[0]) return preferred || accented[0];
 
     const german = voices.filter((voice) => voice.lang?.toLowerCase().startsWith('de'));
     return german.find((voice) => /female|katja|anna|petra|amala|seraphina|vicki/i.test(voice.name)) || german[0] || null;
