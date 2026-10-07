@@ -34,6 +34,7 @@ export class RealtimeChannel {
     this.state = 'idle';
     this.replyText = '';
     this.userText = '';
+    this.outputMuted = false;
   }
 
   get connected() {
@@ -56,6 +57,7 @@ export class RealtimeChannel {
       peer.ontrack = (event) => {
         const [stream] = event.streams;
         if (!stream) return;
+        this.audio.muted = this.outputMuted;
         this.audio.srcObject = stream;
         this.audio.play().catch(() => undefined);
         this.#watchEnergy(stream);
@@ -105,6 +107,30 @@ export class RealtimeChannel {
       this.onError(error);
       throw error;
     }
+  }
+
+  setOutputMuted(muted) {
+    this.outputMuted = Boolean(muted);
+    if (this.audio) this.audio.muted = this.outputMuted;
+  }
+
+  sendModeContext(mode) {
+    if (!this.connected) return false;
+    const messages = {
+      glados: 'Aktiver Darstellungsmodus: GLaDOS. Antworte in diesem Modus auf Englisch. Die App übernimmt die synthetische Stimme.',
+      hev: 'Aktiver Darstellungsmodus: HEV. Antworte auf Deutsch, knapp und systemisch. Die App übernimmt die HEV-Stimme.',
+      whisper: 'Aktiver Darstellungsmodus: Whisper. Antworte auf Deutsch, ruhig und privat. Die App übernimmt die Flüsterstimme.',
+      french: 'Aktiver Darstellungsmodus: Alice. Antworte auf natürliches Deutsch. Die App übernimmt den französischen Akzent.',
+    };
+    const context = messages[mode] || messages.french;
+    return this.#send({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: '[Nicht laut vorlesen; Laufzeitkontext: ' + context + ']' }],
+      },
+    });
   }
 
   sendText(text) {
