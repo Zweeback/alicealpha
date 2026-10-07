@@ -19,7 +19,7 @@ describe('Alice realtime prompt contract', () => {
 
   it('keeps voice and representation modes explicit and runtime-controlled', () => {
     expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/App steuert Stimme und Repräsentation zur Laufzeit/i);
-    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/französischen Akzent/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/französische[nr]? Akzent/i);
     expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/Whisper-Modus/i);
     expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/HEV-Modus/i);
     expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/GLaDOS-Modus/i);
