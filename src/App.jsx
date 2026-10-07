@@ -3,6 +3,7 @@ import { AnimatronicBridge } from './core/animatronic.js';
 import { CompanionStore } from './core/companion.js';
 import { MemoryStore } from './core/memory.js';
 import { PersonaRuntime } from './core/runtime.js';
+import { createPerformancePlan } from './core/performance.js';
 import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
@@ -42,6 +43,7 @@ export default function App() {
   const presenceRef = useRef({ present: false, confidence: 0 });
   const sessionModeRef = useRef('desktop');
   const fallbackBusyRef = useRef(false);
+  const voiceModeRef = useRef('french');
 
   const [phase, setPhase] = useState('booting');
   const [caption, setCaption] = useState('');
@@ -60,11 +62,22 @@ export default function App() {
   const [companionState, setCompanionState] = useState({ sessionCount: 0, turnCount: 0 });
   const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
+  const [voiceMode, setVoiceMode] = useState('french');
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
     setSessionMode(mode);
     if (mode === 'ar') setCaption('Tippe auf eine Fläche, um Alice dort zu platzieren.');
+  }, []);
+
+  const selectVoiceMode = useCallback((mode) => {
+    const selected = ['french', 'whisper', 'hev', 'glados'].includes(mode) ? mode : 'french';
+    voiceModeRef.current = selected;
+    setVoiceMode(selected);
+    voiceRef.current?.setMode(selected);
+    worldRef.current?.setRepresentation(selected);
+    realtimeRef.current?.setOutputMuted(true);
+    realtimeRef.current?.sendModeContext?.(selected);
   }, []);
 
   const ensureCamera = useCallback(async () => {
@@ -200,6 +213,8 @@ export default function App() {
       setPhase('connecting');
       try {
         await realtime.connect();
+        realtime.setOutputMuted(true);
+        realtime.sendModeContext(voiceModeRef.current);
         realtime.sendPresence(presenceRef.current);
         setCaption('Ich bin da. Sprich einfach mit mir.');
         setPhase('connected');
@@ -250,6 +265,7 @@ export default function App() {
       onListeningChange: (active) => active && setPhase('listening'),
       onSpeechEnergy: (energy) => worldRef.current?.setSpeechEnergy(energy),
     });
+    voice.setMode(voiceModeRef.current);
     memoryRef.current = memory;
     companionRef.current = companion;
     runtimeRef.current = runtime;
@@ -263,7 +279,9 @@ export default function App() {
         onInteract: () => interactRef.current?.(),
         onSessionChange: setMode,
       });
-      world.init().catch((error) => {
+      world.init().then(() => {
+        world.setRepresentation(voiceModeRef.current);
+      }).catch((error) => {
         console.warn('Alice 3D initialization failed; using portrait fallback:', error);
         setRenderFallback(true);
       });
@@ -323,10 +341,15 @@ export default function App() {
       },
       onTranscript: (text, done) => {
         setCaption(text);
-        setPhase(done ? 'connected' : 'speaking');
+        setPhase('speaking');
         if (done && text?.trim()) {
           companion.recordMessage('alice', text, 'realtime');
           setChatMessages(companion.history(60));
+          const plan = createPerformancePlan(text, {}, 'neutral');
+          world.playPlan(plan);
+          voice.speak(plan, {
+            onEnd: () => setPhase('connected'),
+          });
         }
       },
       onUserTranscript: (text, done) => {
@@ -370,6 +393,7 @@ export default function App() {
         setCaption('Ich laufe lokal weiter.');
       },
     });
+    realtime.setOutputMuted(true);
     realtimeRef.current = realtime;
 
     fetch('/api/health')
@@ -453,6 +477,8 @@ export default function App() {
       setPhase('connecting');
       try {
         await realtime.connect();
+        realtime.setOutputMuted(true);
+        realtime.sendModeContext(voiceModeRef.current);
         realtime.sendPresence(presenceRef.current);
         setPhase('connected');
       } catch {
@@ -507,6 +533,25 @@ export default function App() {
           {labels[phase] || phase}
         </div>
       </header>
+
+      <nav className="voice-mode-switch" aria-label="Alice Sprachmodus">
+        {[
+          ['french', 'French'],
+          ['whisper', 'Whisper'],
+          ['hev', 'HEV'],
+          ['glados', 'GLaDOS'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={voiceMode === id ? 'active' : ''}
+            aria-pressed={voiceMode === id}
+            onClick={() => selectVoiceMode(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
       <section className={`captions ${caption || userCaption ? 'visible' : ''}`} aria-live="polite">
         {userCaption && <p className="user-caption">{userCaption}</p>}

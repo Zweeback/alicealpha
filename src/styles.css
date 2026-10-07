@@ -191,6 +191,43 @@ canvas {
   box-shadow: 0 0 9px rgba(201, 150, 104, 0.28);
 }
 
+.voice-mode-switch {
+  position: absolute;
+  z-index: 8;
+  top: calc(max(19px, env(safe-area-inset-top)) + 54px);
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 999px;
+  background: rgba(5,7,8,0.48);
+  backdrop-filter: blur(16px);
+}
+
+.voice-mode-switch button {
+  min-height: 29px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  color: rgba(220,225,221,0.55);
+  background: transparent;
+  cursor: pointer;
+  font: 500 9px/1 Manrope, sans-serif;
+  letter-spacing: 0.035em;
+}
+
+.voice-mode-switch button.active {
+  color: #101213;
+  background: rgba(239,239,233,0.94);
+}
+
+.voice-mode-switch button:focus-visible {
+  outline: 1px solid rgba(255,255,255,0.45);
+  outline-offset: 2px;
+}
+
 .captions {
   position: absolute;
   z-index: 6;
@@ -756,5 +793,16 @@ canvas {
 
   .chat-key {
     right: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .voice-mode-switch {
+    top: calc(max(14px, env(safe-area-inset-top)) + 48px);
+    gap: 3px;
+  }
+  .voice-mode-switch button {
+    padding: 0 8px;
+    font-size: 8px;
   }
 }

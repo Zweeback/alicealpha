@@ -252,7 +252,61 @@ function createProceduralAlice() {
     mouth,
     chestCore,
     arms: { left: armLeft, right: armRight },
+    materials,
   };
+}
+
+function createProceduralGlados() {
+  const root = new THREE.Group();
+  const shell = new THREE.MeshStandardMaterial({ color: '#d9dde0', metalness: 0.72, roughness: 0.24 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#15191c', metalness: 0.82, roughness: 0.22 });
+  const eyeMaterial = new THREE.MeshStandardMaterial({
+    color: '#ffba52',
+    metalness: 0.3,
+    roughness: 0.18,
+    emissive: '#ff5a00',
+    emissiveIntensity: 3.5,
+  });
+
+  const headPivot = new THREE.Group();
+  root.add(headPivot);
+
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.72, 48, 32), shell);
+  core.scale.set(0.86, 1.06, 0.72);
+  core.castShadow = true;
+  headPivot.add(core);
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.075, 18, 48), dark);
+  ring.position.z = 0.63;
+  headPivot.add(ring);
+
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.17, 32, 20), eyeMaterial);
+  eye.position.z = 0.72;
+  headPivot.add(eye);
+
+  for (let index = 0; index < 4; index += 1) {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.18, 0.82), shell);
+    const angle = (index / 4) * Math.PI * 2;
+    panel.position.set(Math.cos(angle) * 0.76, Math.sin(angle) * 0.54, 0);
+    panel.rotation.z = angle + 0.5;
+    panel.castShadow = true;
+    headPivot.add(panel);
+  }
+
+  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.14, 2.35, 18), dark);
+  spine.position.y = 1.72;
+  root.add(spine);
+
+  const upperJoint = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 16), dark);
+  upperJoint.position.y = 2.88;
+  root.add(upperJoint);
+
+  root.position.y = 0.08;
+  root.traverse((object) => {
+    if (object.isMesh) object.frustumCulled = false;
+  });
+
+  return { root, headPivot, eye, eyeMaterial };
 }
 
 
@@ -361,9 +415,10 @@ export class AliceWorld {
     this.lab = createLab();
     this.scene.add(this.lab);
     this.alice = null;
-
-
-
+    this.representation = 'french';
+    this.glados = createProceduralGlados();
+    this.glados.root.visible = false;
+    this.scene.add(this.glados.root);
 
     this.placementRing = new THREE.Mesh(
       new THREE.RingGeometry(0.36, 0.39, 64),
@@ -388,6 +443,7 @@ export class AliceWorld {
     this.scene.add(this.alice.root);
     this.alice.root.updateMatrixWorld(true);
     this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
+    this.setRepresentation(this.representation);
     this.resize();
   }
 
@@ -515,6 +571,37 @@ export class AliceWorld {
     this.speechEnergy = THREE.MathUtils.clamp(Number(value) || 0, 0, 1);
   }
 
+  setRepresentation(mode = 'french') {
+    const normalized = ['glados', 'hev', 'whisper', 'french'].includes(mode) ? mode : 'french';
+    this.representation = normalized;
+    if (!this.alice || !this.glados) return normalized;
+
+    const useGlados = normalized === 'glados';
+    this.alice.root.visible = !useGlados;
+    this.glados.root.visible = useGlados;
+
+    if (this.alice.isProcedural && this.alice.materials) {
+      const { garment, garmentShadow, cyan: coreMaterial } = this.alice.materials;
+      if (normalized === 'hev') {
+        garment.color.set('#c9682a');
+        garmentShadow.color.set('#2a3137');
+        coreMaterial.color.set('#61bce8');
+        this.alice.chestCore.visible = true;
+      } else {
+        garment.color.set('#ddd9d1');
+        garmentShadow.color.set('#aaa59e');
+        coreMaterial.color.set('#7f8b89');
+        this.alice.chestCore.visible = false;
+      }
+    }
+
+    const activeRoot = useGlados ? this.glados.root : this.alice.root;
+    activeRoot.updateMatrixWorld(true);
+    this.desktopBounds = new THREE.Box3().setFromObject(activeRoot);
+    this.resize();
+    return normalized;
+  }
+
   stopPlan() {
     this.performance = null;
     this.gesture = 'attentive';
@@ -569,6 +656,24 @@ export class AliceWorld {
   #animate(time, delta) {
     if (!this.alice) return;
     const seconds = time / 1000;
+    const elapsed = this.performance ? time - this.performanceStartedAt : 0;
+    const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
+
+    if (this.representation === 'glados') {
+      const speaking = timedPerformance || this.speechEnergy > 0.035;
+      const syntheticEnergy = timedPerformance ? 0.16 + Math.abs(Math.sin(elapsed * 0.019)) * 0.46 : 0;
+      const energy = Math.max(this.speechEnergy, syntheticEnergy);
+      const { root, headPivot, eye, eyeMaterial } = this.glados;
+      root.position.y = 0.08 + Math.sin(seconds * 0.82) * 0.045;
+      root.rotation.z = Math.sin(seconds * 0.5) * 0.045;
+      headPivot.rotation.y = damp(headPivot.rotation.y, this.pointer.x * 0.08, 4.5, delta);
+      headPivot.rotation.x = damp(headPivot.rotation.x, -this.pointer.y * 0.045, 4.5, delta);
+      eye.scale.setScalar(1 + (speaking ? energy * 0.42 : Math.sin(seconds * 1.8) * 0.025));
+      eyeMaterial.emissiveIntensity = 3.4 + (speaking ? energy * 10 : 0);
+      if (timedPerformance && elapsed >= this.performance.duration_ms - 40) this.stopPlan();
+      return;
+    }
+
     const { headPivot, eyeRigs, browLeft, browRight, mouth, chestCore, arms, root, isProcedural, vrm } = this.alice;
     const xrCamera = this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera;
     const userX = this.mode === 'desktop' ? this.presence.x * 0.22 + this.pointer.x * 0.08 : 0;
@@ -576,8 +681,6 @@ export class AliceWorld {
     const targetYaw = THREE.MathUtils.clamp(userX, -0.28, 0.28);
     const targetPitch = THREE.MathUtils.clamp(-userY, -0.18, 0.18);
 
-    const elapsed = this.performance ? time - this.performanceStartedAt : 0;
-    const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
     const speaking = timedPerformance || this.speechEnergy > 0.035;
     const micro = sampleMicroMotion(seconds, { speaking });
 

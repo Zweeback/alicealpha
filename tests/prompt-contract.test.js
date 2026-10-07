@@ -17,9 +17,12 @@ describe('Alice realtime prompt contract', () => {
     expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/nie vorwurfsvoll oder besitzergreifend/i);
   });
 
-  it('keeps Alice in whispered German with a French accent', () => {
-    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/durchgehend sehr leise.*Flüstern/i);
-    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/französischen Akzent/i);
-    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/Eigenschaft der Aussprache, nicht der Rechtschreibung/i);
+  it('keeps voice and representation modes explicit and runtime-controlled', () => {
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/App steuert Stimme und Repräsentation zur Laufzeit/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/französische[nr]? Akzent/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/Whisper-Modus/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/HEV-Modus/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/GLaDOS-Modus/i);
+    expect(ALICE_REALTIME_INSTRUCTIONS).toMatch(/Antworte auf Englisch/i);
   });
 });
