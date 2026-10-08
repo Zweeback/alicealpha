@@ -56,5 +56,8 @@ export function isPortraitSelection(search = '') {
 export function shouldShowPortrait(search = '', { sessionMode = 'desktop', renderFallback = false } = {}) {
   if (sessionMode !== 'desktop') return false;
   if (renderFallback) return true;
-  return isPortraitSelection(search);
+  // The approved Alice portrait is the default until a faithful 3D avatar is accepted.
+  // Procedural/VRM/GLB remain available only by explicit selection.
+  if (isExplicit3DSelection(search)) return false;
+  return true;
 }
