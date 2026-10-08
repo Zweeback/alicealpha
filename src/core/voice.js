@@ -91,9 +91,20 @@ export class VoiceChannel {
 
     return new Promise((resolve, reject) => {
       let finalText = '';
+      let settled = false;
+      let recognitionError = null;
+      const settle = (error, value) => {
+        if (settled) return;
+        settled = true;
+        globalThis.clearTimeout(timeout);
+        this.onListeningChange(false);
+        if (this.recognition === recognition) this.recognition = null;
+        if (error) reject(error);
+        else resolve(value);
+      };
       const timeout = globalThis.setTimeout(() => {
-        recognition.stop();
-        reject(new Error('speech-recognition-timeout'));
+        settle(new Error('speech-recognition-timeout'));
+        try { recognition.abort(); } catch { /* Already ended. */ }
       }, timeoutMs);
 
       recognition.onstart = () => this.onListeningChange(true);
@@ -107,18 +118,19 @@ export class VoiceChannel {
         this.onSpeechEnergy(Math.min(1, (finalText.length + interim.length) / 70));
       };
       recognition.onerror = (event) => {
-        globalThis.clearTimeout(timeout);
-        this.onListeningChange(false);
-        reject(new Error(event.error || 'speech-recognition-error'));
+        recognitionError = new Error(event.error || 'speech-recognition-error');
+        settle(recognitionError);
       };
       recognition.onend = () => {
-        globalThis.clearTimeout(timeout);
-        this.onListeningChange(false);
-        this.recognition = null;
-        if (finalText.trim()) resolve(finalText.trim());
-        else reject(new Error('speech-recognition-empty'));
+        if (settled) return;
+        if (finalText.trim()) settle(null, finalText.trim());
+        else settle(recognitionError || new Error('speech-recognition-empty'));
       };
-      recognition.start();
+      try {
+        recognition.start();
+      } catch (error) {
+        settle(error);
+      }
     });
   }
 
