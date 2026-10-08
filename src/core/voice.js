@@ -173,9 +173,10 @@ export class VoiceChannel {
 
   #speakBrowser(plan, { onStart, onBoundary, onEnd }) {
     if (!this.canSpeak) {
-      onStart();
-      const timer = globalThis.setTimeout(onEnd, plan.duration_ms);
-      return { cancel: () => globalThis.clearTimeout(timer) };
+      // Never simulate audible output when this browser has no speech synthesizer.
+      // The text caption stays visible; the UI must not claim Alice is speaking.
+      onEnd();
+      return { cancel: () => {} };
     }
 
     globalThis.speechSynthesis.cancel();
