@@ -110,10 +110,13 @@ export default function App() {
       companionRef.current?.recordMessage('alice', result.reply, result.source || 'local');
       setChatMessages(companionRef.current?.history?.(60) || []);
       setCaption(result.reply);
-      setPhase('speaking');
-      worldRef.current?.playPlan(result.plan);
-      hardwareRef.current?.sendPlan(result.plan).catch(() => undefined);
+      // Only report actual speech once playback starts, not while TTS is loading.
       voiceRef.current?.speak(result.plan, {
+        onStart: () => {
+          setPhase('speaking');
+          worldRef.current?.playPlan(result.plan);
+          hardwareRef.current?.sendPlan(result.plan).catch(() => undefined);
+        },
         onEnd: () => {
           fallbackBusyRef.current = false;
           setPhase(result.source?.startsWith('llm-router:')
