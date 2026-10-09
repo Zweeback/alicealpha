@@ -8,6 +8,7 @@ import { callOllama } from './ollama.js';
 import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
+import { createDeviceGateway, createHttpDeviceExecutor } from './deviceGateway.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -33,6 +34,17 @@ const realtimeRuntime = {
   lastUpstreamStatus: null,
   checkedAt: null,
 };
+
+const deviceExecutor = createHttpDeviceExecutor({
+  url: process.env.ALICE_DEVICE_BRIDGE_URL,
+  token: process.env.ALICE_DEVICE_BRIDGE_TOKEN,
+  timeoutMs: Number(process.env.ALICE_DEVICE_BRIDGE_TIMEOUT_MS || 10000),
+});
+const deviceGateway = createDeviceGateway({
+  secret: process.env.ALICE_DEVICE_COMMAND_SECRET,
+  enabled: process.env.ALICE_DEVICE_EXECUTION === 'enabled',
+  executor: deviceExecutor,
+});
 
 function markRealtimeStatus(status, upstreamStatus = null) {
   realtimeRuntime.status = status;
@@ -175,6 +187,7 @@ app.get('/api/health', (_request, response) => {
     capabilities: kernel.capability_registry.summary,
     mcp: true,
     mcpEndpoint: '/mcp',
+    deviceGateway: deviceGateway.status(),
     realtime: realtimeOperational,
     realtimeConfigured,
     realtimeOperational,
@@ -238,6 +251,27 @@ app.post('/api/reliability/diagnose', express.json({ limit: '64kb' }), (request,
   }
 });
 
+
+app.post('/api/device/command', express.json({ limit: '16kb' }), async (request, response) => {
+  try {
+    const result = await deviceGateway.handle(request.body, request.get('x-alice-signature'));
+    response.set('Cache-Control', 'no-store');
+    response.status(result.executed ? 200 : 202).json(result);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'device-command-failed';
+    const status = code === 'device-command-signature-invalid'
+      ? 401
+      : code === 'device-command-replay'
+        ? 409
+        : ['device-command-not-configured', 'device-executor-unavailable'].includes(code)
+          ? 503
+          : code.startsWith('device-bridge-rejected:')
+            ? 502
+            : 400;
+    response.set('Cache-Control', 'no-store');
+    response.status(status).json({ error: code });
+  }
+});
 
 app.post('/api/chat', chatRateLimiter, express.json({ limit: '128kb' }), async (request, response) => {
   if (!originAllowed(request)) {
