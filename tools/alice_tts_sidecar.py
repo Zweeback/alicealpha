@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from scipy.io.wavfile import write as write_wav
 
@@ -18,6 +18,44 @@ _device = None
 _glados = None
 _generation_lock = threading.Lock()
 
+
+
+VOICE_PAGE = """<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alice Voice</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#070a0e;color:#eef5fb;font-family:system-ui,sans-serif}
+main{width:min(720px,calc(100% - 28px));padding:24px;border:1px solid #273441;border-radius:20px;background:#0d131a}
+h1{margin:0 0 8px;font-size:28px}p{color:#91a3b2}
+textarea{width:100%;min-height:120px;box-sizing:border-box;border-radius:12px;border:1px solid #304150;background:#081018;color:#fff;padding:14px;font:inherit}
+button{margin-top:10px;padding:12px 18px;border:0;border-radius:12px;font-weight:800;cursor:pointer}
+#status{margin-left:10px;color:#91a3b2;font-size:13px}audio{width:100%;margin-top:16px}
+</style>
+</head>
+<body>
+<main>
+<h1>Alice // GLaDOS Voice</h1>
+<p>Nur die Stimme. Kein Avatar, kein Dashboard.</p>
+<textarea id="text">Hello Ben. The voice is online.</textarea>
+<button id="speak">Speak</button><span id="status">ready</span>
+<audio id="audio" controls></audio>
+</main>
+<script>
+const b=document.getElementById('speak'),t=document.getElementById('text'),a=document.getElementById('audio'),s=document.getElementById('status');
+b.onclick=async()=>{b.disabled=true;s.textContent='synthesizing…';
+ const r=await fetch('/tts',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:t.value,provider:'glados'})});
+ if(!r.ok){s.textContent='error '+r.status;b.disabled=false;return}
+ const blob=await r.blob();a.src=URL.createObjectURL(blob);s.textContent='ready';b.disabled=false;try{await a.play()}catch(e){}
+};
+</script>
+</body></html>"""
+
+@app.get("/", response_class=HTMLResponse)
+def voice_page():
+    return VOICE_PAGE
 
 class TTSRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
@@ -166,6 +204,16 @@ def probe():
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"glados-probe-failed:{type(exc).__name__}") from exc
+
+
+@app.get("/speak")
+def speak_get(text: str = "Hello Ben. The voice is online."):
+    try:
+        return Response(content=synthesize_glados(text[:1600]), media_type="audio/wav")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"glados-generation-failed:{type(exc).__name__}") from exc
 
 
 @app.post("/tts")
