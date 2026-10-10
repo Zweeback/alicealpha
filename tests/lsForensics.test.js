@@ -7,12 +7,12 @@ describe('LS provenance hard join',()=>{
  });
  it('blocks premature attribution and payment-claim verification',()=>{
    const r=evaluateClaim({claimId:'zenodo',requestedStatus:'verified',evidence:[mk('one','primary')]});
-   expect(r.status).toBe('unverified');expect(r.blockers).toContain('hard-join-not-demonstrated');
+   expect(r.status).toBe('inconclusive');expect(r.blockers).toContain('hard-join-not-demonstrated');
  });
  it('requires two separate provenance anchors and a supported join',()=>{
    const evidence=[mk('p','primary'),mk('q','independent')];
-   expect(evaluateClaim({claimId:'zenodo',evidence,requestedStatus:'verified',hardJoin:{url:'https://example.org/compare',method:'identical-hash',evidenceIds:['p','q']}}).hardJoinVerified).toBe(true);
-   expect(evaluateClaim({claimId:'zenodo',evidence,requestedStatus:'verified',hardJoin:{url:'https://example.org/compare',method:'similar-logo',evidenceIds:['p','q']}}).status).toBe('unverified');
+   expect(evaluateClaim({claimId:'zenodo',evidence,requestedStatus:'verified',hardJoin:{url:'https://example.org/compare',method:'identical-hash',evidenceIds:['p','q']}}).hardJoinCandidate).toBe(true);
+   expect(evaluateClaim({claimId:'zenodo',evidence,requestedStatus:'verified',hardJoin:{url:'https://example.org/compare',method:'similar-logo',evidenceIds:['p','q']}}).hardJoinCandidate).toBe(false);
  });
  it('rejects invalid URLs and fabricated checksum formats',()=>{
    expect(normalizeEvidence({id:'1',claimId:'a',url:'javascript:bad'})).toBeNull();
