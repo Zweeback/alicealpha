@@ -78,7 +78,9 @@
     "requiresVisualPassComment": true,
     "requiresRuntimeDiagnostics": true,
     "requiresManifestValidation": true,
-    "requiresExplicitVersionBump": true
+    "requiresExplicitVersionBump": true,
+    "requiresIdentityReview": true,
+    "requiresRigInspection": true
   },
   "approval": {
     "status": "pending",
