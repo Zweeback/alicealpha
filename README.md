@@ -111,6 +111,14 @@ Every memory carries a SHA-256 hash, source and status. A model tool may only pr
 - `server/sourceArtifact.js` — provenance and credential boundary for external research/library records
 - `design-qa.md` — evidence-based visual acceptance status
 
+## Direktstart: Alice als 3D-Körper
+
+- Live 3D (sicherer prozeduraler Körper): `/?visual=3d` — Standard nach Freigabe dieser Änderung.
+- TRELLIS-3D-Kandidat: `/?avatar=trellis&visual=3d` — echtes GLB, jedoch **unrigged und ungeprüft**, keine automatische Freigabe.
+- Referenzfoto: `/?visual=portrait` — für Sichtvergleich und WebGL-Ausfall.
+
+Der neue Schalter in der Oberfläche erhält bestehende `?call=1`- oder `?demo=1`-Parameter. Avatar, Stimme und Sprachmodell bleiben separate Module. Die visuellen Referenzen aus den Benutzer-Videos vom 10.10.2026 werden nicht automatisch als verifiziertes 3D-Modell ausgegeben.
+
 ## Avatar Asset Look Target
 
 The intended asset look for Alice is **towel-Alice (red hair, blue eyes, white towel, photoreal)**, referencing concepts from Grok Imagine. When the asset is ready, drop it as `alice.glb` or `alice.vrm` in the `public/` directory.
