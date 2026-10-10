@@ -876,3 +876,12 @@ canvas {
 .ls-capability small[data-status="verified"] { color:#8ccfb4; }
 .ls-capability small[data-status="partial"] { color:#ebc38a; }
 .ls-capability small[data-status="blocked"] { color:#ecaaaa; }
+.ls-capability a, .ls-cockpit p a { color:#9cddd7; text-decoration:none; font-size:10px; overflow-wrap:anywhere; }
+.ls-capability a:hover, .ls-capability a:focus-visible, .ls-cockpit p a:hover { text-decoration:underline; }
+.ls-refresh {
+  display:inline-flex; align-items:center; padding:7px 11px;
+  margin:2px 0 7px; background:#112a2b; color:#c9f0ee;
+  border:1px solid rgba(110,204,196,.48); border-radius:9px;
+  font-size:10px; cursor:pointer;
+}
+.ls-refresh:disabled { opacity:.58; cursor:wait; }
