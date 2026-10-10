@@ -693,6 +693,7 @@ export default function App() {
           <h3>Missionen · lokal vorgemerkt</h3>
           {lsMissions.map(m => <div key={m.id} className="ls-capability"><span>{m.title}</span><small>{m.status}</small></div>)}
           <h3>Webforensik · offene Fälle</h3>
+          <p>Persistentes Register: <a href="https://charm.ing/quick-raven-0017/bentropy-metamorphose" target="_blank" rel="noopener noreferrer">Bentropy Metamorphose öffnen</a>. Fragen und Quellen werden dort mit eigener Verlaufshistorie geführt.</p>
           {FORENSIC_CASES.map(m => <div key={m.id} className="ls-capability">
             <span>{m.title}</span><small>{m.status}</small>
           </div>)}
