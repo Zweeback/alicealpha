@@ -60,6 +60,13 @@ jobs:
             await live.getByRole('button', { name: /Stimme testen/i }).click();
             const probeCaption = await live.locator('.alice-caption').textContent();
             if (!probeCaption?.includes('Bonjour. Ich bin Alice.')) throw new Error('offline speech probe did not respond');
+            await live.getByRole('button', { name: 'LS · Leitstelle' }).click();
+            const cockpit = live.getByRole('complementary', { name: 'LS Multi-LLM Capability Frame' });
+            await cockpit.waitFor({ state: 'visible' });
+            for (const expected of ['ChatGPT Library', 'Zenodo', 'Atlas Earth', 'Google Colab', 'Stadt- und Landesbibliothek Dortmund']) {
+              if (!(await cockpit.textContent()).includes(expected)) throw new Error('LS missing capability/case: ' + expected);
+            }
+            await live.screenshot({ path: 'alice-ls-cockpit.png', fullPage: true });
             const bodyClass=await page.locator('.alice-app').getAttribute('class');
             if(!bodyClass?.includes('visual-3d')) throw new Error('candidate did not enter visual-3d mode');
             if(!responses.some(r=>r.status===200)) throw new Error('TRELLIS GLB was not fetched successfully');
@@ -78,5 +85,6 @@ jobs:
           path: |
             alice-trellis-candidate.png
             alice-default-live3d.png
+            alice-ls-cockpit.png
             alice-trellis-console.txt
           if-no-files-found: warn
