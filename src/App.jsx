@@ -11,6 +11,7 @@ import { TurnCoordinator } from './core/turnCoordinator.js';
 import { AliceCheckpoint } from './core/lsCheckpoint.js';
 import { LSMissionJournal } from './core/lsMissions.js';
 import { createCapabilityFrame } from './core/lsCoordinator.js';
+import { FORENSIC_CASES } from './core/lsForensics.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { buildAvatarViewSearch, selectedAvatarView, shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
@@ -666,6 +667,11 @@ export default function App() {
           <p>{lsCheckpointState ? `Stand: ${lsCheckpointState.stage} · ${lsCheckpointState.completedTurns} abgeschlossene Turns · ${lsCheckpointState.voice}` : 'Kein gültiger lokaler Checkpoint vorhanden.'}</p>
           <h3>Missionen · lokal vorgemerkt</h3>
           {lsMissions.map(m => <div key={m.id} className="ls-capability"><span>{m.title}</span><small>{m.status}</small></div>)}
+          <h3>Webforensik · offene Fälle</h3>
+          {FORENSIC_CASES.map(m => <div key={m.id} className="ls-capability">
+            <span>{m.title}</span><small>{m.status}</small>
+          </div>)}
+          <p>Atlas Earth ≠ Atlas AI; Buildy.so ≠ Buildly.io. Kein Fall ist allein aufgrund einer Ähnlichkeit bestätigt. Finanzansprüche erst mit Beleg.</p>
           <p>Keine automatische bezahlte API-Ausführung. Fortschritt erfordert Evidenz, Test und Review.</p>
         </aside>
       )}
