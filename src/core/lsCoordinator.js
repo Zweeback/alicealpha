@@ -12,6 +12,7 @@ export const LS_CAPABILITIES = Object.freeze([
   { id: 'grok-bot', label: 'Grok Bot', channel: 'coding', adapter: 'not-configured', gate: 'identify-official-agent-endpoint', access: 'external' },
   { id: 'grok-imagine', label: 'Grok Imagine', channel: 'media', adapter: 'not-configured', gate: 'verify-entitlement-and-media-api', access: 'external' },
   { id: 'chatgpt-library', label: 'ChatGPT Library', channel: 'archives', adapter: 'chat-scoped-files', gate: 'file-scope-and-provenance-required', access: 'external' },
+  { id: 'metamorphose', label: 'Bentropy Metamorphose', channel: 'evidence', adapter: 'charming-operations', gate: 'app-auth-and-provenance-required', access: 'external' },
   { id: 'chatgpt-work', label: 'ChatGPT Work', channel: 'agent', adapter: 'user-selected-mode', gate: 'user-work-mode-and-permissions', access: 'external' },
   { id: 'drive', label: 'Google Drive', channel: 'archive', adapter: 'drive-connector', gate: 'user-auth-and-scope-required', access: 'external' },
   { id: 'scriptdb', label: 'ScriptDB', channel: 'scripts', adapter: 'not-configured', gate: 'source-and-permission-required', access: 'external' },
