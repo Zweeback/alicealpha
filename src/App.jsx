@@ -12,6 +12,7 @@ import { AliceCheckpoint } from './core/lsCheckpoint.js';
 import { LSMissionJournal } from './core/lsMissions.js';
 import { createCapabilityFrame } from './core/lsCoordinator.js';
 import { FORENSIC_CASES } from './core/lsForensics.js';
+import { readLsLiveFeed } from './core/lsLiveFeed.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { buildAvatarViewSearch, selectedAvatarView, shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
@@ -74,11 +75,24 @@ export default function App() {
   const [lsOpen, setLsOpen] = useState(false);
   const [lsCheckpointState, setLsCheckpointState] = useState(null);
   const [lsMissions, setLsMissions] = useState([]);
+  const [lsFeed, setLsFeed] = useState(null);
+  const [lsFeedLoading, setLsFeedLoading] = useState(false);
 
   const recordLsCheckpoint = useCallback((stage, extras = {}) => {
     const next = lsCheckpointRef.current.save({stage, ...extras});
     setLsCheckpointState(next);
     return next;
+  }, []);
+
+  const refreshLsFeed = useCallback(async () => {
+    setLsFeedLoading(true);
+    try {
+      setLsFeed(await readLsLiveFeed());
+    } catch {
+      setLsFeed({capturedAt: new Date().toISOString(), entries: [], source: 'unavailable'});
+    } finally {
+      setLsFeedLoading(false);
+    }
   }, []);
 
   const openLs = useCallback(() => {
@@ -87,7 +101,8 @@ export default function App() {
     setLsMissions(lsMissionsRef.current.list());
     setLsCheckpointState(lsCheckpointRef.current.restore());
     setLsOpen(v=>!v);
-  }, []);
+    if (!lsOpen) void refreshLsFeed();
+  }, [lsOpen, refreshLsFeed]);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -663,6 +678,16 @@ export default function App() {
               <span>{item.label}</span><small data-status={item.status}>{item.status}</small>
             </div>)}
           </div>
+          <h3>GitHub · Live-Missionsfeed</h3>
+          <button type="button" className="ls-refresh" onClick={refreshLsFeed} disabled={lsFeedLoading}>
+            {lsFeedLoading ? 'Quelle wird geprüft …' : 'Status aktualisieren'}
+          </button>
+          {lsFeed?.capturedAt && <p>Abfrage: {lsFeed.capturedAt} · Quelle: {lsFeed.source}</p>}
+          {(lsFeed?.entries || []).map(item=><div key={item.id} className="ls-capability">
+            <a href={item.url} target="_blank" rel="noopener noreferrer">{item.label}</a>
+            <small data-status={item.checked ? 'verified' : 'blocked'}>{item.checked ? `${item.state}${item.assignees.length ? ' · '+item.assignees.join(', ') : ''}` : 'nicht geprüft'}</small>
+          </div>)}
+          <p>Das ist ein aktueller öffentlicher GitHub-Status, keine Bestätigung fertig erledigter Aufgaben.</p>
           <h3>Wiederaufnahme</h3>
           <p>{lsCheckpointState ? `Stand: ${lsCheckpointState.stage} · ${lsCheckpointState.completedTurns} abgeschlossene Turns · ${lsCheckpointState.voice}` : 'Kein gültiger lokaler Checkpoint vorhanden.'}</p>
           <h3>Missionen · lokal vorgemerkt</h3>
