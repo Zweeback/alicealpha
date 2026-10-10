@@ -82,6 +82,39 @@ export default function App() {
     realtimeRef.current?.sendModeContext?.(selected);
   }, []);
 
+  const playVoiceProbe = useCallback(() => {
+    const voice = voiceRef.current;
+    if (!voice) return;
+    turnsRef.current.cancel();
+    fallbackBusyRef.current = false;
+    realtimeRef.current?.interrupt();
+    voice.stopSpeaking();
+    worldRef.current?.stopPlan();
+    worldRef.current?.setSpeechEnergy(0);
+    setHintVisible(false);
+
+    if (!voice.canSpeak) {
+      setCaption('Auf diesem Gerät ist keine Browser-Sprachausgabe verfügbar.');
+      setPhase('ready');
+      return;
+    }
+
+    const line = 'Bonjour. Ich bin Alice. Hier ist meine Stimme, und hier ist mein Körper.';
+    const plan = createPerformancePlan(line, {}, 'greeting');
+    setCaption(line);
+    voice.speak(plan, {
+      onStart: () => {
+        setPhase('speaking');
+        worldRef.current?.playPlan(plan);
+      },
+      onEnd: () => {
+        worldRef.current?.stopPlan();
+        worldRef.current?.setSpeechEnergy(0);
+        setPhase('ready');
+      },
+    });
+  }, []);
+
   const ensureCamera = useCallback(async () => {
     if (sessionModeRef.current !== 'desktop' || cameraRef.current?.running) return;
     try {
@@ -560,7 +593,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · live'}</small></div>
+          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : activeAvatarView === 'trellis' ? '3D Testmodell · ohne Gesicht-Rig' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · Referenz'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
@@ -604,6 +637,9 @@ export default function App() {
             {label}
           </button>
         ))}
+        <button type="button" className="voice-probe" title="Alice spricht einen kurzen Satz ohne Cloud-KI" onClick={playVoiceProbe}>
+          <span aria-hidden="true">▶</span> Stimme testen
+        </button>
       </nav>
 
       <section className={`captions ${caption || userCaption ? 'visible' : ''}`} aria-live="polite">
