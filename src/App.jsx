@@ -624,6 +624,11 @@ export default function App() {
   const lsFrame = createCapabilityFrame({
     alice: {status:'partial',evidence:'3D preview deployed; identity/rig approval pending'},
     github: {status:'verified',evidence:'CI + Docker + avatar smoke successful on PR #112'},
+    copilot: {status:'partial',evidence:'Copilot assignment on Issue #113 observed; output PR pending'},
+    codespaces: {status:'partial',evidence:'Repository devcontainer exists; no running Codespace confirmed'},
+    drive: {status:'partial',evidence:'ChatGPT Drive connector read succeeded; not a browser runtime API'},
+    'chatgpt-library': {status:'partial',evidence:'Chat-scoped Files reads verified; separate from public Alice runtime'},
+    metamorphose: {status:'partial',evidence:'Authenticated Charming getState/importBatch readback 47 questions'},
     library: {status:'verified',evidence:'Official public catalog: katalog.dortmund.de'},
   });
 
