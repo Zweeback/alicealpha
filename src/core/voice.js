@@ -70,6 +70,10 @@ export class VoiceChannel {
     this.neuralTtsEnabled = Boolean(enabled);
   }
 
+  get speaking() {
+    return Boolean(this.activeUtterance || this.activeAudio);
+  }
+
   get canListen() {
     return Boolean(recognitionConstructor());
   }
