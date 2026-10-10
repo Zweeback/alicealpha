@@ -10,7 +10,7 @@ describe('Alice runtime cancellation boundary', () => {
   });
 
   it('does not invoke local persona for a previously aborted user turn', async () => {
-    const memory = { recent: () => [], candidates: () => [] };
+    const memory = { recent: () => [], candidates: () => [], confirmed: () => [] };
     const runtime = new PersonaRuntime(memory, null, null);
     runtime.local.respond = vi.fn();
     const controller = new AbortController();
@@ -20,7 +20,7 @@ describe('Alice runtime cancellation boundary', () => {
   });
 
   it('does not revive an aborted backend request as a local reply', async () => {
-    const memory = { recent: () => [], candidates: () => [] };
+    const memory = { recent: () => [], candidates: () => [], confirmed: () => [] };
     const runtime = new PersonaRuntime(memory, '/api/chat', null);
     runtime.local.respond = vi.fn();
     const oldFetch = globalThis.fetch;
