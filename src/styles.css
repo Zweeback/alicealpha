@@ -806,3 +806,40 @@ canvas {
     font-size: 8px;
   }
 }
+
+
+/* Embodiment selection is intentionally separate from voice/provider state. */
+.appearance-switch {
+  position: absolute;
+  z-index: 8;
+  top: calc(max(19px, env(safe-area-inset-top)) + 100px);
+  left: 50%;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255,255,255,0.055);
+  border-radius: 999px;
+  background: rgba(5,7,8,0.52);
+  backdrop-filter: blur(16px);
+}
+.appearance-switch[hidden] { display: none; }
+.appearance-switch button {
+  min-height: 29px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  color: rgba(225,229,224,0.67);
+  background: transparent;
+  cursor: pointer;
+  font: 500 9px/1 Manrope, sans-serif;
+  white-space: nowrap;
+}
+.appearance-switch button.active {
+  color: #101213;
+  background: rgba(239,239,233,0.94);
+}
+.appearance-switch button:focus-visible {
+  outline: 2px solid #9ad5d0;
+  outline-offset: 2px;
+}
