@@ -8,7 +8,7 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { shouldShowPortrait } from './xr/avatarCatalog.js';
+import { buildAvatarViewSearch, selectedAvatarView, shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
 
@@ -495,6 +495,7 @@ export default function App() {
   const visualQuery = search;
   const portraitVisual = shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
   const live3DVisual = !portraitVisual;
+  const activeAvatarView = selectedAvatarView(search);
 
   return (
     <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
@@ -550,6 +551,25 @@ export default function App() {
             className={voiceMode === id ? 'active' : ''}
             aria-pressed={voiceMode === id}
             onClick={() => selectVoiceMode(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <nav className="appearance-switch" aria-label="Alice Erscheinung" hidden={callMode || sessionMode !== 'desktop'}>
+        {[
+          ['procedural', '3D live'],
+          ['trellis', '3D Test'],
+          ['portrait', 'Referenz'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={activeAvatarView === id}
+            className={activeAvatarView === id ? 'active' : ''}
+            title={id === 'trellis' ? 'Experimenteller, noch nicht freigegebener 3D-Körper' : undefined}
+            onClick={() => globalThis.location.assign(buildAvatarViewSearch(search, id))}
           >
             {label}
           </button>
