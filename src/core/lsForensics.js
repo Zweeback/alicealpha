@@ -41,6 +41,8 @@ export function evaluateClaim({claimId,evidence=[],hardJoin=null,requestedStatus
   ];
   const desired=allowed.has(requestedStatus)?requestedStatus:'unverified';
   // Never promote an attribution/financial claim solely on similarity, commentary or text.
-  // Shape validation cannot prove provenance: a human-examined primary record\n  // and independent verification are separate from an untrusted metadata claim.\n  const status=desired==='verified'?'inconclusive':desired;
+  // Shape validation cannot prove provenance: a human-examined primary record
+  // and independent verification are separate from an untrusted metadata claim.
+  const status=desired==='verified'?'inconclusive':desired;
   return {claimId,status,evidenceCount:records.length,hardJoinCandidate:validJoin,hardJoinVerified:false,hasCounter,blockers};
 }
