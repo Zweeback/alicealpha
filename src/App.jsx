@@ -381,6 +381,8 @@ export default function App() {
 
     const realtime = new RealtimeChannel({
       onState: (state) => {
+        // A finished network response does not imply the browser voice is done.
+        if (state === 'connected' && voice.speaking) return;
         if (state === 'disconnected' && phase !== 'booting') setPhase('offline');
         else if (labels[state]) setPhase(state);
       },
