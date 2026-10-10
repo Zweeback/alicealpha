@@ -7,6 +7,7 @@ import { createPerformancePlan } from './core/performance.js';
 import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
+import { TurnCoordinator } from './core/turnCoordinator.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { buildAvatarViewSearch, selectedAvatarView, shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
@@ -43,6 +44,7 @@ export default function App() {
   const presenceRef = useRef({ present: false, confidence: 0 });
   const sessionModeRef = useRef('desktop');
   const fallbackBusyRef = useRef(false);
+  const turnsRef = useRef(new TurnCoordinator());
   const voiceModeRef = useRef('french');
 
   const [phase, setPhase] = useState('booting');
@@ -91,11 +93,11 @@ export default function App() {
 
   const runLocalTurn = useCallback(async (text, { recordUser = true } = {}) => {
     if (!text) return;
-    if (fallbackBusyRef.current) {
-      voiceRef.current?.stopSpeaking();
-      worldRef.current?.stopPlan();
-      fallbackBusyRef.current = false;
-    }
+    // Stop prior output before allowing a newer answer to speak.
+    const turn = turnsRef.current.begin();
+    voiceRef.current?.stopSpeaking();
+    worldRef.current?.stopPlan();
+    worldRef.current?.setSpeechEnergy(0);
     fallbackBusyRef.current = true;
     if (recordUser) {
       companionRef.current?.recordMessage('user', text, 'local-input');
@@ -104,7 +106,8 @@ export default function App() {
     setUserCaption(text);
     setPhase('thinking');
     try {
-      const result = await runtimeRef.current.respond(text);
+      const result = await runtimeRef.current.respond(text, turn.signal);
+      if (!turn.isCurrent()) return;
       setCompanionState(companionRef.current?.snapshot?.() || { sessionCount: 0, turnCount: 0 });
       setConfirmedMemoryCount(memoryRef.current?.confirmed?.().length || 0);
       companionRef.current?.recordMessage('alice', result.reply, result.source || 'local');
@@ -113,12 +116,17 @@ export default function App() {
       // Only report actual speech once playback starts, not while TTS is loading.
       voiceRef.current?.speak(result.plan, {
         onStart: () => {
+          if (!turn.isCurrent()) return;
           setPhase('speaking');
           worldRef.current?.playPlan(result.plan);
           hardwareRef.current?.sendPlan(result.plan).catch(() => undefined);
         },
         onEnd: () => {
+          if (!turn.isCurrent()) return;
+          turn.finish();
           fallbackBusyRef.current = false;
+          worldRef.current?.stopPlan();
+          worldRef.current?.setSpeechEnergy(0);
           setPhase(result.source?.startsWith('llm-router:')
             ? 'ready'
             : runtimeRef.current?.browserAIReady
@@ -127,7 +135,11 @@ export default function App() {
         },
       });
     } catch {
+      if (!turn.isCurrent()) return;
+      turn.finish();
       fallbackBusyRef.current = false;
+      worldRef.current?.stopPlan();
+      worldRef.current?.setSpeechEnergy(0);
       setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
       setCaption('Ich laufe lokal weiter.');
     }
@@ -144,11 +156,13 @@ export default function App() {
           : 'offline');
       return;
     }
-    if (fallbackBusyRef.current) {
-      voice.stopSpeaking();
-      worldRef.current?.stopPlan();
-      fallbackBusyRef.current = false;
-    }
+    // A listening session interrupts any previous LLM request or spoken reply.
+    turnsRef.current.cancel();
+    voice.stopSpeaking();
+    worldRef.current?.stopPlan();
+    worldRef.current?.setSpeechEnergy(0);
+    fallbackBusyRef.current = false;
+    worldRef.current?.setSpeechEnergy(0);
     setCaption('');
     setUserCaption('');
     setPhase('listening');
@@ -237,6 +251,7 @@ export default function App() {
   }, [chatAvailable, listenLocally, realtimeAvailable]);
 
   const endCall = useCallback(() => {
+    turnsRef.current.cancel();
     realtimeRef.current?.disconnect();
     cameraRef.current?.stop();
     voiceRef.current?.stopListening();
@@ -338,20 +353,31 @@ export default function App() {
       },
       onEvent: (event) => {
         if (event.type === 'input_audio_buffer.speech_started') {
-          realtimeRef.current?.sendPresence(presenceRef.current);
+          // User barge-in cancels browser TTS as well as local requests.
+          turnsRef.current.cancel();
+          voice.stopSpeaking();
           world.stopPlan();
+          world.setSpeechEnergy(0);
+          realtimeRef.current?.sendPresence(presenceRef.current);
         }
       },
       onTranscript: (text, done) => {
         setCaption(text);
-        setPhase('speaking');
         if (done && text?.trim()) {
           companion.recordMessage('alice', text, 'realtime');
           setChatMessages(companion.history(60));
           const plan = createPerformancePlan(text, {}, 'neutral');
-          world.playPlan(plan);
+          // Captions may arrive before audible output; never animate early.
           voice.speak(plan, {
-            onEnd: () => setPhase('connected'),
+            onStart: () => {
+              setPhase('speaking');
+              world.playPlan(plan);
+            },
+            onEnd: () => {
+              world.stopPlan();
+              world.setSpeechEnergy(0);
+              setPhase('connected');
+            },
           });
         }
       },
@@ -362,7 +388,10 @@ export default function App() {
           setChatMessages(companion.history(60));
         }
       },
-      onSpeechEnergy: (energy) => world.setSpeechEnergy(energy),
+      // The Realtime remote audio is muted when browser TTS owns playback.
+      onSpeechEnergy: (energy) => {
+        if (!realtimeRef.current?.outputMuted) world.setSpeechEnergy(energy);
+      },
       onTool: async (name, args) => {
         if (name === 'get_companion_state') {
           const state = companion.snapshot();
@@ -445,6 +474,7 @@ export default function App() {
       realtime.disconnect();
       voice.stopListening();
       voice.stopSpeaking();
+      turnsRef.current.cancel();
       hardware.disconnect().catch(() => undefined);
       if (demoTimer) globalThis.clearTimeout(demoTimer);
       world.dispose();
