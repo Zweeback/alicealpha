@@ -51,6 +51,15 @@ jobs:
             await page.goto('http://127.0.0.1:8787/?avatar=trellis',{waitUntil:'networkidle',timeout:90000});
             await page.waitForTimeout(5000);
             await page.screenshot({path:'alice-trellis-candidate.png',fullPage:true});
+            const live = await browser.newPage({ viewport: { width: 412, height: 915 } });
+            await live.goto('http://127.0.0.1:8787/', { waitUntil: 'networkidle', timeout: 90000 });
+            await live.waitForTimeout(1200);
+            const liveClass = await live.locator('.alice-app').getAttribute('class');
+            if (!liveClass?.includes('visual-3d')) throw new Error('default did not render live 3D');
+            await live.screenshot({ path: 'alice-default-live3d.png', fullPage: true });
+            await live.getByRole('button', { name: /Stimme testen/i }).click();
+            const probeCaption = await live.locator('.alice-caption').textContent();
+            if (!probeCaption?.includes('Bonjour. Ich bin Alice.')) throw new Error('offline speech probe did not respond');
             const bodyClass=await page.locator('.alice-app').getAttribute('class');
             if(!bodyClass?.includes('visual-3d')) throw new Error('candidate did not enter visual-3d mode');
             if(!responses.some(r=>r.status===200)) throw new Error('TRELLIS GLB was not fetched successfully');
@@ -68,5 +77,6 @@ jobs:
           name: alice-trellis-candidate-smoke
           path: |
             alice-trellis-candidate.png
+            alice-default-live3d.png
             alice-trellis-console.txt
           if-no-files-found: warn
