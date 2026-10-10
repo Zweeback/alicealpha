@@ -25,12 +25,14 @@ describe('Alice character manifest gate', () => {
       promotionGate: {
         ...manifest.promotionGate,
         requiresVisualPassComment: false,
+        requiresRigInspection: false,
       },
     });
 
     expect(result.pass).toBe(false);
     expect(result.failures).toContain('missing-procedural-fallback');
     expect(result.failures).toContain('missing-visual-pass-gate');
+    expect(result.failures).toContain('missing-rig-inspection-gate');
   });
 
   it('requires checksum, timestamp and asset path before approved promotion', () => {
@@ -43,5 +45,6 @@ describe('Alice character manifest gate', () => {
     expect(result.failures).toContain('approved-missing-asset-path');
     expect(result.failures).toContain('approved-missing-timestamp');
     expect(result.failures).toContain('approved-missing-checksum');
+    expect(result.failures).toContain('approved-identity-revision-still-pending');
   });
 });
