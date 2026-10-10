@@ -7,8 +7,14 @@ import { createPerformancePlan } from './core/performance.js';
 import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
+import { TurnCoordinator } from './core/turnCoordinator.js';
+import { AliceCheckpoint } from './core/lsCheckpoint.js';
+import { LSMissionJournal } from './core/lsMissions.js';
+import { createCapabilityFrame } from './core/lsCoordinator.js';
+import { FORENSIC_CASES } from './core/lsForensics.js';
+import { readLsLiveFeed } from './core/lsLiveFeed.js';
 import { AliceWorld } from './xr/AliceWorld.js';
-import { shouldShowPortrait } from './xr/avatarCatalog.js';
+import { buildAvatarViewSearch, selectedAvatarView, shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
 
@@ -43,6 +49,9 @@ export default function App() {
   const presenceRef = useRef({ present: false, confidence: 0 });
   const sessionModeRef = useRef('desktop');
   const fallbackBusyRef = useRef(false);
+  const turnsRef = useRef(new TurnCoordinator());
+  const lsCheckpointRef = useRef(new AliceCheckpoint());
+  const lsMissionsRef = useRef(new LSMissionJournal());
   const voiceModeRef = useRef('french');
 
   const [phase, setPhase] = useState('booting');
@@ -63,6 +72,37 @@ export default function App() {
   const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
   const [voiceMode, setVoiceMode] = useState('french');
+  const [lsOpen, setLsOpen] = useState(false);
+  const [lsCheckpointState, setLsCheckpointState] = useState(null);
+  const [lsMissions, setLsMissions] = useState([]);
+  const [lsFeed, setLsFeed] = useState(null);
+  const [lsFeedLoading, setLsFeedLoading] = useState(false);
+
+  const recordLsCheckpoint = useCallback((stage, extras = {}) => {
+    const next = lsCheckpointRef.current.save({stage, ...extras});
+    setLsCheckpointState(next);
+    return next;
+  }, []);
+
+  const refreshLsFeed = useCallback(async () => {
+    setLsFeedLoading(true);
+    try {
+      setLsFeed(await readLsLiveFeed());
+    } catch {
+      setLsFeed({capturedAt: new Date().toISOString(), entries: [], source: 'unavailable'});
+    } finally {
+      setLsFeedLoading(false);
+    }
+  }, []);
+
+  const openLs = useCallback(() => {
+    lsMissionsRef.current.enqueue({ id: 'alice-hyperreal-clearance', title: 'Hyperreal Alice: Identität, Rig, Viseme', provider: 'copilot+jules' });
+    lsMissionsRef.current.enqueue({ id: 'ls-cross-agent-loop', title: 'LS: Quellen → PR → CI → Review', provider: 'ls' });
+    setLsMissions(lsMissionsRef.current.list());
+    setLsCheckpointState(lsCheckpointRef.current.restore());
+    setLsOpen(v=>!v);
+    if (!lsOpen) void refreshLsFeed();
+  }, [lsOpen, refreshLsFeed]);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -74,11 +114,48 @@ export default function App() {
     const selected = ['french', 'whisper', 'hev', 'glados'].includes(mode) ? mode : 'french';
     voiceModeRef.current = selected;
     setVoiceMode(selected);
+    recordLsCheckpoint('ready', {voice:selected});
     voiceRef.current?.setMode(selected);
     worldRef.current?.setRepresentation(selected);
     realtimeRef.current?.setOutputMuted(true);
     realtimeRef.current?.sendModeContext?.(selected);
   }, []);
+
+  const playVoiceProbe = useCallback(() => {
+    const voice = voiceRef.current;
+    if (!voice) return;
+    turnsRef.current.cancel();
+    fallbackBusyRef.current = false;
+    realtimeRef.current?.interrupt();
+    voice.stopSpeaking();
+    worldRef.current?.stopPlan();
+    worldRef.current?.setSpeechEnergy(0);
+    setHintVisible(false);
+    recordLsCheckpoint('thinking');
+
+    if (!voice.canSpeak) {
+      setCaption('Auf diesem Gerät ist keine Browser-Sprachausgabe verfügbar.');
+      setPhase('ready');
+      return;
+    }
+
+    const line = 'Bonjour. Ich bin Alice. Hier ist meine Stimme, und hier ist mein Körper.';
+    const plan = createPerformancePlan(line, {}, 'greeting');
+    setCaption(line);
+    voice.speak(plan, {
+      onStart: () => {
+        setPhase('speaking');
+        recordLsCheckpoint('speaking');
+        worldRef.current?.playPlan(plan);
+      },
+      onEnd: () => {
+        worldRef.current?.stopPlan();
+        worldRef.current?.setSpeechEnergy(0);
+        setPhase('ready');
+        recordLsCheckpoint('ready');
+      },
+    });
+  }, [recordLsCheckpoint]);
 
   const ensureCamera = useCallback(async () => {
     if (sessionModeRef.current !== 'desktop' || cameraRef.current?.running) return;
@@ -91,11 +168,11 @@ export default function App() {
 
   const runLocalTurn = useCallback(async (text, { recordUser = true } = {}) => {
     if (!text) return;
-    if (fallbackBusyRef.current) {
-      voiceRef.current?.stopSpeaking();
-      worldRef.current?.stopPlan();
-      fallbackBusyRef.current = false;
-    }
+    // Stop prior output before allowing a newer answer to speak.
+    const turn = turnsRef.current.begin();
+    voiceRef.current?.stopSpeaking();
+    worldRef.current?.stopPlan();
+    worldRef.current?.setSpeechEnergy(0);
     fallbackBusyRef.current = true;
     if (recordUser) {
       companionRef.current?.recordMessage('user', text, 'local-input');
@@ -103,8 +180,10 @@ export default function App() {
     }
     setUserCaption(text);
     setPhase('thinking');
+    recordLsCheckpoint('thinking');
     try {
-      const result = await runtimeRef.current.respond(text);
+      const result = await runtimeRef.current.respond(text, turn.signal);
+      if (!turn.isCurrent()) return;
       setCompanionState(companionRef.current?.snapshot?.() || { sessionCount: 0, turnCount: 0 });
       setConfirmedMemoryCount(memoryRef.current?.confirmed?.().length || 0);
       companionRef.current?.recordMessage('alice', result.reply, result.source || 'local');
@@ -113,12 +192,19 @@ export default function App() {
       // Only report actual speech once playback starts, not while TTS is loading.
       voiceRef.current?.speak(result.plan, {
         onStart: () => {
+          if (!turn.isCurrent()) return;
           setPhase('speaking');
+          recordLsCheckpoint('speaking');
           worldRef.current?.playPlan(result.plan);
           hardwareRef.current?.sendPlan(result.plan).catch(() => undefined);
         },
         onEnd: () => {
+          if (!turn.isCurrent()) return;
+          turn.finish();
           fallbackBusyRef.current = false;
+          recordLsCheckpoint('ready', { completedTurns: (lsCheckpointRef.current.restore()?.completedTurns || 0) + 1 });
+          worldRef.current?.stopPlan();
+          worldRef.current?.setSpeechEnergy(0);
           setPhase(result.source?.startsWith('llm-router:')
             ? 'ready'
             : runtimeRef.current?.browserAIReady
@@ -127,11 +213,16 @@ export default function App() {
         },
       });
     } catch {
+      if (!turn.isCurrent()) return;
+      turn.finish();
       fallbackBusyRef.current = false;
+      recordLsCheckpoint('ready');
+      worldRef.current?.stopPlan();
+      worldRef.current?.setSpeechEnergy(0);
       setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
       setCaption('Ich laufe lokal weiter.');
     }
-  }, []);
+  }, [recordLsCheckpoint]);
 
   const listenLocally = useCallback(async () => {
     const voice = voiceRef.current;
@@ -144,14 +235,17 @@ export default function App() {
           : 'offline');
       return;
     }
-    if (fallbackBusyRef.current) {
-      voice.stopSpeaking();
-      worldRef.current?.stopPlan();
-      fallbackBusyRef.current = false;
-    }
+    // A listening session interrupts any previous LLM request or spoken reply.
+    turnsRef.current.cancel();
+    voice.stopSpeaking();
+    worldRef.current?.stopPlan();
+    worldRef.current?.setSpeechEnergy(0);
+    fallbackBusyRef.current = false;
+    worldRef.current?.setSpeechEnergy(0);
     setCaption('');
     setUserCaption('');
     setPhase('listening');
+    recordLsCheckpoint('listening');
     try {
       await runLocalTurn(await voice.listen());
     } catch (error) {
@@ -237,6 +331,8 @@ export default function App() {
   }, [chatAvailable, listenLocally, realtimeAvailable]);
 
   const endCall = useCallback(() => {
+    turnsRef.current.cancel();
+    recordLsCheckpoint('interrupted');
     realtimeRef.current?.disconnect();
     cameraRef.current?.stop();
     voiceRef.current?.stopListening();
@@ -255,6 +351,18 @@ export default function App() {
   }, [ensureLive]);
 
   useEffect(() => {
+    const previous = lsCheckpointRef.current.restore();
+    if (previous) {
+      if (['speaking','thinking','listening'].includes(previous.stage)) {
+        recordLsCheckpoint('interrupted');
+      } else {
+        setLsCheckpointState(previous);
+      }
+      if (previous.voice && previous.voice !== 'french') {
+        voiceModeRef.current = previous.voice;
+        setVoiceMode(previous.voice);
+      }
+    }
     const memory = new MemoryStore();
     const companion = new CompanionStore();
     const openedCompanionState = companion.openSession();
@@ -333,25 +441,38 @@ export default function App() {
 
     const realtime = new RealtimeChannel({
       onState: (state) => {
+        // A finished network response does not imply the browser voice is done.
+        if (state === 'connected' && voice.speaking) return;
         if (state === 'disconnected' && phase !== 'booting') setPhase('offline');
         else if (labels[state]) setPhase(state);
       },
       onEvent: (event) => {
         if (event.type === 'input_audio_buffer.speech_started') {
-          realtimeRef.current?.sendPresence(presenceRef.current);
+          // User barge-in cancels browser TTS as well as local requests.
+          turnsRef.current.cancel();
+          voice.stopSpeaking();
           world.stopPlan();
+          world.setSpeechEnergy(0);
+          realtimeRef.current?.sendPresence(presenceRef.current);
         }
       },
       onTranscript: (text, done) => {
         setCaption(text);
-        setPhase('speaking');
         if (done && text?.trim()) {
           companion.recordMessage('alice', text, 'realtime');
           setChatMessages(companion.history(60));
           const plan = createPerformancePlan(text, {}, 'neutral');
-          world.playPlan(plan);
+          // Captions may arrive before audible output; never animate early.
           voice.speak(plan, {
-            onEnd: () => setPhase('connected'),
+            onStart: () => {
+              setPhase('speaking');
+              world.playPlan(plan);
+            },
+            onEnd: () => {
+              world.stopPlan();
+              world.setSpeechEnergy(0);
+              setPhase('connected');
+            },
           });
         }
       },
@@ -362,7 +483,10 @@ export default function App() {
           setChatMessages(companion.history(60));
         }
       },
-      onSpeechEnergy: (energy) => world.setSpeechEnergy(energy),
+      // The Realtime remote audio is muted when browser TTS owns playback.
+      onSpeechEnergy: (energy) => {
+        if (!realtimeRef.current?.outputMuted) world.setSpeechEnergy(energy);
+      },
       onTool: async (name, args) => {
         if (name === 'get_companion_state') {
           const state = companion.snapshot();
@@ -445,6 +569,7 @@ export default function App() {
       realtime.disconnect();
       voice.stopListening();
       voice.stopSpeaking();
+      turnsRef.current.cancel();
       hardware.disconnect().catch(() => undefined);
       if (demoTimer) globalThis.clearTimeout(demoTimer);
       world.dispose();
@@ -495,6 +620,17 @@ export default function App() {
   const visualQuery = search;
   const portraitVisual = shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
   const live3DVisual = !portraitVisual;
+  const activeAvatarView = selectedAvatarView(search);
+  const lsFrame = createCapabilityFrame({
+    alice: {status:'partial',evidence:'3D preview deployed; identity/rig approval pending'},
+    github: {status:'verified',evidence:'CI + Docker + avatar smoke successful on PR #112'},
+    copilot: {status:'partial',evidence:'Copilot assignment on Issue #113 observed; output PR pending'},
+    codespaces: {status:'partial',evidence:'Repository devcontainer exists; no running Codespace confirmed'},
+    drive: {status:'partial',evidence:'ChatGPT Drive connector read succeeded; not a browser runtime API'},
+    'chatgpt-library': {status:'partial',evidence:'Chat-scoped Files reads verified; separate from public Alice runtime'},
+    metamorphose: {status:'partial',evidence:'Authenticated Charming getState/importBatch readback 47 questions'},
+    library: {status:'verified',evidence:'Official public catalog: katalog.dortmund.de'},
+  });
 
   return (
     <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
@@ -529,7 +665,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · live'}</small></div>
+          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : activeAvatarView === 'trellis' ? '3D Testmodell · ohne Gesicht-Rig' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · Referenz'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
@@ -537,6 +673,39 @@ export default function App() {
         </div>
       </header>
 
+      <button type="button" className="ls-launch" onClick={openLs} aria-expanded={lsOpen} aria-controls="ls-cockpit">LS · Leitstelle</button>
+      {lsOpen && (
+        <aside className="ls-cockpit" id="ls-cockpit" aria-label="LS Multi-LLM Capability Frame">
+          <header><strong>LS · Capabilities & Clearance</strong><button type="button" onClick={() => setLsOpen(false)} aria-label="Leitstelle schließen">×</button></header>
+          <p>VERIFIED ≠ LIVE-KI. Freigabe nur mit konkretem Laufzeit- und Prüfbeleg. Externe Abos erzeugen hier keine API-Verbindung.</p>
+          <div className="ls-capability-list">
+            {lsFrame.sources.map(item=><div key={item.id} className="ls-capability">
+              <span>{item.label}</span><small data-status={item.status}>{item.status}</small>
+            </div>)}
+          </div>
+          <h3>GitHub · Live-Missionsfeed</h3>
+          <button type="button" className="ls-refresh" onClick={refreshLsFeed} disabled={lsFeedLoading}>
+            {lsFeedLoading ? 'Quelle wird geprüft …' : 'Status aktualisieren'}
+          </button>
+          {lsFeed?.capturedAt && <p>Abfrage: {lsFeed.capturedAt} · Quelle: {lsFeed.source}</p>}
+          {(lsFeed?.entries || []).map(item=><div key={item.id} className="ls-capability">
+            <a href={item.url} target="_blank" rel="noopener noreferrer">{item.label}</a>
+            <small data-status={item.checked ? 'verified' : 'blocked'}>{item.checked ? `${item.state}${item.assignees.length ? ' · '+item.assignees.join(', ') : ''}` : 'nicht geprüft'}</small>
+          </div>)}
+          <p>Das ist ein aktueller öffentlicher GitHub-Status, keine Bestätigung fertig erledigter Aufgaben.</p>
+          <h3>Wiederaufnahme</h3>
+          <p>{lsCheckpointState ? `Stand: ${lsCheckpointState.stage} · ${lsCheckpointState.completedTurns} abgeschlossene Turns · ${lsCheckpointState.voice}` : 'Kein gültiger lokaler Checkpoint vorhanden.'}</p>
+          <h3>Missionen · lokal vorgemerkt</h3>
+          {lsMissions.map(m => <div key={m.id} className="ls-capability"><span>{m.title}</span><small>{m.status}</small></div>)}
+          <h3>Webforensik · offene Fälle</h3>
+          <p>Persistentes Register: <a href="https://charm.ing/quick-raven-0017/bentropy-metamorphose" target="_blank" rel="noopener noreferrer">Bentropy Metamorphose öffnen</a>. Fragen und Quellen werden dort mit eigener Verlaufshistorie geführt.</p>
+          {FORENSIC_CASES.map(m => <div key={m.id} className="ls-capability">
+            <span>{m.title}</span><small>{m.status}</small>
+          </div>)}
+          <p>Atlas Earth ≠ Atlas AI; Buildy.so ≠ Buildly.io. Kein Fall ist allein aufgrund einer Ähnlichkeit bestätigt. Finanzansprüche erst mit Beleg.</p>
+          <p>Keine automatische bezahlte API-Ausführung. Fortschritt erfordert Evidenz, Test und Review.</p>
+        </aside>
+      )}
       <nav className="voice-mode-switch" aria-label="Alice Sprachmodus">
         {[
           ['french', 'French'],
@@ -554,6 +723,28 @@ export default function App() {
             {label}
           </button>
         ))}
+      </nav>
+
+      <nav className="appearance-switch" aria-label="Alice Erscheinung" hidden={callMode || sessionMode !== 'desktop'}>
+        {[
+          ['procedural', '3D live'],
+          ['trellis', '3D Test'],
+          ['portrait', 'Referenz'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={activeAvatarView === id}
+            className={activeAvatarView === id ? 'active' : ''}
+            title={id === 'trellis' ? 'Experimenteller, noch nicht freigegebener 3D-Körper' : undefined}
+            onClick={() => globalThis.location.assign(buildAvatarViewSearch(search, id))}
+          >
+            {label}
+          </button>
+        ))}
+        <button type="button" className="voice-probe" title="Alice spricht einen kurzen Satz ohne Cloud-KI" onClick={playVoiceProbe}>
+          <span aria-hidden="true">▶</span> Stimme testen
+        </button>
       </nav>
 
       <section className={`captions ${caption || userCaption ? 'visible' : ''}`} aria-live="polite">

@@ -52,12 +52,31 @@ export function isPortraitSelection(search = '') {
   return new URLSearchParams(search).get('visual') === 'portrait';
 }
 
-
+// The approved reference is selectable, but must not hide the live renderer.
 export function shouldShowPortrait(search = '', { sessionMode = 'desktop', renderFallback = false } = {}) {
   if (sessionMode !== 'desktop') return false;
   if (renderFallback) return true;
-  // The approved Alice portrait is the default until a faithful 3D avatar is accepted.
-  // Procedural/VRM/GLB remain available only by explicit selection.
-  if (isExplicit3DSelection(search)) return false;
-  return true;
+  return isPortraitSelection(search);
+}
+
+export function selectedAvatarView(search = '') {
+  if (isPortraitSelection(search)) return 'portrait';
+  return resolveAvatarSelection(search).id === 'trellis' ? 'trellis' : 'procedural';
+}
+
+// Separate the portrait, verified procedural body and unapproved TRELLIS test.
+export function buildAvatarViewSearch(search = '', view = 'procedural') {
+  const params = new URLSearchParams(search);
+  params.delete('visual');
+  params.delete('avatar');
+  params.delete('procedural');
+  if (view === 'portrait') {
+    params.set('visual', 'portrait');
+  } else if (view === 'trellis') {
+    params.set('visual', '3d');
+    params.set('avatar', 'trellis');
+  } else {
+    params.set('visual', '3d');
+  }
+  return `?${params.toString()}`;
 }

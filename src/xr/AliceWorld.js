@@ -731,6 +731,17 @@ export class AliceWorld {
 
     this.#animateGesture(arms, delta, speaking);
     root.rotation.z = micro.sway;
+
+    // A static candidate GLB has no facial rig: give it a bounded whole-body
+    // idle/speech motion without pretending to provide jaw or phoneme animation.
+    if (!isProcedural && !vrm && this.mode === 'desktop') {
+      const breathing = 0.009 * Math.sin(seconds * 1.16);
+      const speechMotion = speaking ? Math.sin(seconds * 5.2) * 0.0035 : 0;
+      root.position.y = damp(root.position.y, breathing + speechMotion, 2.6, delta);
+      root.rotation.x = damp(root.rotation.x, speaking ? -0.009 + speechEnergy * 0.012 : 0, 3.8, delta);
+      root.rotation.y = damp(root.rotation.y, targetYaw * 0.22, 2.5, delta);
+    }
+
     if (isProcedural) {
       const breathLift = micro.breath * (speaking ? 0.0025 : 0.004);
       arms.left.shoulder.position.y = damp(arms.left.shoulder.position.y, 0.66 + breathLift, 3.2, delta);

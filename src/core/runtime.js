@@ -2,6 +2,13 @@ import { createPerformancePlan } from './performance.js';
 import { AlicePersona } from './persona.js';
 import { BrowserModelRuntime, browserAIAvailable } from './browserModel.js';
 
+export function assertTurnActive(signal) {
+  if (!signal?.aborted) return;
+  const error = new Error('Alice turn cancelled');
+  error.name = 'AbortError';
+  throw error;
+}
+
 export class PersonaRuntime {
   constructor(memory, endpoint = globalThis.__ALICE_BACKEND__ || null, companion = null) {
     this.companion = companion;
@@ -24,6 +31,7 @@ export class PersonaRuntime {
   }
 
   async respond(text, signal) {
+    assertTurnActive(signal);
     this.companion?.recordTurn?.();
     const companionState = this.companion?.snapshot?.() || null;
     if (this.endpoint) {
@@ -39,12 +47,15 @@ export class PersonaRuntime {
           }),
           signal,
         });
+        assertTurnActive(signal);
         if (response.ok) {
           const result = await response.json();
+          assertTurnActive(signal);
           if (result?.reply) {
             const reply = String(result.reply).trim();
             if (reply) {
               const localFrame = await this.local.respond(text);
+              assertTurnActive(signal);
               return {
                 ...localFrame,
                 ...result,
@@ -56,11 +67,14 @@ export class PersonaRuntime {
           }
         }
       } catch {
-        // The embodied experience remains available when the cloud adapter is absent.
+        assertTurnActive(signal);
+        // Only actual provider failures use the local fallback.
       }
     }
 
+    assertTurnActive(signal);
     const localFrame = await this.local.respond(text);
+    assertTurnActive(signal);
 
     if (
       this.browserModel.ready
@@ -73,6 +87,7 @@ export class PersonaRuntime {
           state: localFrame.state,
           companion: companionState,
         });
+        assertTurnActive(signal);
         return {
           ...localFrame,
           reply,
@@ -80,10 +95,12 @@ export class PersonaRuntime {
           source: 'browser',
         };
       } catch {
-        // Fall through to the deterministic local persona if browser inference fails.
+        assertTurnActive(signal);
+        // Only inference errors, not cancellation, use the local persona.
       }
     }
 
+    assertTurnActive(signal);
     return { ...localFrame, source: 'local' };
   }
 }
