@@ -115,7 +115,8 @@ export class VoiceChannel {
           if (event.results[index].isFinal) finalText += transcript;
           else interim += transcript;
         }
-        this.onSpeechEnergy(Math.min(1, (finalText.length + interim.length) / 70));
+        // This is the user's microphone input, not Alice's voice.
+        // Do not animate Alice's mouth while the user is speaking.
       };
       recognition.onerror = (event) => {
         recognitionError = new Error(event.error || 'speech-recognition-error');
@@ -187,6 +188,7 @@ export class VoiceChannel {
     if (!this.canSpeak) {
       // Never simulate audible output when this browser has no speech synthesizer.
       // The text caption stays visible; the UI must not claim Alice is speaking.
+      this.onSpeechEnergy(0);
       onEnd();
       return { cancel: () => {} };
     }
@@ -199,16 +201,25 @@ export class VoiceChannel {
     utterance.rate = plan.voice.rate;
     utterance.pitch = plan.voice.pitch;
     utterance.volume = plan.voice.volume;
-    utterance.onstart = onStart;
-    utterance.onboundary = (event) => onBoundary(event.charIndex);
-    utterance.onend = () => {
+    utterance.onstart = () => {
+      this.onSpeechEnergy(0.16);
+      onStart();
+    };
+    utterance.onboundary = (event) => {
+      const position = Math.max(0, Number(event.charIndex) || 0);
+      const fragment = String(plan.spoken_text || '').slice(position).match(/^\S+/)?.[0] || '';
+      // Boundary-driven mouth motion is a coarse cue, never phoneme-accurate lip sync.
+      this.onSpeechEnergy(Math.min(0.78, 0.25 + fragment.length * 0.045));
+      onBoundary(position);
+    };
+    const complete = () => {
+      if (this.activeUtterance !== utterance) return;
       this.activeUtterance = null;
+      this.onSpeechEnergy(0);
       onEnd();
     };
-    utterance.onerror = () => {
-      this.activeUtterance = null;
-      onEnd();
-    };
+    utterance.onend = complete;
+    utterance.onerror = complete;
     this.activeUtterance = utterance;
     globalThis.speechSynthesis.speak(utterance);
     return { cancel: () => this.stopSpeaking() };
@@ -237,15 +248,23 @@ export class VoiceChannel {
     this.activeAudio = audio;
     this.activeAudioUrl = url;
 
-    audio.onplay = onStart;
-    audio.onended = () => {
+    audio.onplay = () => {
+      if (controller.signal.aborted) return;
+      this.onSpeechEnergy(0.18);
+      onStart();
+    };
+    const complete = () => {
+      if (this.activeAudio !== audio) return;
       this.#releaseAudio();
+      this.onSpeechEnergy(0);
       onEnd();
     };
-    audio.onerror = () => {
+    audio.onended = complete;
+    audio.onerror = complete;
+    if (controller.signal.aborted) {
       this.#releaseAudio();
-      onEnd();
-    };
+      return;
+    }
     await audio.play();
   }
 
@@ -258,6 +277,7 @@ export class VoiceChannel {
   }
 
   stopSpeaking() {
+    this.onSpeechEnergy(0);
     this.activeTtsController?.abort?.();
     this.activeTtsController = null;
     this.#releaseAudio();
