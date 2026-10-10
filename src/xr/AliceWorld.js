@@ -3,6 +3,7 @@ import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
 import { sampleMicroMotion } from './microMotion.js';
+import { validateCandidateFile, validateGlbHeader, inspectCandidateScene } from './candidateImport.js';
 
 const cyan = new THREE.Color('#8eced0');
 const amber = new THREE.Color('#c18767');
@@ -448,6 +449,55 @@ export class AliceWorld {
   }
 
 
+  /**
+   * Preview an owner-picked GLB/VRM entirely in this browser tab.
+   * The canonical avatar manifest is deliberately never changed.
+   */
+  async loadCandidateFile(file) {
+    validateCandidateFile(file);
+    const bytes = await file.arrayBuffer();
+    validateGlbHeader(bytes);
+    const gltf = await getGLTFLoader().parseAsync(bytes, '');
+    const report = inspectCandidateScene(gltf);
+    const model = gltf.scene || gltf.scenes[0];
+    const root = new THREE.Group();
+    root.name = 'Alice_local_unapproved_candidate';
+    root.add(model);
+    const get = (name) => model.getObjectByName(name) || new THREE.Group();
+    const state = {
+      root, isProcedural: false, vrm: gltf.userData?.vrm || null, gltf,
+      headPivot: get('head'),
+      eyeRigs: [], browLeft: new THREE.Group(), browRight: new THREE.Group(),
+      mouth: new THREE.Group(), chestCore: get('spine'),
+      arms: {
+        left: { shoulder: get('leftShoulder'), elbow: get('leftLowerArm') },
+        right: { shoulder: get('rightShoulder'), elbow: get('rightLowerArm') },
+      },
+      morphMeshes: [],
+      mixer: null,
+    };
+    model.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.frustumCulled = false;
+        if (obj.morphTargetDictionary) state.morphMeshes.push(obj);
+      }
+    });
+    // Start only when a real clip exists; never infer that imported animation works.
+    if (gltf.animations?.length) {
+      state.mixer = new THREE.AnimationMixer(model);
+      state.mixer.clipAction(gltf.animations[0]).play();
+    }
+    // Load and inspect before replacing the currently visible character.
+    const previous = this.alice;
+    this.scene.add(root);
+    this.alice = state;
+    if (previous?.root) this.scene.remove(previous.root);
+    this.setRepresentation(this.representation);
+    this.desktopBounds = new THREE.Box3().setFromObject(root);
+    this.resize();
+    return report;
+  }
+
   #addLights() {
     this.scene.add(new THREE.HemisphereLight('#e8efec', '#17110f', 0.82));
 
@@ -637,6 +687,7 @@ export class AliceWorld {
   #render = (time, frame) => {
     const delta = Math.min(0.05, this.clock.getDelta());
     this.#updateHitTest(frame);
+    this.alice?.mixer?.update(delta);
     this.#animate(time, delta);
     this.renderer.render(this.scene, this.camera);
   };
@@ -703,6 +754,27 @@ export class AliceWorld {
     if (isProcedural && mouth) {
       mouth.scale.y = damp(mouth.scale.y, speaking ? 0.14 + speechEnergy * 0.55 : this.presence.expression === 'smile' ? 0.1 : 0.06, 18, delta);
       mouth.scale.x = damp(mouth.scale.x, this.presence.expression === 'smile' ? 1.35 : 1.15, 8, delta);
+    }
+    // glTF morph targets: update only names present on the actual imported mesh.
+    if (!isProcedural && !vrm && this.alice.morphMeshes?.length) {
+      const weights = {
+        jawopen: speaking ? speechEnergy : 0,
+        a: speaking ? speechEnergy * 0.75 : 0,
+        blink: 1 - blink,
+        blinkleft: 1 - blink,
+        blinkright: 1 - blink,
+        smile: this.presence.expression === 'smile' ? 0.7 : 0,
+      };
+      for (const mesh of this.alice.morphMeshes) {
+        for (const [name, index] of Object.entries(mesh.morphTargetDictionary || {})) {
+          const target = weights[name.toLowerCase()];
+          if (target !== undefined) {
+            mesh.morphTargetInfluences[index] = damp(
+              mesh.morphTargetInfluences[index] || 0, target, 14, delta,
+            );
+          }
+        }
+      }
     }
     if (vrm) {
       const expressionManager = vrm.expressionManager;

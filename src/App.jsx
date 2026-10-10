@@ -53,6 +53,8 @@ export default function App() {
   const [realtimeAvailable, setRealtimeAvailable] = useState(false);
   const [chatAvailable, setChatAvailable] = useState(false);
   const [renderFallback, setRenderFallback] = useState(false);
+  const [localCandidateLoaded, setLocalCandidateLoaded] = useState(false);
+  const [candidateStatus, setCandidateStatus] = useState('');
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
   const [hintVisible, setHintVisible] = useState(true);
@@ -492,8 +494,32 @@ export default function App() {
     else await runLocalTurn(text, { recordUser: false });
   };
 
+  const importLocalCandidate = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setCandidateStatus('Modell wird lokal geprüft …');
+    try {
+      const viewer = worldRef.current;
+      if (!viewer?.loadCandidateFile) throw new Error('3D-Viewer ist nicht verfügbar.');
+      const report = await viewer.loadCandidateFile(file);
+      setLocalCandidateLoaded(true);
+      setRenderFallback(false);
+      setCandidateStatus(
+        'Vorschau · NICHT freigegeben · ' + report.meshes + ' Meshes · ' +
+        report.triangles.toLocaleString('de-DE') + ' Dreiecke · ' +
+        report.bones + ' Bones · ' + report.morphs + ' Morphs · ' +
+        (report.rigReady ? 'Skinning vorhanden' : 'kein bestätigtes Skinning'),
+      );
+    } catch (error) {
+      setCandidateStatus('Importfehler: ' + (error?.message || 'Unbekannt'));
+    } finally {
+      // Always allow the same file to be chosen again after a failed attempt.
+      event.target.value = '';
+    }
+  };
+
   const visualQuery = search;
-  const portraitVisual = shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
+  const portraitVisual = !localCandidateLoaded && shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
   const live3DVisual = !portraitVisual;
 
   return (
@@ -537,6 +563,34 @@ export default function App() {
         </div>
       </header>
 
+      <div
+        style={{
+          position: 'absolute', right: 14, top: 95, zIndex: 40,
+          maxWidth: 'min(270px, 62vw)', display: 'flex', flexDirection: 'column',
+          gap: 5, alignItems: 'flex-end', pointerEvents: 'auto',
+        }}
+      >
+        <label
+          style={{
+            background: '#171923ee', color: '#fff4ef', border: '1px solid #9f798e',
+            borderRadius: 12, padding: '9px 13px', cursor: 'pointer', fontSize: 12,
+          }}
+        >
+          3D-Modell laden (.glb/.vrm)
+          <input
+            aria-label="Unveröffentlichtes Alice-Kandidatenmodell öffnen"
+            type="file" accept=".glb,.vrm,model/gltf-binary"
+            onChange={importLocalCandidate}
+            style={{ display: 'none' }}
+          />
+        </label>
+        {candidateStatus && (
+          <small role="status" style={{ background: '#171923dd', color: '#eadbe3',
+            fontSize: 10, borderRadius: 8, padding: '7px 9px', lineHeight: 1.4 }}>
+            {candidateStatus}
+          </small>
+        )}
+      </div>
       <nav className="voice-mode-switch" aria-label="Alice Sprachmodus">
         {[
           ['french', 'French'],
