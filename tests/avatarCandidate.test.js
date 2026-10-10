@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateAvatarManifest } from '../src/xr/avatarQuality.js';
-import { isExplicit3DSelection, isPortraitSelection, resolveAvatarSelection, shouldShowPortrait } from '../src/xr/avatarCatalog.js';
+import { buildAvatarViewSearch, isExplicit3DSelection, isPortraitSelection, resolveAvatarSelection, selectedAvatarView, shouldShowPortrait } from '../src/xr/avatarCatalog.js';
 
 describe('avatar candidate lab', () => {
   it('keeps TRELLIS explicit while defaulting to the approved-safe procedural avatar', () => {
@@ -22,6 +22,17 @@ describe('avatar candidate lab', () => {
     expect(shouldShowPortrait('?visual=portrait')).toBe(true);
     expect(shouldShowPortrait('', { renderFallback: true })).toBe(true);
     expect(shouldShowPortrait('?visual=portrait', { sessionMode: 'ar' })).toBe(false);
+  });
+
+  it('selects modes independently and preserves call or demo state', () => {
+    expect(selectedAvatarView('')).toBe('procedural');
+    expect(selectedAvatarView('?visual=portrait')).toBe('portrait');
+    expect(selectedAvatarView('?avatar=trellis')).toBe('trellis');
+    expect(buildAvatarViewSearch('?call=1&avatar=trellis', 'portrait')).toBe('?call=1&visual=portrait');
+    expect(buildAvatarViewSearch('?demo=1&visual=portrait', 'trellis')).toBe('?demo=1&visual=3d&avatar=trellis');
+    expect(buildAvatarViewSearch('?avatar=trellis', 'procedural')).toBe('?visual=3d');
+    expect(resolveAvatarSelection(buildAvatarViewSearch('', 'trellis')).status).toBe('candidate');
+    expect(shouldShowPortrait('?avatar=trellis')).toBe(false);
   });
 
   it('keeps unapproved candidates out of approval state', () => {
