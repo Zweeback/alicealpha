@@ -8,6 +8,9 @@ import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
 import { TurnCoordinator } from './core/turnCoordinator.js';
+import { AliceCheckpoint } from './core/lsCheckpoint.js';
+import { LSMissionJournal } from './core/lsMissions.js';
+import { createCapabilityFrame } from './core/lsCoordinator.js';
 import { AliceWorld } from './xr/AliceWorld.js';
 import { buildAvatarViewSearch, selectedAvatarView, shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
@@ -45,6 +48,8 @@ export default function App() {
   const sessionModeRef = useRef('desktop');
   const fallbackBusyRef = useRef(false);
   const turnsRef = useRef(new TurnCoordinator());
+  const lsCheckpointRef = useRef(new AliceCheckpoint());
+  const lsMissionsRef = useRef(new LSMissionJournal());
   const voiceModeRef = useRef('french');
 
   const [phase, setPhase] = useState('booting');
@@ -65,6 +70,23 @@ export default function App() {
   const [confirmedMemoryCount, setConfirmedMemoryCount] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
   const [voiceMode, setVoiceMode] = useState('french');
+  const [lsOpen, setLsOpen] = useState(false);
+  const [lsCheckpointState, setLsCheckpointState] = useState(null);
+  const [lsMissions, setLsMissions] = useState([]);
+
+  const recordLsCheckpoint = useCallback((stage, extras = {}) => {
+    const next = lsCheckpointRef.current.save({stage, ...extras});
+    setLsCheckpointState(next);
+    return next;
+  }, []);
+
+  const openLs = useCallback(() => {
+    lsMissionsRef.current.enqueue({ id: 'alice-hyperreal-clearance', title: 'Hyperreal Alice: Identität, Rig, Viseme', provider: 'copilot+jules' });
+    lsMissionsRef.current.enqueue({ id: 'ls-cross-agent-loop', title: 'LS: Quellen → PR → CI → Review', provider: 'ls' });
+    setLsMissions(lsMissionsRef.current.list());
+    setLsCheckpointState(lsCheckpointRef.current.restore());
+    setLsOpen(v=>!v);
+  }, []);
 
   const setMode = useCallback((mode) => {
     sessionModeRef.current = mode;
@@ -76,6 +98,7 @@ export default function App() {
     const selected = ['french', 'whisper', 'hev', 'glados'].includes(mode) ? mode : 'french';
     voiceModeRef.current = selected;
     setVoiceMode(selected);
+    recordLsCheckpoint('ready', {voice:selected});
     voiceRef.current?.setMode(selected);
     worldRef.current?.setRepresentation(selected);
     realtimeRef.current?.setOutputMuted(true);
@@ -92,6 +115,7 @@ export default function App() {
     worldRef.current?.stopPlan();
     worldRef.current?.setSpeechEnergy(0);
     setHintVisible(false);
+    recordLsCheckpoint('thinking');
 
     if (!voice.canSpeak) {
       setCaption('Auf diesem Gerät ist keine Browser-Sprachausgabe verfügbar.');
@@ -105,15 +129,17 @@ export default function App() {
     voice.speak(plan, {
       onStart: () => {
         setPhase('speaking');
+        recordLsCheckpoint('speaking');
         worldRef.current?.playPlan(plan);
       },
       onEnd: () => {
         worldRef.current?.stopPlan();
         worldRef.current?.setSpeechEnergy(0);
         setPhase('ready');
+        recordLsCheckpoint('ready');
       },
     });
-  }, []);
+  }, [recordLsCheckpoint]);
 
   const ensureCamera = useCallback(async () => {
     if (sessionModeRef.current !== 'desktop' || cameraRef.current?.running) return;
@@ -138,6 +164,7 @@ export default function App() {
     }
     setUserCaption(text);
     setPhase('thinking');
+    recordLsCheckpoint('thinking');
     try {
       const result = await runtimeRef.current.respond(text, turn.signal);
       if (!turn.isCurrent()) return;
@@ -151,6 +178,7 @@ export default function App() {
         onStart: () => {
           if (!turn.isCurrent()) return;
           setPhase('speaking');
+          recordLsCheckpoint('speaking');
           worldRef.current?.playPlan(result.plan);
           hardwareRef.current?.sendPlan(result.plan).catch(() => undefined);
         },
@@ -158,6 +186,7 @@ export default function App() {
           if (!turn.isCurrent()) return;
           turn.finish();
           fallbackBusyRef.current = false;
+          recordLsCheckpoint('ready', { completedTurns: (lsCheckpointRef.current.restore()?.completedTurns || 0) + 1 });
           worldRef.current?.stopPlan();
           worldRef.current?.setSpeechEnergy(0);
           setPhase(result.source?.startsWith('llm-router:')
@@ -171,12 +200,13 @@ export default function App() {
       if (!turn.isCurrent()) return;
       turn.finish();
       fallbackBusyRef.current = false;
+      recordLsCheckpoint('ready');
       worldRef.current?.stopPlan();
       worldRef.current?.setSpeechEnergy(0);
       setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
       setCaption('Ich laufe lokal weiter.');
     }
-  }, []);
+  }, [recordLsCheckpoint]);
 
   const listenLocally = useCallback(async () => {
     const voice = voiceRef.current;
@@ -199,6 +229,7 @@ export default function App() {
     setCaption('');
     setUserCaption('');
     setPhase('listening');
+    recordLsCheckpoint('listening');
     try {
       await runLocalTurn(await voice.listen());
     } catch (error) {
@@ -285,6 +316,7 @@ export default function App() {
 
   const endCall = useCallback(() => {
     turnsRef.current.cancel();
+    recordLsCheckpoint('interrupted');
     realtimeRef.current?.disconnect();
     cameraRef.current?.stop();
     voiceRef.current?.stopListening();
@@ -303,6 +335,18 @@ export default function App() {
   }, [ensureLive]);
 
   useEffect(() => {
+    const previous = lsCheckpointRef.current.restore();
+    if (previous) {
+      if (['speaking','thinking','listening'].includes(previous.stage)) {
+        recordLsCheckpoint('interrupted');
+      } else {
+        setLsCheckpointState(previous);
+      }
+      if (previous.voice && previous.voice !== 'french') {
+        voiceModeRef.current = previous.voice;
+        setVoiceMode(previous.voice);
+      }
+    }
     const memory = new MemoryStore();
     const companion = new CompanionStore();
     const openedCompanionState = companion.openSession();
@@ -561,6 +605,11 @@ export default function App() {
   const portraitVisual = shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
   const live3DVisual = !portraitVisual;
   const activeAvatarView = selectedAvatarView(search);
+  const lsFrame = createCapabilityFrame({
+    alice: {status:'partial',evidence:'3D preview deployed; identity/rig approval pending'},
+    github: {status:'verified',evidence:'CI + Docker + avatar smoke successful on PR #112'},
+    library: {status:'verified',evidence:'Official public catalog: katalog.dortmund.de'},
+  });
 
   return (
     <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
@@ -603,6 +652,23 @@ export default function App() {
         </div>
       </header>
 
+      <button type="button" className="ls-launch" onClick={openLs} aria-expanded={lsOpen} aria-controls="ls-cockpit">LS · Leitstelle</button>
+      {lsOpen && (
+        <aside className="ls-cockpit" id="ls-cockpit" aria-label="LS Multi-LLM Capability Frame">
+          <header><strong>LS · Capabilities & Clearance</strong><button type="button" onClick={() => setLsOpen(false)} aria-label="Leitstelle schließen">×</button></header>
+          <p>VERIFIED ≠ LIVE-KI. Freigabe nur mit konkretem Laufzeit- und Prüfbeleg. Externe Abos erzeugen hier keine API-Verbindung.</p>
+          <div className="ls-capability-list">
+            {lsFrame.sources.map(item=><div key={item.id} className="ls-capability">
+              <span>{item.label}</span><small data-status={item.status}>{item.status}</small>
+            </div>)}
+          </div>
+          <h3>Wiederaufnahme</h3>
+          <p>{lsCheckpointState ? `Stand: ${lsCheckpointState.stage} · ${lsCheckpointState.completedTurns} abgeschlossene Turns · ${lsCheckpointState.voice}` : 'Kein gültiger lokaler Checkpoint vorhanden.'}</p>
+          <h3>Missionen · lokal vorgemerkt</h3>
+          {lsMissions.map(m => <div key={m.id} className="ls-capability"><span>{m.title}</span><small>{m.status}</small></div>)}
+          <p>Keine automatische bezahlte API-Ausführung. Fortschritt erfordert Evidenz, Test und Review.</p>
+        </aside>
+      )}
       <nav className="voice-mode-switch" aria-label="Alice Sprachmodus">
         {[
           ['french', 'French'],
