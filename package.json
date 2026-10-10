@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest",
-    "test:run": "vitest run",
+    "test:run": "vitest run && npm run test:asset",
     "asset:import": "node tools/import_studio_asset.mjs",
     "test:asset": "node --test tools/tests/alice_asset_audit.mjs"
   },
