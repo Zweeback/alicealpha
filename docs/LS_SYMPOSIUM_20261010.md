@@ -81,3 +81,13 @@ Status: **open/inconclusive**, not "proved", not "debunked". Technical code meta
 
 **Actual live preview**: https://alice-motoren-lab-20261010.onrender.com
 **Review branch**: https://github.com/Zweeback/alicealpha/pull/112
+
+## 7. Verified Charming Metamorphose bridge — 2026-10-10
+The existing user-owned **Bentropy Metamorphose** app, https://charm.ing/quick-raven-0017/bentropy-metamorphose, is a separate persistent question ledger, not a GPT model or the published Alice frontend.
+- Existing app: schema `meta-loop.v1`, before integration 43 questions, 8 recorded audits.
+- Connected through its actual exported `getState`, `previewAudit`, `importBatch` operations; app API acts only on the user's authenticated workspace, no public token embedded here.
+- Four **idempotent new questions** imported with source-case closure criteria and read back: `AE-001` Atlas Earth, `AI-001` Atlas AI, `ZD-001` Zenodo, `CB-001` Charming/Buildy/Buildly. No existing question was overwritten.
+- Verified readback total: **47**, of which 40 open, 2 working, 3 blocked and 2 closed; 31 currently carry at least one ledger evidence field. `previewAudit` reports no **structural** errors, which is not independent verification of any external claim.
+- Existing `AR-002` lost A-circle studio image, `BM-002` Beamstream/Manus, `RV-001` potential income, and `BS-*` ChatGPT archival gaps were reused, not duplicated.
+- Alice LS cockpit links to this persistent ledger and displays independent, public GitHub live mission statuses (`src/core/lsLiveFeed.js`) fetched **on demand**. The frontend never embeds a Charming write token.
+- Github forensic issue: https://github.com/Zweeback/alicealpha/issues/114
