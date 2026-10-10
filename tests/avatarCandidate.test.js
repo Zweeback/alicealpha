@@ -15,8 +15,8 @@ describe('avatar candidate lab', () => {
     expect(isExplicit3DSelection('?procedural=1')).toBe(true);
   });
 
-  it('shows live 3D by default and portrait only when explicitly requested or 3D fails', () => {
-    expect(shouldShowPortrait('')).toBe(false);
+  it('uses the approved identity portrait by default until a faithful 3D asset is accepted', () => {
+    expect(shouldShowPortrait('')).toBe(true);
     expect(shouldShowPortrait('?procedural=1')).toBe(false);
     expect(shouldShowPortrait('?avatar=glb')).toBe(false);
     expect(shouldShowPortrait('?visual=portrait')).toBe(true);

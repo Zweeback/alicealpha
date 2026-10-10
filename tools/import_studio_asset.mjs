@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
+import { inspectGlbBytes } from './audit_alice_asset.mjs';
 
 const args = process.argv.slice(2);
 const value = (name, fallback = null) => {
@@ -41,6 +42,7 @@ const sha256 = (path) => {
   return h.digest('hex');
 };
 
+const audit = inspectGlbBytes(readFileSync(source), basename(source));
 const checksum = sha256(source);
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const webPath = '/' + targetName;
@@ -54,6 +56,14 @@ const candidate = {
   sha256: checksum,
   label,
   importedAt: new Date().toISOString(),
+  assetAudit: {
+    status: audit.status,
+    readyForAnimationReview: audit.readyForAnimationReview,
+    triangleCount: audit.triangleCount,
+    skinCount: audit.skinCount,
+    morphTargetCount: audit.morphTargetCount,
+    warnings: audit.warnings,
+  },
 };
 
 const others = (manifest.candidateAssets || []).filter(
@@ -71,6 +81,7 @@ console.log(JSON.stringify({
   target,
   sha256: checksum,
   candidate,
+  audit,
   dryRun,
 }, null, 2));
 
