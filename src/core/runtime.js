@@ -1,4 +1,5 @@
 import { createPerformancePlan } from './performance.js';
+import { beginAliceBackendTrace, finishAliceBackendTrace } from '../telemetry/uiTelemetry.js';
 import { AlicePersona } from './persona.js';
 import { BrowserModelRuntime, browserAIAvailable } from './browserModel.js';
 
@@ -27,10 +28,15 @@ export class PersonaRuntime {
     this.companion?.recordTurn?.();
     const companionState = this.companion?.snapshot?.() || null;
     if (this.endpoint) {
+      const traceId = beginAliceBackendTrace(this.endpoint, 'companion.chat');
+      let traceCompleted = false;
       try {
         const response = await fetch(this.endpoint, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            ...(traceId ? { 'X-Alice-Trace-Id': traceId } : {}),
+          },
           body: JSON.stringify({
             text,
             confirmed_memory: this.local.memory.recent(8),
@@ -39,6 +45,13 @@ export class PersonaRuntime {
           }),
           signal,
         });
+        if (traceId) {
+          finishAliceBackendTrace(traceId, {
+            status: response.status,
+            acknowledged: response.headers?.get?.('X-Alice-Trace-Id') === traceId,
+          });
+          traceCompleted = true;
+        }
         if (response.ok) {
           const result = await response.json();
           if (result?.reply) {
@@ -56,6 +69,7 @@ export class PersonaRuntime {
           }
         }
       } catch {
+        if (traceId && !traceCompleted) finishAliceBackendTrace(traceId, { error: 'transport-failed' });
         // The embodied experience remains available when the cloud adapter is absent.
       }
     }
