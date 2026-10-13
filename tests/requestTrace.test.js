@@ -56,7 +56,7 @@ describe('Alice privacy-constrained trace correlation', () => {
 
   it('labels MCP calls but cannot infer a ChatGPT-host UI action', () => {
     const events = [];
-    const req = { path: '/mcp', method: 'POST', get: () => ID, body: { jsonrpc: '2.0', params: { secret: 'NOT_LOGGED' } } };
+    const req = { path: '/mcp', method: 'POST', get: () => ID, body: { jsonrpc: '2.0', method: 'tools/call', params: { secret: 'NOT_LOGGED' } } };
     const res = responseMock();
     expect(attachAliceRequestTrace(req, res, (event) => events.push(event))).toBe(true);
     res.emit('finish');
