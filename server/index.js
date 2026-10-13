@@ -1,4 +1,5 @@
 import express from 'express';
+import { attachAliceRequestTrace } from './requestTrace.js';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { handleAliceMcpHttp } from './aliceMcp.js';
@@ -21,6 +22,12 @@ const dist = resolve('dist');
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+
+// Correlation is explicitly opt-in: only validated client trace headers are logged.
+app.use((request, response, next) => {
+  attachAliceRequestTrace(request, response);
+  next();
+});
 
 const realtimeBuckets = new Map();
 const chatBuckets = new Map();
