@@ -14,9 +14,14 @@ describe('Alice UI/UX live telemetry privacy and scope', () => {
       .toBe('https://other.example/[cross-origin path omitted]');
   });
 
-  it('redacts long path identifiers', () => {
+  it('redacts all non-allowlisted path identifiers, including short secrets', () => {
     expect(safeResourceLabel(origin + '/files/1NWsx8t3l7H6uZ0crqaPbhUl3zMSl7VRf/view', origin))
-      .toBe('/files/:id/view');
+      .toBe('/:segment/:segment/:segment');
+  });
+
+  it('never emits an arbitrary short secret in a same-origin path', () => {
+    expect(safeResourceLabel(origin + '/secret/abc123?auth=TOPSECRET', origin))
+      .toBe('/:segment/:segment');
   });
 
   it('does not invent browser telemetry in a non-browser test environment', () => {
