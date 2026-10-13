@@ -7,6 +7,29 @@ const ROUTES = Object.freeze({
   '/api/chat': 'chat',
   '/mcp': 'mcp',
 });
+
+// Record only the protocol method and recognized Alice tool names;
+// never serialize incoming JSON-RPC arguments, identifiers or tool outputs.
+const MCP_METHODS = new Set([
+  'initialize', 'ping', 'tools/list', 'tools/call',
+  'resources/list', 'resources/read', 'resources/templates/list',
+]);
+const MCP_TOOLS = new Set(['open_alice', 'alice_status']);
+
+export function safeMcpTraceMetadata(body) {
+  const requests = Array.isArray(body) ? body.slice(0, 20) : [body];
+  const methods = new Set();
+  const tools = new Set();
+  for (const message of requests) {
+    if (!message || typeof message !== 'object') continue;
+    if (MCP_METHODS.has(message.method)) methods.add(message.method);
+    if (message.method === 'tools/call' && MCP_TOOLS.has(message.params?.name)) {
+      tools.add(message.params.name);
+    }
+  }
+  return { mcp_methods: [...methods], mcp_tools: [...tools] };
+}
+
 export function validAliceTraceId(value) {
   return typeof value === 'string' && UUID_V4.test(value);
 }
@@ -25,7 +48,8 @@ export function attachAliceRequestTrace(request, response, emit = (entry) =>
       timestamp: new Date().toISOString(),
       trace_id: traceId,
       route,
-      method: request.method === 'POST' ? 'POST' : 'GET',
+      ...(route === 'mcp' ? safeMcpTraceMetadata(request.body) : {}),
+      method: ['GET', 'POST'].includes(request.method) ? request.method : 'OTHER',
       status: response.statusCode,
       duration_ms: Math.max(0, Math.round(performance.now() - start)),
       source: 'alice-server',
