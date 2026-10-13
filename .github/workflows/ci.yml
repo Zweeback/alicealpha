@@ -26,7 +26,21 @@ jobs:
 
           for attempt in {1..30}; do
             if curl --fail --silent --show-error http://127.0.0.1:8787/api/health               | tee /tmp/alice-health.json               | grep -q '"ok":true'; then
-              exit 0
+              TRACE_ID="865c30df-befd-4f62-953d-0dc44d7125bf"
+              curl --fail --silent --show-error \
+                -H "X-Alice-Trace-Id: ${TRACE_ID}" \
+                -D /tmp/alice-trace-headers.txt \
+                -o /tmp/alice-trace-body.json \
+                http://127.0.0.1:8787/api/health
+              grep -qi "^x-alice-trace-id: ${TRACE_ID}" /tmp/alice-trace-headers.txt
+              for log_attempt in {1..20}; do
+                if grep -q "\"trace_id\":\"${TRACE_ID}\"" /tmp/alice-server.log; then
+                  exit 0
+                fi
+                sleep 0.1
+              done
+              echo "Trace acknowledgement was not logged by Alice server" >&2
+              exit 1
             fi
             sleep 1
           done
