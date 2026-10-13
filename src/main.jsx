@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import NewsStudio from './news/NewsStudio.jsx';
+import UITelemetryPanel from './telemetry/UITelemetryPanel.jsx';
 import './styles.css';
 
 const params = new URLSearchParams(globalThis.location?.search || '');
@@ -10,6 +11,7 @@ const Root = params.get('studio') === 'news' ? NewsStudio : App;
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <Root />
+    <UITelemetryPanel />
   </React.StrictMode>,
 );
 
