@@ -3,6 +3,7 @@ import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
 import { resolveAvatarSelection } from './avatarCatalog.js';
 import { sampleMicroMotion } from './microMotion.js';
+import { resolveMorphWeight } from './rigExpressions.js';
 import { validateCandidateFile, validateGlbHeader, inspectCandidateScene } from './candidateImport.js';
 
 const cyan = new THREE.Color('#8eced0');
@@ -757,17 +758,19 @@ export class AliceWorld {
     }
     // glTF morph targets: update only names present on the actual imported mesh.
     if (!isProcedural && !vrm && this.alice.morphMeshes?.length) {
+      const visemePhase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
       const weights = {
-        jawopen: speaking ? speechEnergy : 0,
-        a: speaking ? speechEnergy * 0.75 : 0,
+        jaw: speaking ? speechEnergy : 0,
+        vowelA: speaking ? speechEnergy * (0.68 + visemePhase * 0.22) : 0,
+        vowelI: speaking ? speechEnergy * (1 - visemePhase) * 0.22 : 0,
+        vowelU: speaking ? speechEnergy * visemePhase * 0.16 : 0,
         blink: 1 - blink,
-        blinkleft: 1 - blink,
-        blinkright: 1 - blink,
         smile: this.presence.expression === 'smile' ? 0.7 : 0,
+        browRaise: this.presence.expression === 'curious' ? 0.45 : 0,
       };
       for (const mesh of this.alice.morphMeshes) {
         for (const [name, index] of Object.entries(mesh.morphTargetDictionary || {})) {
-          const target = weights[name.toLowerCase()];
+          const target = resolveMorphWeight(name, weights);
           if (target !== undefined) {
             mesh.morphTargetInfluences[index] = damp(
               mesh.morphTargetInfluences[index] || 0, target, 14, delta,
