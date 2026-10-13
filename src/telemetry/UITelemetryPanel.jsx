@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createUiTelemetry } from './uiTelemetry.js';
+import { createUiTelemetry, beginAliceBackendTrace, finishAliceBackendTrace } from './uiTelemetry.js';
 
 const base = {
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -21,12 +21,35 @@ export default function UITelemetryPanel() {
   if (!engineRef.current) engineRef.current = createUiTelemetry();
   const engine = engineRef.current;
   const [expanded, setExpanded] = useState(false);
+  const [probeStatus, setProbeStatus] = useState('');
   const [snapshot, setSnapshot] = useState(engine.getSnapshot());
 
   useEffect(() => {
     const unsubscribe = engine.subscribe(() => setSnapshot(engine.getSnapshot()));
     return () => { unsubscribe(); engine.stop(); };
   }, [engine]);
+
+  async function probeServer() {
+    if (!engine.getSnapshot().running) return;
+    const traceId = beginAliceBackendTrace('/api/health', 'health.probe');
+    if (!traceId) {
+      setProbeStatus('Kein Browser-Trace möglich');
+      return;
+    }
+    setProbeStatus('Server wird überprüft …');
+    try {
+      const response = await fetch('/api/health', {
+        cache: 'no-store',
+        headers: { 'X-Alice-Trace-Id': traceId },
+      });
+      const acknowledged = response.headers.get('X-Alice-Trace-Id') === traceId;
+      finishAliceBackendTrace(traceId, { status: response.status, acknowledged });
+      setProbeStatus(acknowledged ? 'Server-Trace bestätigt (HTTP ' + response.status + ')' : 'Trace-Header vom Server nicht bestätigt');
+    } catch {
+      finishAliceBackendTrace(traceId, { error: 'transport-failed' });
+      setProbeStatus('Server nicht erreichbar / Netzwerkfehler');
+    }
+  }
 
   function save() {
     const blob = new Blob([engine.exportJson()], { type: 'application/json' });
@@ -75,9 +98,13 @@ export default function UITelemetryPanel() {
             {!snapshot.running
               ? <button type="button" style={button} onClick={() => engine.start()}>▶ Aufnahme starten</button>
               : <button type="button" style={button} onClick={() => engine.stop()}>■ Aufnahme stoppen</button>}
+            <button type="button" style={button} onClick={probeServer} disabled={!snapshot.running}>
+              ↔ Server-Trace prüfen
+            </button>
             <button type="button" style={button} onClick={save}>↓ JSON exportieren</button>
             <button type="button" style={button} onClick={() => engine.clear()}>Leeren</button>
           </div>
+          {probeStatus && <p role="status" style={{ color: '#afdbcc', margin: '7px 0' }}>{probeStatus}</p>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 6, marginTop: 12 }}>
             {[
               ['DOM-Änderungen', snapshot.counts.domChanges],
@@ -98,7 +125,8 @@ export default function UITelemetryPanel() {
           <p style={{ color: '#a9c7c2', fontSize: 10, lineHeight: 1.5 }}>
             * „Verborgen“ = CSS/ARIA/Inert-Merkmal, nicht Hinweis auf Absicht.
             Cross-Origin-iFrames, geschlossene Shadow-Roots, native App-Oberflächen,
-            Server-, MCP- und Datenbankaktivität sind hier nicht einsehbar.
+            Server-, MCP- und Datenbankaktivität sind hier nur bei ausdrücklicher
+            Trace-Header-Korrelation nachprüfbar, nicht vollständig einsehbar.
             Ressourcendauern enthalten nicht zwingend HTTP-Statuscodes.
           </p>
           <strong style={{ display: 'block', marginBottom: 7 }}>EREIGNISZEITACHSE ({snapshot.events.length})</strong>
