@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
-import { ALICE_TRACE_HEADER, attachAliceRequestTrace, validAliceTraceId } from '../server/requestTrace.js';
+import { ALICE_TRACE_HEADER, attachAliceRequestTrace, validAliceTraceId, safeMcpTraceMetadata } from '../server/requestTrace.js';
 
 const ID = '865c30df-befd-4f62-953d-0dc44d7125bf';
 
@@ -61,7 +61,19 @@ describe('Alice privacy-constrained trace correlation', () => {
     expect(attachAliceRequestTrace(req, res, (event) => events.push(event))).toBe(true);
     res.emit('finish');
     expect(events[0].route).toBe('mcp');
+    expect(events[0].mcp_methods).toEqual(['tools/call']);
+    expect(events[0].mcp_tools).toEqual([]);
     expect(events[0]).not.toHaveProperty('host_action');
     expect(JSON.stringify(events[0])).not.toContain('NOT_LOGGED');
+  });
+
+  it('records only explicitly known MCP tool names, not sensitive parameters', () => {
+    const result = safeMcpTraceMetadata([
+      { method: 'tools/call', params: { name: 'open_alice', secret: 'SENSITIVE' } },
+      { method: 'tools/list', params: { bearer: 'TOP_SECRET' } },
+      { method: 'unsafe/tool', params: { name: 'injected' } },
+    ]);
+    expect(result).toEqual({ mcp_methods: ['tools/call', 'tools/list'], mcp_tools: ['open_alice'] });
+    expect(JSON.stringify(result)).not.toMatch(/SENSITIVE|TOP_SECRET|injected/);
   });
 });
