@@ -41,9 +41,11 @@ export function safeResourceLabel(input, sameOrigin = '') {
     const value = new URL(input, sameOrigin || undefined);
     if (!['http:', 'https:'].includes(value.protocol)) return '[non-http resource]';
     if (value.origin !== sameOrigin) return value.origin + '/[cross-origin path omitted]';
-    return value.pathname.split('/').map((part) =>
-      /^(?:[0-9a-f]{16,}|[A-Za-z0-9_-]{24,}|\d{5,})$/i.test(part) ? ':id' : part
-    ).join('/');
+    // Strict allowlist: all other path segments may be names, bearer tokens or IDs.
+    const known = new Set(['api', 'chat', 'health', 'realtime', 'session', 'local',
+      'respond', 'news', 'prepare', 'tts', 'glados-tts', 'mcp', 'assets', 'static', 'src']);
+    return '/' + value.pathname.split('/').filter(Boolean)
+      .map((part) => known.has(part) ? part : ':segment').join('/');
   } catch {
     return '[unparseable resource]';
   }
