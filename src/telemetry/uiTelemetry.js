@@ -1,6 +1,41 @@
 // Browser-local, opt-in UI observability. Never records text, input values, cookies or tokens.
 const DEFAULT_LIMIT = 300;
 
+// Only active during an explicitly started local capture session.
+let activeTraceReceiver = null;
+
+export function beginAliceBackendTrace(endpoint, operation = 'request') {
+  if (!activeTraceReceiver) return null;
+  const origin = globalThis.location?.origin;
+  if (!origin) return null;
+  let target;
+  try { target = new URL(endpoint, origin); } catch { return null; }
+  // Never forward correlation headers or telemetry onto external/untrusted services.
+  if (target.origin !== origin || !['/api/chat', '/api/health', '/mcp'].includes(target.pathname)) return null;
+  const traceId = globalThis.crypto?.randomUUID?.() || null;
+  if (!traceId) {
+    activeTraceReceiver('coverage.warning', { reason: 'random-uuid-unavailable' });
+    return null;
+  }
+  activeTraceReceiver('alice.backend.started', {
+    trace_id: traceId,
+    route: target.pathname,
+    operation,
+  });
+  return traceId;
+}
+
+export function finishAliceBackendTrace(traceId, { status = null, acknowledged = false, error = null } = {}) {
+  if (!activeTraceReceiver || !traceId) return;
+  activeTraceReceiver('alice.backend.finished', {
+    trace_id: traceId,
+    status: Number.isInteger(status) ? status : null,
+    server_ack: acknowledged === true,
+    error: error === 'transport-failed' ? 'transport-failed' : null,
+  });
+}
+
+
 export function safeResourceLabel(input, sameOrigin = '') {
   try {
     const value = new URL(input, sameOrigin || undefined);
@@ -66,9 +101,12 @@ export function createUiTelemetry({ limit = DEFAULT_LIMIT } = {}) {
     change({ counts, events: [...state.events, event].slice(-Math.max(10, limit)) });
   };
 
+  const traceSink = (type, details) => append(type, details);
+
   function start() {
     if (running || typeof document === 'undefined') return false;
     running = true;
+    activeTraceReceiver = traceSink;
     change({
       running: true,
       startedAt: new Date().toISOString(),
@@ -170,6 +208,7 @@ export function createUiTelemetry({ limit = DEFAULT_LIMIT } = {}) {
     while (cleanup.length) cleanup.pop()();
     append('session.stopped');
     running = false;
+    if (activeTraceReceiver === traceSink) activeTraceReceiver = null;
     change({ running: false, stoppedAt: new Date().toISOString() });
   }
 
