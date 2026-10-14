@@ -24,10 +24,13 @@ jobs:
       - name: Install Blender
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender python3-numpy
           blender --version
       - name: Convert actual tracked FBX and inspect skeleton
-        run: blender --background --python tools/convert_alice_source_fbx.py
+        run: |
+          blender --background --python tools/convert_alice_source_fbx.py
+          test -s public/avatars/alice-fbx-source.glb
+          test -s public/avatars/alice-fbx-source.json
       - name: Audit generated real GLB
         run: |
           node tools/audit_alice_asset.mjs public/avatars/alice-fbx-source.glb
