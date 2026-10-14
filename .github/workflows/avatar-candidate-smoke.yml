@@ -62,6 +62,41 @@ jobs:
             await browser.close();
           })();
           NODE
+      - name: Verify actual FBX-derived Alice avatar renders without fallback on mobile Chromium
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:412,height:915}});
+            const consoleLines=[], browserErrors=[], requests=[];
+            page.on('console',msg=>consoleLines.push(msg.type()+': '+msg.text()));
+            page.on('pageerror',err=>browserErrors.push(err.message));
+            page.on('response',response=>{
+              if(response.url().includes('/avatars/alice-fbx-source.glb'))
+                requests.push({status:response.status(),url:response.url()});
+            });
+            await page.goto('http://127.0.0.1:8787/?avatar=fbxsource',{waitUntil:'networkidle',timeout:120000});
+            await page.waitForTimeout(7000);
+            await page.screenshot({path:'alice-fbx-mobile.png',fullPage:true});
+            const className=await page.locator('.alice-app').getAttribute('class');
+            const webGL=await page.locator('canvas').evaluate(canvas=>{
+              const gl=canvas.getContext('webgl2');
+              return {ok:!!gl,width:gl?.drawingBufferWidth??0,height:gl?.drawingBufferHeight??0};
+            });
+            const result={className,webGL,requests,browserErrors,consoleLines};
+            fs.writeFileSync('alice-fbx-mobile-result.json',JSON.stringify(result,null,2));
+            console.log('ALICE_FBX_BROWSER_SMOKE='+JSON.stringify(result));
+            await browser.close();
+            if(!className?.includes('visual-3d')) throw Error('Not in 3D mode');
+            if(!requests.some(r=>r.status===200)) throw Error('Real FBX-derived GLB fetch failed');
+            if(!webGL.ok||webGL.width===0||webGL.height===0) throw Error('No WebGL drawing buffer');
+            if(consoleLines.some(x=>x.includes('falling back to procedural Alice')))
+              throw Error('Real FBX avatar was silently replaced by procedural fallback');
+            if(browserErrors.length) throw Error('Browser page errors: '+browserErrors.join(' | '));
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -69,4 +104,6 @@ jobs:
           path: |
             alice-trellis-candidate.png
             alice-trellis-console.txt
+            alice-fbx-mobile.png
+            alice-fbx-mobile-result.json
           if-no-files-found: warn
