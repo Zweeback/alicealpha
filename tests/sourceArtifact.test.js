@@ -34,6 +34,39 @@ describe('external source artifact boundary', () => {
     ).toThrow(/forbidden/)
   })
 
+  it('does not accept an altered research payload just because approval says accepted', () => {
+    const artifact = createSourceArtifact({
+      artifact_id: 'anthropic:review:1',
+      kind: 'research_brief',
+      provider: 'anthropic',
+      purpose: 'Compare citations',
+      sources: ['https://example.org/primary-source'],
+      license: 'Metadata and own summary only',
+      approval: 'accepted',
+      payload: { finding: 'original' },
+    });
+    expect(mayEnterAliceContext(artifact)).toBe(true);
+    artifact.payload.finding = 'altered';
+    expect(mayEnterAliceContext(artifact)).toBe(false);
+  });
+
+  it('keeps new provider artifacts pending without authority escalation', () => {
+    for (const provider of ['xai', 'grokbot', 'grok_imagine', 'google_drive',
+      'google_colab', 'apps_script', 'statista', 'openclaw']) {
+      const artifact = createSourceArtifact({
+        artifact_id: provider + ':sample',
+        kind: 'research_brief',
+        provider,
+        purpose: 'Evidence staging, no runtime tool action',
+        sources: ['https://example.org/source'],
+        license: 'Candidate - pending rights verification',
+        payload: { title: 'Candidate' },
+      });
+      expect(artifact.approval).toBe('pending');
+      expect(mayEnterAliceContext(artifact)).toBe(false);
+    }
+  });
+
   it('keeps unapproved research out of Alice context', () => {
     const artifact = createSourceArtifact({
       artifact_id: 'library:record:7',
