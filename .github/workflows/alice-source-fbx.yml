@@ -1,0 +1,50 @@
+name: Alice FBX source to real GLB candidate
+
+on:
+  push:
+    branches:
+      - feat/alice-source-fbx-to-glb-20261014
+    paths:
+      - tools/convert_alice_source_fbx.py
+      - .github/workflows/alice-source-fbx.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  convert-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout own feature branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender
+          blender --version
+      - name: Convert actual tracked FBX and inspect skeleton
+        run: blender --background --python tools/convert_alice_source_fbx.py
+      - name: Audit generated real GLB
+        run: |
+          node tools/audit_alice_asset.mjs public/avatars/alice-fbx-source.glb
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('public/avatars/alice-fbx-source.json').read_text())
+          print('ALICE_SOURCE_VERDICT',json.dumps(report['quality'],sort_keys=True))
+          PY
+      - name: Commit converted asset to feature branch for review
+        run: |
+          git config user.name alice-source-converter
+          git config user.email alice-source-converter@users.noreply.github.com
+          git add public/avatars/alice-fbx-source.glb public/avatars/alice-fbx-source.json
+          if git diff --cached --quiet; then
+            echo "Candidate unchanged"
+          else
+            git commit -m "asset(alice): add real FBX-derived GLB candidate with audit"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
