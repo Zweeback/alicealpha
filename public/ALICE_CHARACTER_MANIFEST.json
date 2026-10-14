@@ -7,6 +7,22 @@
   "approvedAsset": null,
   "candidateAssets": [
     {
+      "path": "/avatars/alice-fbx-source.glb",
+      "kind": "glb",
+      "status": "candidate",
+      "provenance": "Exact SHA-256-verified existing FBX /avatars/candidates/model.fbx converted using Blender 4.0.2 in GitHub Actions. Contains 73 armature bones and 8 weighted meshes. Identity and mobile animation unverified.",
+      "sha256": "4580ac1c35a8bf4b49ac29d390197dd49cea053de42d563dbe940d09c0adeb30",
+      "approved": false,
+      "assetAudit": {
+        "skinCount": 1,
+        "weightedMeshCount": 8,
+        "boneCount": 73,
+        "morphTargetNamesVerified": true,
+        "identityVerified": false,
+        "faceRigRuntimeVerified": false
+      }
+    },
+    {
       "path": "/alice.glb",
       "kind": "glb",
       "status": "candidate",
