@@ -19,6 +19,20 @@ export const AVATAR_CATALOG = Object.freeze({
     label: 'VRM candidate',
     url: '/alice.vrm',
   }),
+  fbxsource: Object.freeze({
+    id: 'fbxsource',
+    kind: 'glb',
+    status: 'candidate',
+    label: 'Original rigged FBX avatar (preview only)',
+    url: '/avatars/alice-fbx-source.glb',
+    provenance: Object.freeze({
+      source: 'public/avatars/candidates/model.fbx',
+      converter: 'Blender 4.0.2',
+      verifiedArmatureBones: 73,
+      verifiedWeightedMeshes: 8,
+      approved: false,
+    }),
+  }),
   trellis: Object.freeze({
     id: 'trellis',
     kind: 'glb',

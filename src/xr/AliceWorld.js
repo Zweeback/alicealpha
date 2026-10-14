@@ -329,6 +329,8 @@ async function createAlice() {
     },
     vrm: null,
     gltf: null,
+    morphMeshes: [],
+    mixer: null,
   };
 
   const params = new URLSearchParams(window.location.search);
@@ -359,16 +361,30 @@ async function createAlice() {
           state.chestCore = getBone('spine');
         }
       } else {
+        // Bind to actual skeleton bone nodes, never to similarly named head meshes.
+        const bones = [];
         model.traverse((obj) => {
-          if (obj.isMesh) obj.frustumCulled = false;
-          const name = obj.name.toLowerCase();
-          if (name.includes('head')) state.headPivot = obj;
-          else if (name.includes('leftshoulder')) state.arms.left.shoulder = obj;
-          else if (name.includes('leftforearm') || name.includes('leftlowerarm')) state.arms.left.elbow = obj;
-          else if (name.includes('rightshoulder')) state.arms.right.shoulder = obj;
-          else if (name.includes('rightforearm') || name.includes('rightlowerarm')) state.arms.right.elbow = obj;
-          else if (name.includes('spine')) state.chestCore = obj;
+          if (obj.isBone) bones.push(obj);
+          if (obj.isMesh) {
+            obj.frustumCulled = false;
+            if (obj.morphTargetDictionary && obj.morphTargetInfluences) {
+              state.morphMeshes.push(obj);
+            }
+          }
         });
+        const bone = (...names) => bones.find((obj) =>
+          names.some((name) => obj.name.toLowerCase() === name.toLowerCase())
+        ) || new THREE.Group();
+        state.headPivot = bone('Head');
+        state.arms.left.shoulder = bone('LeftShoulder', 'LeftUpperArm', 'LeftArm');
+        state.arms.left.elbow = bone('LeftForeArm', 'LeftLowerArm');
+        state.arms.right.shoulder = bone('RightShoulder', 'RightUpperArm', 'RightArm');
+        state.arms.right.elbow = bone('RightForeArm', 'RightLowerArm');
+        state.chestCore = bone('Spine2', 'Spine1', 'Spine');
+      }
+      if (gltf.animations?.length) {
+        state.mixer = new THREE.AnimationMixer(model);
+        state.mixer.clipAction(gltf.animations[0]).play();
       }
       return state;
     } catch (err) {
