@@ -588,6 +588,16 @@ export default function App() {
             style={{ display: 'none' }}
           />
         </label>
+        <a
+          href="?avatar=fbxsource"
+          style={{
+            background: '#e8d9ca', color: '#121116', border: '1px solid #e8d9ca',
+            borderRadius: 12, padding: '9px 13px', fontSize: 12,
+            fontWeight: 700, textDecoration: 'none',
+          }}
+        >
+          Echten geriggten 3D-Avatar testen
+        </a>
         {candidateStatus && (
           <small role="status" style={{ background: '#171923dd', color: '#eadbe3',
             fontSize: 10, borderRadius: 8, padding: '7px 9px', lineHeight: 1.4 }}>
