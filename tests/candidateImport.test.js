@@ -69,7 +69,7 @@ describe('local full-body preview: candidate only', () => {
       geometry: { attributes: {
         position: { count: 10 }, skinIndex: { count: 10 }, skinWeight: { count: 9 }
       } }
-    }) } } };
+    }) } };
     expect(inspectCandidateScene(fake).rigReady).toBe(false);
   });
 });
