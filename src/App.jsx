@@ -508,7 +508,11 @@ export default function App() {
         'Vorschau · NICHT freigegeben · ' + report.meshes + ' Meshes · ' +
         report.triangles.toLocaleString('de-DE') + ' Dreiecke · ' +
         report.bones + ' Bones · ' + report.morphs + ' Morphs · ' +
-        (report.rigReady ? 'Skinning vorhanden' : 'kein bestätigtes Skinning'),
+        (report.rigReady
+          ? report.boundSkinMeshes + ' korrekt gebundene Skin-Meshes'
+          : 'Skelett-Bindung NICHT nachgewiesen') +
+        ' · Gesichtssteuerungen: ' +
+        Object.values(report.facialControls).filter(Boolean).length + '/7',
       );
     } catch (error) {
       setCandidateStatus('Importfehler: ' + (error?.message || 'Unbekannt'));

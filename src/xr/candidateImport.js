@@ -1,3 +1,5 @@
+import { auditMorphNames } from './rigExpressions.js';
+
 // Browser-only, local-first Alice candidate import. Never auto-approves an asset.
 export const MAX_CANDIDATE_BYTES = 25 * 1024 * 1024;
 
@@ -23,6 +25,8 @@ export function inspectCandidateScene(gltf) {
   const root = gltf?.scene || gltf?.scenes?.[0];
   if (!root || typeof root.traverse !== 'function') throw new Error('Keine darstellbare 3D-Szene enthalten.');
   let meshes = 0, skinned = 0, triangles = 0, bones = 0, morphs = 0;
+  let boundSkinMeshes = 0;
+  const linkedBones = new Set();
   const targets = new Set();
   root.traverse((obj) => {
     if (obj.isBone) bones++;
@@ -30,17 +34,34 @@ export function inspectCandidateScene(gltf) {
     meshes++;
     if (obj.isSkinnedMesh) skinned++;
     const g = obj.geometry;
+    // A skinned mesh is only evidence of a usable skeleton when the geometry
+    // has matching vertex joint/weight channels and real skeleton bone links.
+    // Merely finding an unrelated bone elsewhere in the scene is insufficient.
+    const indexed = g?.attributes?.skinIndex?.count;
+    const weighted = g?.attributes?.skinWeight?.count;
+    const positioned = g?.attributes?.position?.count;
+    const attachedBones = obj.skeleton?.bones;
+    if (obj.isSkinnedMesh && Number.isInteger(indexed) && indexed > 0
+      && indexed === weighted && weighted === positioned
+      && Array.isArray(attachedBones) && attachedBones.some((bone) => bone?.isBone)) {
+      boundSkinMeshes += 1;
+      attachedBones.forEach((bone) => { if (bone?.isBone) linkedBones.add(bone); });
+    }
     const n = g?.index?.count ?? g?.attributes?.position?.count ?? 0;
     triangles += Math.floor(n / 3);
     morphs += g?.morphAttributes?.position?.length || 0;
     for (const name of Object.keys(obj.morphTargetDictionary || {})) targets.add(name);
   });
   if (!meshes) throw new Error('Das Modell enthält kein Mesh.');
+  const facialAudit = auditMorphNames(targets);
   return {
     meshes, skinned, triangles, bones, morphs,
+    boundSkinMeshes, linkedBones: linkedBones.size,
+    facialControls: facialAudit.coverage,
+    missingFacialControls: facialAudit.missing,
     expressionNames: [...targets].sort(),
     animations: gltf.animations?.length || 0,
-    rigReady: skinned > 0 && bones > 0,
+    rigReady: boundSkinMeshes > 0,
     status: 'unapproved_candidate',
   };
 }
