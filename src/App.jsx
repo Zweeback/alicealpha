@@ -20,9 +20,9 @@ const labels = {
   listening: 'Ich höre zu',
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
-  offline: 'Bereit · lokaler Modus',
+  offline: 'Offline · keine KI-Verbindung',
   local: 'Lokale KI · auf diesem Gerät',
-  error: 'Bereit · lokaler Modus',
+  error: 'Fehler · nicht bereit',
 };
 
 export default function App() {
@@ -131,7 +131,7 @@ export default function App() {
     } catch {
       fallbackBusyRef.current = false;
       setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
-      setCaption('Ich laufe lokal weiter.');
+      setCaption('Die Anfrage ist fehlgeschlagen. Es liegt keine KI-Antwort vor.');
     }
   }, []);
 
@@ -226,7 +226,7 @@ export default function App() {
         return;
       } catch (error) {
         setRealtimeAvailable(false);
-        setCaption('Ich bin da. Ich laufe lokal weiter.');
+        setCaption('Die Echtzeitverbindung ist fehlgeschlagen. Lokale Eingabe wird versucht.');
         await listenLocally();
         return;
       }
@@ -395,7 +395,7 @@ export default function App() {
       onError: () => {
         setRealtimeAvailable(false);
         setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
-        setCaption('Ich laufe lokal weiter.');
+        setCaption(runtimeRef.current?.browserAIReady ? 'Echtzeitverbindung beendet. Lokale KI verfügbar.' : 'Echtzeitverbindung beendet. Keine KI-Verbindung verfügbar.');
       },
     });
     realtime.setOutputMuted(true);
@@ -421,7 +421,7 @@ export default function App() {
           const provider = health?.chat?.defaultProvider;
           setCaption(provider ? `Alice-Chatrouter verbunden · ${provider}` : 'Alice-Chatrouter verbunden.');
         } else if (!available && health?.ollama) {
-          setCaption(`Lokales Ollama ist verbunden · ${health.ollamaModel || 'Modell bereit'}`);
+          setCaption(`Lokales Ollama ist verbunden · ${health.ollamaModel || 'Modellname unbekannt'}`);
         }
       })
       .catch(() => setPhase('offline'));
@@ -559,7 +559,7 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'visual lab · live' : live3DVisual ? 'Arbeitspartnerin · live 3D' : 'Arbeitspartnerin · live'}</small></div>
+          <div><strong>Alice</strong><small>{demoMode ? 'Visual-Demo' : live3DVisual ? '3D-Ansicht' : 'Porträt-Ansicht'}</small></div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
@@ -647,7 +647,7 @@ export default function App() {
               : 'Das Mikrofon beginnt erst nach deiner Berührung.'
             : localAIStatus === 'ready'
               ? 'Lokale KI läuft direkt auf diesem Gerät.'
-              : 'Alice ist bereit. Live-KI wird automatisch genutzt, wenn verfügbar.'}</small>
+              : 'Keine KI-Verbindung erkannt. Lokale KI kann manuell geladen werden.'}</small>
           {!chatAvailable && !realtimeAvailable && localAIStatus !== 'ready' && (
             <button
               className="local-ai-button"
