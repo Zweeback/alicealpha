@@ -80,10 +80,13 @@ export class PersonaRuntime {
           source: 'browser',
         };
       } catch {
-        // Fall through to the deterministic local persona if browser inference fails.
+        // Never present a canned persona line as a successful AI answer.
       }
     }
 
-    return { ...localFrame, source: 'local' };
+    if (localFrame.candidate || ['memory', 'boundary'].includes(localFrame.dialogueAct)) {
+      return { ...localFrame, source: 'local-memory' };
+    }
+    throw new Error('no-operational-model');
   }
 }
