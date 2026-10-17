@@ -1,0 +1,168 @@
+name: Generate Alice with TRELLIS
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/generate-alice-trellis.yml'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Download Alice reference
+        run: |
+          curl -L --fail --retry 3 -o alice-ref.jpg "https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg"
+          file alice-ref.jpg
+      - name: Run TRELLIS public Space and capture output
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1280, height: 1000 }, acceptDownloads: true });
+            page.setDefaultTimeout(30000);
+            await page.goto('https://trellis-community-trellis.hf.space/', { waitUntil: 'domcontentloaded', timeout: 120000 });
+            await page.waitForTimeout(12000);
+            console.log('TITLE', await page.title());
+            console.log('BODY0', (await page.locator('body').innerText()).slice(0,2500));
+            await page.screenshot({ path: 'trellis-before.png', fullPage: true });
+
+            const inputs = page.locator('input[type=file]');
+            console.log('FILE_INPUTS', await inputs.count());
+            if (await inputs.count() < 1) throw new Error('No file input found');
+            await inputs.first().setInputFiles('alice-ref.jpg');
+            await page.waitForTimeout(8000);
+            await page.screenshot({ path: 'trellis-loaded.png', fullPage: true });
+
+            const btn = page.getByRole('button', {name:/Generate & Extract GLB/i});
+            await btn.click();
+            console.log('GENERATE_CLICKED');
+
+            // Poll up to 12 minutes for Download GLB to become enabled / output to appear.
+            const deadline = Date.now() + 12*60*1000;
+            let done = false;
+            while (Date.now() < deadline) {
+              await page.waitForTimeout(10000);
+              const body = await page.locator('body').innerText();
+              console.log('POLL', new Date().toISOString(), body.slice(-1200));
+              await page.screenshot({ path: 'trellis-progress.png', fullPage: true });
+              const dl = page.getByRole('button', {name:/Download GLB/i});
+              if (await dl.count()) {
+                const disabled = await dl.first().isDisabled().catch(()=>true);
+                if (!disabled) {
+                  console.log('DOWNLOAD_READY');
+                  try {
+                    const [download] = await Promise.all([
+                      page.waitForEvent('download', {timeout:30000}),
+                      dl.first().click()
+                    ]);
+                    await download.saveAs('alice-trellis.glb');
+                    console.log('GLB_SAVED', fs.statSync('alice-trellis.glb').size);
+                  } catch (e) {
+                    console.log('DOWNLOAD_ERR', String(e));
+                  }
+                  done = true;
+                  break;
+                }
+              }
+            }
+            await page.screenshot({ path: 'trellis-final.png', fullPage: true });
+            console.log('DONE', done);
+            await browser.close();
+            if (!done) process.exitCode = 2;
+          })();
+          NODE
+      - name: Install Blender for GLB inspection
+        if: always()
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq blender python3-numpy
+
+      - name: Render TRELLIS GLB from multiple angles
+        if: always()
+        run: |
+          test -f alice-trellis.glb || { echo 'TRELLIS_GLb_MISSING'; exit 2; }
+          cat > render_trellis.py <<'PY'
+          import bpy, os
+          from mathutils import Vector
+
+          bpy.ops.wm.read_factory_settings(use_empty=True)
+          bpy.ops.import_scene.gltf(filepath=os.path.abspath("alice-trellis.glb"))
+          meshes=[o for o in bpy.context.scene.objects if o.type=="MESH"]
+          if not meshes:
+              raise RuntimeError("No mesh imported from TRELLIS GLB")
+
+          mins=Vector((1e9,1e9,1e9)); maxs=Vector((-1e9,-1e9,-1e9))
+          for o in meshes:
+              for c in o.bound_box:
+                  w=o.matrix_world @ Vector(c)
+                  mins.x=min(mins.x,w.x); mins.y=min(mins.y,w.y); mins.z=min(mins.z,w.z)
+                  maxs.x=max(maxs.x,w.x); maxs.y=max(maxs.y,w.y); maxs.z=max(maxs.z,w.z)
+
+          center=(mins+maxs)/2
+          extent=max(maxs-mins)
+          if extent <= 0: extent=1.0
+          for o in meshes:
+              o.location -= center
+              o.scale *= 2.0/extent
+
+          # Groundless studio lighting
+          lights=[
+              ((3,-4,4),1100,4.0),
+              ((-3,-2,2),700,3.0),
+              ((0,3,3),650,3.0),
+          ]
+          for loc,energy,size in lights:
+              bpy.ops.object.light_add(type='AREA', location=loc)
+              bpy.context.object.data.energy=energy
+              bpy.context.object.data.size=size
+
+          bpy.ops.object.camera_add(location=(0,-4.0,0.2))
+          cam=bpy.context.object
+          bpy.context.scene.camera=cam
+          cam.data.lens=58
+
+          def look_at(obj, pt):
+              obj.rotation_euler=(Vector(pt)-obj.location).to_track_quat('-Z','Y').to_euler()
+
+          scene=bpy.context.scene
+          scene.render.engine='BLENDER_EEVEE'
+          scene.render.resolution_x=900
+          scene.render.resolution_y=900
+          scene.render.resolution_percentage=100
+          scene.render.image_settings.file_format='PNG'
+          scene.world.color=(0.025,0.03,0.035)
+
+          views=[
+              ("front",(0,-4.0,0.2)),
+              ("threequarter",(2.7,-3.2,0.2)),
+              ("side",(4.0,0,0.2)),
+              ("back",(0,4.0,0.2)),
+          ]
+          for name,pos in views:
+              cam.location=pos
+              look_at(cam,(0,0,0.15))
+              scene.render.filepath=os.path.abspath(f"trellis-{name}.png")
+              bpy.ops.render.render(write_still=True)
+          PY
+          blender --background --python render_trellis.py
+          ls -lh trellis-front.png trellis-threequarter.png trellis-side.png trellis-back.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-trellis-output
+          path: |
+            trellis-*.png
+            alice-trellis.glb
+          if-no-files-found: warn
