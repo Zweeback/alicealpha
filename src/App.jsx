@@ -20,9 +20,9 @@ const labels = {
   listening: 'Ich höre zu',
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
-  offline: 'Bereit · lokaler Modus',
+  offline: 'Basisdialog · kein KI-Modell aktiv',
   local: 'Lokale KI · auf diesem Gerät',
-  error: 'Bereit · lokaler Modus',
+  error: 'Fehler · nur Basisdialog verfügbar',
 };
 
 export default function App() {
@@ -131,7 +131,7 @@ export default function App() {
     } catch {
       fallbackBusyRef.current = false;
       setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
-      setCaption('Ich laufe lokal weiter.');
+      setCaption('Verbindung nicht verfügbar. Basisdialog ohne KI-Modell aktiv.');
     }
   }, []);
 
@@ -226,7 +226,7 @@ export default function App() {
         return;
       } catch (error) {
         setRealtimeAvailable(false);
-        setCaption('Ich bin da. Ich laufe lokal weiter.');
+        setCaption('Verbindung fehlgeschlagen. Basisdialog ohne KI-Modell aktiv.');
         await listenLocally();
         return;
       }
@@ -395,7 +395,7 @@ export default function App() {
       onError: () => {
         setRealtimeAvailable(false);
         setPhase(runtimeRef.current?.browserAIReady ? 'local' : 'offline');
-        setCaption('Ich laufe lokal weiter.');
+        setCaption('Verbindung nicht verfügbar. Basisdialog ohne KI-Modell aktiv.');
       },
     });
     realtime.setOutputMuted(true);
