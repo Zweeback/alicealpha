@@ -330,6 +330,7 @@ async function createAlice() {
     vrm: null,
     gltf: null,
     morphMeshes: [],
+      skeletonHelper: null,
     mixer: null,
   };
 
@@ -386,6 +387,10 @@ async function createAlice() {
         state.mixer = new THREE.AnimationMixer(model);
         state.mixer.clipAction(gltf.animations[0]).play();
       }
+
+      // sichtbare Diagnostik: attach a SkeletonHelper for real avatars
+      state.skeletonHelper = new THREE.SkeletonHelper(model);
+      root.add(state.skeletonHelper);
       return state;
     } catch (err) {
       console.warn(`Failed to load avatar candidate ${selection.id}; falling back to procedural Alice:`, err);
@@ -491,6 +496,7 @@ export class AliceWorld {
         right: { shoulder: get('rightShoulder'), elbow: get('rightLowerArm') },
       },
       morphMeshes: [],
+      skeletonHelper: null,
       mixer: null,
     };
     model.traverse((obj) => {
@@ -501,9 +507,13 @@ export class AliceWorld {
     });
     // Start only when a real clip exists; never infer that imported animation works.
     if (gltf.animations?.length) {
-      state.mixer = new THREE.AnimationMixer(model);
-      state.mixer.clipAction(gltf.animations[0]).play();
-    }
+        state.mixer = new THREE.AnimationMixer(model);
+        state.mixer.clipAction(gltf.animations[0]).play();
+      }
+
+      // sichtbare Diagnostik: attach a SkeletonHelper for real avatars
+      state.skeletonHelper = new THREE.SkeletonHelper(model);
+      root.add(state.skeletonHelper);
     // Load and inspect before replacing the currently visible character.
     const previous = this.alice;
     this.scene.add(root);
@@ -706,6 +716,18 @@ export class AliceWorld {
     this.#updateHitTest(frame);
     this.alice?.mixer?.update(delta);
     this.#animate(time, delta);
+    if (this.mode === 'desktop' && this.desktopBounds && !this.renderer.xr.isPresenting) {
+        const center = this.desktopBounds.getCenter(new THREE.Vector3());
+        const size = this.desktopBounds.getSize(new THREE.Vector3());
+        const targetY = center.y + size.y * 0.24;
+        const frameDistance = this.camera.position.z - center.z; // keep current distance
+        // Add parallax based on pointer
+        const targetCamX = center.x + this.pointer.x * 0.15;
+        const targetCamY = targetY + this.pointer.y * 0.15;
+        this.camera.position.x = damp(this.camera.position.x, targetCamX, 3.0, delta);
+        this.camera.position.y = damp(this.camera.position.y, targetCamY, 3.0, delta);
+        this.camera.lookAt(center.x, targetY, center.z);
+    }
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -799,11 +821,20 @@ export class AliceWorld {
       const expressionManager = vrm.expressionManager;
       if (expressionManager) {
         const visemePhase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
+        const curious = this.presence.expression === 'curious' || this.performance?.dialogue_act === 'question' || this.performance?.emotion === 'curious';
+
         expressionManager.setValue('aa', speaking ? speechEnergy * (0.68 + visemePhase * 0.22) : 0);
         expressionManager.setValue('ih', speaking ? speechEnergy * (1 - visemePhase) * 0.22 : 0);
         expressionManager.setValue('ou', speaking ? speechEnergy * visemePhase * 0.16 : 0);
         expressionManager.setValue('blink', 1 - blink);
         expressionManager.setValue('happy', this.presence.expression === 'smile' ? 1 : 0);
+
+        if (expressionManager.hasExpression('surprised')) {
+            expressionManager.setValue('surprised', curious ? 0.45 : 0);
+        } else if (expressionManager.hasExpression('sad')) {
+            // some VRMs don't have surprised, so map curious maybe to slightly sad/focused
+        }
+
         expressionManager.update();
       }
       vrm.update(delta);
