@@ -48,9 +48,9 @@ function frameCamera(runtime, direction = 'front') {
   const camera = runtime.camera;
   const distance = Math.max(radius, (height / 2) / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * 1.25);
   const focus = centre.clone().add(new THREE.Vector3(0, height * 0.025, 0));
-  const vector = direction === 'back' ? new THREE.Vector3(0, 0, 1)
+  const vector = direction === 'back' ? new THREE.Vector3(0, 0, -1)
     : direction === 'side' ? new THREE.Vector3(1, 0, 0)
-      : new THREE.Vector3(0, 0, -1);
+      : new THREE.Vector3(0, 0, 1);
   runtime.controls.target.copy(focus);
   camera.position.copy(focus).addScaledVector(vector, distance);
   camera.near = Math.max(distance / 1000, 0.005);
