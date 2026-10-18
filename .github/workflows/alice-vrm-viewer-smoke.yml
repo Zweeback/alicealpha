@@ -1,0 +1,88 @@
+name: ALICE VRM Viewer browser smoke
+
+on:
+  push:
+    branches:
+      - feat/alice-vrm-from-fbx-20261019
+    paths:
+      - 'src/viewer/**'
+      - 'src/main.jsx'
+      - 'public/avatars/alice-fbx-source.vrm'
+      - '.github/workflows/alice-vrm-viewer-smoke.yml'
+  pull_request:
+    paths:
+      - 'src/viewer/**'
+      - 'src/main.jsx'
+      - 'public/avatars/alice-fbx-source.vrm'
+      - '.github/workflows/alice-vrm-viewer-smoke.yml'
+
+jobs:
+  vrm-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Playwright + Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start Vite production preview
+        run: |
+          nohup npm run preview -- --port 4173 >/tmp/alice-vrm-viewer.log 2>&1 &
+          for i in {1..40}; do
+            if curl -fsS 'http://127.0.0.1:4173/?viewer=vrm' >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/alice-vrm-viewer.log
+          exit 1
+      - name: Smoke test actual VRM loaded into Three.js on mobile Chromium
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,args:[
+              '--enable-webgl','--use-gl=angle','--use-angle=swiftshader'
+            ]});
+            const page=await browser.newPage({viewport:{width:412,height:915},deviceScaleFactor:1});
+            const errors=[],responses=[];
+            page.on('pageerror',e=>errors.push(e.message));
+            page.on('response',r=>{
+              if(r.url().includes('alice-fbx-source.vrm')) responses.push({url:r.url(),status:r.status()});
+            });
+            await page.goto('http://127.0.0.1:4173/?viewer=vrm',{waitUntil:'domcontentloaded'});
+            await page.locator('.vrm-stage-top').getByText('3D-Modell geladen').waitFor({timeout:90000}).catch(()=>{});
+            const status=await page.locator('.vrm-stage-top').innerText();
+            const alert=await page.locator('[role=alert]').allTextContents();
+            const meshCount=await page.locator('.vrm-audit dd').nth(1).innerText();
+            const boneCount=await page.locator('.vrm-audit dd').nth(2).innerText();
+            const expressionButtons=await page.locator('.vrm-expressions button').allTextContents();
+            const result={status,alerts:alert,meshCount,boneCount,expressionButtons,responses,errors};
+            console.log('ALICE_VRM_VIEWER_SMOKE='+JSON.stringify(result));
+            fs.writeFileSync('alice-vrm-viewer-qa.json',JSON.stringify(result,null,2));
+            await page.screenshot({path:'alice-vrm-viewer-mobile.png',fullPage:true});
+            await page.getByRole('button',{name:'Seite'}).click();
+            await page.screenshot({path:'alice-vrm-viewer-side.png',fullPage:true});
+            if(!responses.some(r=>r.status===200)) throw Error('VRM file was not served');
+            if(!status.includes('VRM 1.0 · 3D-Modell geladen')) throw Error('VRM plugin did not parse: '+status+' '+alert.join(', '));
+            if(!(Number(meshCount)>0) || !(Number(boneCount)>0)) throw Error('No rigged geometry loaded');
+            if(!expressionButtons.includes('happy')) throw Error('VRM happy expression missing');
+            if(errors.length || alert.length) throw Error('Page errors: '+errors.join(' | ')+' / '+alert.join(' | '));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-vrm-viewer-qa
+          path: |
+            alice-vrm-viewer-qa.json
+            alice-vrm-viewer-mobile.png
+            alice-vrm-viewer-side.png
+          if-no-files-found: warn
