@@ -1,0 +1,61 @@
+name: ALICE real GLB to VRM 1.0 review candidate
+
+on:
+  push:
+    branches:
+      - feat/alice-vrm-from-fbx-20261019
+    paths:
+      - tools/alice_glb_to_vrm.py
+      - .github/workflows/alice-vrm-candidate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-vrm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tracked original model
+        uses: actions/checkout@v4
+      - name: Convert only the SHA-256 verified rigged GLB
+        run: |
+          python3 tools/alice_glb_to_vrm.py \
+            public/avatars/alice-fbx-source.glb \
+            public/avatars/alice-fbx-source.vrm \
+            --expected-sha256 4580ac1c35a8bf4b49ac29d390197dd49cea053de42d563dbe940d09c0adeb30 \
+            --report public/avatars/alice-fbx-source.vrm.audit.json
+      - name: Verify binary and VRM 1.0 semantics
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import importlib.util
+          import json
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('vrm','tools/alice_glb_to_vrm.py')
+          module=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          src=Path('public/avatars/alice-fbx-source.glb')
+          dest=Path('public/avatars/alice-fbx-source.vrm')
+          audit=json.loads(Path('public/avatars/alice-fbx-source.vrm.audit.json').read_text())
+          inp, inp_chunks=module.read_glb(src.read_bytes())
+          out, out_chunks=module.read_glb(dest.read_bytes())
+          assert out_chunks[1:]==inp_chunks[1:], 'Source geometry and textures changed'
+          assert out['extensions']['VRMC_vrm']['specVersion']=='1.0'
+          assert len(out['skins'])>0
+          assert 'VRMC_vrm' in out['extensionsRequired']
+          assert audit['approvedCanonical'] is False
+          print('ALICE_VRM1_CANDIDATE_VERIFIED', audit['outputSha256'])
+          PY
+      - name: Commit candidate on isolated branch for visual QA
+        run: |
+          git config user.name alice-vrm-candidate-builder
+          git config user.email alice-vrm-candidate-builder@users.noreply.github.com
+          git add public/avatars/alice-fbx-source.vrm public/avatars/alice-fbx-source.vrm.audit.json
+          if git diff --cached --quiet; then
+            echo 'No model changes'
+          else
+            git commit -m 'asset(alice): add rigged FBX-derived VRM 1.0 review candidate'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
