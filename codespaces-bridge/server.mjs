@@ -40,7 +40,7 @@ function confirm(action,value,actual){
 }
 async function github(method,path,body){
  if(!ghToken())throw Error('GITHUB_CODESPACES_TOKEN nicht hinterlegt. Nur per Render Environment setzen.');
- if(!/^\/(user\/codespaces(?:\?per_page=[0-9]{1,3}|\/[A-Za-z0-9_.-]+(?:\/(?:start|stop|machines))?)?|repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/codespaces)$/.test(path))
+ if(!/^\/(user\/codespaces(?:\?per_page=[0-9]{1,3}|\/[A-Za-z0-9_.-]+(?:\/(?:start|stop|machines))?)?|repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:codespaces|pulls\/[0-9]{1,9}\/codespaces))$/.test(path))
     throw Error('API-Pfad nicht freigegeben');
  const ctl=new AbortController(), timeout=setTimeout(()=>ctl.abort(),20000);
  try{
@@ -69,6 +69,8 @@ const tools=[
  desc('codespaces_machines','Verfügbare Maschinen für einen existierenden Codespace lesen.',{name:s},['name']),
  desc('codespaces_create','Kostenpflichtigen Codespace erstellen, nur nach ausdrücklich erteilter Benutzerfreigabe. Repository muss auf Allowlist stehen.',
   {repository:s,ref:s,machine:s,confirmation:s},['repository','confirmation']),
+ desc('codespaces_create_pr','Codespace direkt aus einer Pull Request erstellen, nur mit ausdrücklicher zielbezogener Benutzerfreigabe.',
+  {repository:s,pull_number:pos,confirmation:s},['repository','pull_number','confirmation']),
  desc('codespaces_start','Codespace starten; GitHub kann Nutzungsgebühren berechnen.',
   {name:s,confirmation:s},['name','confirmation']),
  desc('codespaces_stop','Codespace anhalten.',{name:s,confirmation:s},['name','confirmation']),
@@ -122,6 +124,12 @@ async function call(name,args={}){
   const body={};if(args.ref)body.ref=String(args.ref).slice(0,128);
   if(args.machine)body.machine=String(args.machine).slice(0,100);
   return await github('POST','/repos/'+repo+'/codespaces',body);
+ }
+ case 'codespaces_create_pr':{
+  const repo=requireRepo(args.repository),n=Number(args.pull_number);
+  if(!Number.isInteger(n)||n<1||n>999999999)throw Error('PR-Nummer ungültig');
+  confirm('CREATE_PR',args.confirmation,repo+'#'+n);
+  return await github('POST','/repos/'+repo+'/pulls/'+n+'/codespaces',{});
  }
  case 'codespaces_start':{
   const cs=requireSlug(args.name);confirm('START',args.confirmation,cs);
