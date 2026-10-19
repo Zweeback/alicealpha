@@ -14,6 +14,7 @@ if ! command -v blender >/dev/null 2>&1; then
 fi
 REPO='https://github.com/saturday06/VRM-Addon-for-Blender.git'
 TAG='v4.10.2'
+COMMIT='REPLACE_WITH_VERIFIED_V4102_COMMIT_SHA'
 DIR="$HOME/.local/share/alice-tools/VRM-Addon-for-Blender"
 mkdir -p "$(dirname "$DIR")"
 if [ ! -d "$DIR/.git" ]; then
@@ -21,7 +22,9 @@ if [ ! -d "$DIR/.git" ]; then
   git clone --depth 1 --branch "$TAG" "$REPO" "$DIR"
 fi
 [ "$(git -C "$DIR" remote get-url origin)" = "$REPO" ] || exit 4
-[ "$(git -C "$DIR" describe --tags --exact-match HEAD)" = "$TAG" ] || exit 4
+git -C "$DIR" fetch --depth 1 origin "$COMMIT"
+git -C "$DIR" checkout --detach "$COMMIT"
+[ "$(git -C "$DIR" rev-parse HEAD)" = "$COMMIT" ] || exit 4
 VER="$(blender -b --factory-startup --python-expr "import bpy; print('ALICE_VER='+'.'.join(map(str,bpy.app.version[:2])))" 2>&1 | sed -n 's/^ALICE_VER=//p' | tail -1)"
 [[ "$VER" =~ ^[0-9]+\.[0-9]+$ ]] || exit 5
 MAJOR="$(echo "$VER" | cut -d. -f1)"
