@@ -121,6 +121,9 @@ def finish(obj,mat=None,bone=None):
     return obj
 
 def mesh(name,verts,faces,mat,face_mats=None,bone=None):
+    # Backward-compatible positional bone argument in construction helpers.
+    if isinstance(face_mats,str) and face_mats in bones and bone is None:
+        bone,face_mats=face_mats,None
     datablock=bpy.data.meshes.new('Alice_'+name)
     datablock.from_pydata([tuple(v) for v in verts], [], faces)
     datablock.update()
