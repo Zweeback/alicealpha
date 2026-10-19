@@ -323,9 +323,11 @@ export default function VRMViewer() {
           <section className="vrm-panel">
             <h2>Modell</h2>
             <div className="vrm-filename">{fileName}</div>
-            <p className="vrm-helper">Eigener VRM-1.0-Kandidat. Nicht als kanonische ALICE freigegeben.</p>
+            <p className="vrm-helper">{fileName.includes('designsheet')
+              ? 'DESIGNSHEET WIP: technisch rigged, visuell noch nicht vorlagentreu und nicht freigegeben.'
+              : 'Eigener VRM-1.0-Kandidat. Nicht als kanonische ALICE freigegeben.'}</p>
             <div className="vrm-action-grid">
-              <button type="button" disabled={loading} onClick={() => loadBundled(DESIGNSHEET_VRM, 'alice-designsheet-candidate.vrm')}>Designsheet ALICE</button>
+              <button type="button" disabled={loading} onClick={() => loadBundled(DESIGNSHEET_VRM, 'alice-designsheet-candidate.vrm')}>Designsheet WIP</button>
               <button type="button" disabled={loading} onClick={() => loadBundled(BUILT_IN_VRM, 'alice-fbx-source.vrm')}>Original VRM</button>
               <button type="button" disabled={loading} onClick={() => loadBundled(SOURCE_GLB, 'alice-fbx-source.glb')}>Quell-GLB</button>
             </div>
