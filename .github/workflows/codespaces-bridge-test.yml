@@ -1,0 +1,35 @@
+name: Codespaces Bridge security and protocol tests
+on:
+  push:
+    branches: [feat/private-codespaces-bridge-20261019]
+    paths: ['codespaces-bridge/**','.github/workflows/codespaces-bridge-test.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript syntax
+        run: node --check codespaces-bridge/server.mjs && node --check codespaces-bridge/test/bridge.test.mjs
+      - name: Run offline, mocked GitHub API tests
+        run: cd codespaces-bridge && npm test
+      - name: Verify security requirements
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('codespaces-bridge/server.mjs').read_text()
+          assert "CODESPACES_BRIDGE_KEY" in s
+          assert "GITHUB_CODESPACES_TOKEN" in s
+          assert "ENABLE_REMOTE_EXEC" in s
+          assert "timingSafeEqual" in s
+          assert "shell:false" in s
+          assert "CODESPACES_ALLOWED_REPOS" in s
+          assert 'confirmation' in s
+          assert 'REPLACE_ME' not in s
+          print("security prerequisites are present")
+          PY
