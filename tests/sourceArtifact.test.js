@@ -20,6 +20,23 @@ describe('external source artifact boundary', () => {
     expect(mayEnterAliceContext(artifact)).toBe(true)
   })
 
+  it('rejects an accepted artifact when the payload is modified after hashing', () => {
+    const original = createSourceArtifact({
+      artifact_id: 'audit:integrity:1',
+      kind: 'research_brief',
+      provider: 'github',
+      purpose: 'Verify source integrity',
+      sources: ['github:commit:original'],
+      license: 'Internal research',
+      approval: 'accepted',
+      payload: { title: 'Original source' },
+    })
+
+    expect(mayEnterAliceContext(original)).toBe(true)
+    expect(mayEnterAliceContext({ ...original, payload: { title: 'Tampered source' } })).toBe(false)
+    expect(mayEnterAliceContext({ ...original, sha256: '0'.repeat(64) })).toBe(false)
+  })
+
   it('rejects credentials or library-card data inside an artifact payload', () => {
     expect(() =>
       createSourceArtifact({
