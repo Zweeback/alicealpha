@@ -100,7 +100,7 @@ for name,(color,rough,metal) in pal.items():
     m.use_nodes=True
     bs=m.node_tree.nodes.get('Principled BSDF')
     if bs:
-        bs.inputs['Base Color'].default_value=(*[int(color[i:i+2],16)/255 for i in (1,3,5)],1)
+        bs.inputs['Base Color'].default_value=(*[pow(int(color[i:i+2],16)/255,2.2) for i in (1,3,5)],1)
         bs.inputs['Roughness'].default_value=rough
         bs.inputs['Metallic'].default_value=metal
         if name == 'cyan_glow':
@@ -446,6 +446,112 @@ for side in (-1,1):
     mesh('upper_hood_mark_'+str(side),[
         R(side*.35,-.22,.35),R(side*.40,-.22,.29),R(side*.30,-.22,.29)
     ],[(0,1,2)],'violet','Head')
+
+
+# ---------------------------------------------------------------------------
+# VISUAL QA V2. Photographic FBX face and oversized costume failed reference
+# matching. Resize the first-pass shell; sculpt an original anime facial layer
+# with visibly controllable blendshapes, without discarding the source rig.
+# ---------------------------------------------------------------------------
+def scale_vertices_world(obj, pivot, kxy, kz=None, axis=None):
+    matrix=obj.matrix_world.copy()
+    inv=matrix.inverted_safe()
+    kz=kxy if kz is None else kz
+    if obj.type != 'MESH': return
+    for vertex in obj.data.vertices:
+        world=matrix@vertex.co
+        if axis is None:
+            delta=world-pivot
+            target=pivot+delta*kxy
+            if kz != kxy: target.z=pivot.z+delta.z*kz
+        else:
+            ax=axis.normalized()
+            along=ax*delta.dot(ax) if (delta:=world-pivot) else Vector()
+            perpendicular=delta-along
+            target=pivot+along+perpendicular*kxy
+        vertex.co=inv@target
+    obj.data.update()
+
+for name in tuple(created):
+    obj=bpy.data.objects.get(name)
+    if not obj or obj.type!='MESH': continue
+    if obj.parent_bone=='Head':
+        # Keep the lilac hood and hair close to the actual head, not an
+        # oversized spherical helmet obscuring shoulders and face.
+        scale_vertices_world(obj,hc,.67)
+    elif obj.parent_bone in ('LeftArm','RightArm','LeftForeArm','RightForeArm'):
+        v0=world_bone(obj.parent_bone,'head')
+        v1=world_bone(obj.parent_bone,'tail')
+        scale_vertices_world(obj,v0,.72,axis=(v1-v0))
+    elif obj.parent_bone in ('Spine2','Hips'):
+        # Slim torso width but preserve tunic length and ribbons.
+        for v in obj.data.vertices:
+            w=obj.matrix_world@v.co
+            planar=w-centre
+            desired=w-(right*planar.dot(right)+forward*planar.dot(forward))*.14
+            v.co=obj.matrix_world.inverted_safe()@desired
+        obj.data.update()
+
+# Anime oval facial sculpt. The photographic base morph mesh remains untouched
+# and fully skinned underneath the 3D cartoon face rather than driving visuals.
+# The overlay itself has eyes, brows and lip-shape morphs.
+face_center=R(0,.052,-.01)
+face=ellipsoid('anime_face',face_center,(.246*s,.214*s,.288*s),'skin','Head',48)
+# Small center chin contour adds the rounded cheek silhouette.
+ellipsoid('anime_chin',R(0,.098,-.172),(.154*s,.167*s,.115*s),'skin','Head',36)
+# Eyes and irises are 3D and placed in front of the new face skin.
+for side in (-1,1):
+    ex=side*.092
+    eye=ellipsoid('anime_eye_white_'+str(side),R(ex,.252,.055),
+                  (.081*s,.028*s,.057*s),'white','Head',32)
+    eye.shape_key_add(name='Basis',from_mix=False)
+    blink=eye.shape_key_add(name='eyeBlinkLeft' if side==-1 else 'eyeBlinkRight',from_mix=False)
+    for v in blink.data:
+        v.co.z*=.075
+    # Secondary blink aliases for animation compatibility.
+    eye.shape_key_add(name='blink',from_mix=False)
+    iris=ellipsoid('anime_eye_iris_'+str(side),R(ex,.281,.048),
+                   (.040*s,.014*s,.046*s),'cyan','Head',36)
+    ellipsoid('anime_eye_pupil_'+str(side),R(ex,.293,.048),
+              (.018*s,.009*s,.030*s),'black','Head',24)
+    ellipsoid('anime_eye_highlight_'+str(side),R(ex-side*.016,.301,.067),
+              (.012*s,.006*s,.014*s),'white','Head',16)
+    # Thick expressive upper eyelid and tapered red brows.
+    line('anime_upper_lash_'+str(side),[
+        R(ex-side*.074,.276,.084),R(ex,.294,.109),
+        R(ex+side*.078,.267,.082)
+    ],.012,'black','Head')
+    line('anime_brow_'+str(side),[
+        R(ex-side*.064,.260,.178),R(ex,.271,.187),
+        R(ex+side*.068,.250,.179)
+    ],.011,'hair_shadow','Head')
+    ellipsoid('anime_blush_'+str(side),R(side*.178,.215,-.06),
+              (.049*s,.012*s,.016*s),'pink','Head',20)
+
+nose=ellipsoid('anime_nose',R(0,.267,-.052),(.013*s,.022*s,.020*s),'skin','Head',24)
+mouth=ellipsoid('anime_mouth',R(0,.25,-.154),(.057*s,.023*s,.012*s),
+               'hair_shadow','Head',24)
+mouth.shape_key_add(name='Basis',from_mix=False)
+for name,(wide,tall) in {
+    'jawOpen':(1.0,4.0),
+    'aa':(1.3,4.0),'ih':(1.9,1.5),'ou':(.7,3.0),
+    'E':(1.65,1.65),'oh':(.85,3.3),
+    'mouthSmileLeft':(1.45,1.4),'mouthSmileRight':(1.45,1.4),
+}.items():
+    key=mouth.shape_key_add(name=name,from_mix=False)
+    for vert in key.data:
+        vert.co.x*=wide
+        vert.co.z*=tall
+        if name.startswith('mouthSmile'):
+            vert.co.z+=.02*s*(abs(vert.co.x)/(.057*s))
+# A slightly darker cyan fringe, winding above face instead of clipping eyes.
+for i in range(11):
+    x=-.26+i*.052
+    strand('anime_front_fringe_%d'%i,[
+        (x*.77,.014,.32),(x*.92,.19,.29),
+        (x*.89,.27,.22),(x+.02*math.sin(i),.278,.154+abs(i-5)*.011)
+    ],.030,'teal' if i in (3,7) else ('hair_shadow' if i%3==0 else 'coral'))
+
 
 # Detect accidental destroy of the original visemes and rig.
 head_obj=bpy.data.objects.get('AvatarHead')
