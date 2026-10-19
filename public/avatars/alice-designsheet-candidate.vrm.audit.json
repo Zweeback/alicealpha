@@ -1,0 +1,32 @@
+{
+  "format": "VRM 1.0 / glTF 2.0",
+  "sourceSha256": "f57ffca0363f082cf0962dd68c1011741603e9f43e6b050cb3a9a8263b155106",
+  "outputSha256": "87acbc22a29263a83bd010dff5050f7d00f03b5476a92b62ffa3e7b87010d601",
+  "originalGlbPayloadPreserved": true,
+  "skinCount": 1,
+  "meshCount": 157,
+  "humanoidBoneCount": 54,
+  "presetExpressions": [
+    "aa",
+    "blink",
+    "blinkLeft",
+    "blinkRight",
+    "ee",
+    "happy",
+    "ih",
+    "neutral",
+    "oh",
+    "ou",
+    "sad",
+    "surprised"
+  ],
+  "customExpressions": [
+    "cheerful",
+    "curious",
+    "jawOpen",
+    "smile"
+  ],
+  "identityVerifiedAgainstReference": false,
+  "browserAnimationVerified": false,
+  "approvedCanonical": false
+}

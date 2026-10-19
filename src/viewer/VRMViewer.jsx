@@ -7,6 +7,7 @@ import './vrmViewer.css';
 
 export const BUILT_IN_VRM = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.vrm';
 const SOURCE_GLB = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
+const DESIGNSHEET_VRM = import.meta.env.BASE_URL + 'avatars/alice-designsheet-candidate.vrm';
 const EXPRESSIONS = [
   'neutral', 'happy', 'cheerful', 'smile', 'curious', 'surprised',
   'sad', 'blink', 'blinkLeft', 'blinkRight', 'aa', 'ih', 'ou', 'ee', 'oh', 'jawOpen',
@@ -221,7 +222,10 @@ export default function VRMViewer() {
         controls.update();
         webgl.render(scene, camera);
       });
-      loadBundled(BUILT_IN_VRM, 'alice-fbx-source.vrm');
+      loadBundled(new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
+        ? DESIGNSHEET_VRM : BUILT_IN_VRM,
+        new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
+          ? 'alice-designsheet-candidate.vrm' : 'alice-fbx-source.vrm');
     } catch (cause) {
       setError('WebGL konnte nicht gestartet werden: ' + String(cause?.message || cause));
       setLoading(false);
@@ -319,9 +323,12 @@ export default function VRMViewer() {
           <section className="vrm-panel">
             <h2>Modell</h2>
             <div className="vrm-filename">{fileName}</div>
-            <p className="vrm-helper">Eigener VRM-1.0-Kandidat. Nicht als kanonische ALICE freigegeben.</p>
+            <p className="vrm-helper">{fileName.includes('designsheet')
+              ? 'DESIGNSHEET WIP: technisch rigged, visuell noch nicht vorlagentreu und nicht freigegeben.'
+              : 'Eigener VRM-1.0-Kandidat. Nicht als kanonische ALICE freigegeben.'}</p>
             <div className="vrm-action-grid">
-              <button type="button" disabled={loading} onClick={() => loadBundled(BUILT_IN_VRM, 'alice-fbx-source.vrm')}>VRM laden</button>
+              <button type="button" disabled={loading} onClick={() => loadBundled(DESIGNSHEET_VRM, 'alice-designsheet-candidate.vrm')}>Designsheet WIP</button>
+              <button type="button" disabled={loading} onClick={() => loadBundled(BUILT_IN_VRM, 'alice-fbx-source.vrm')}>Original VRM</button>
               <button type="button" disabled={loading} onClick={() => loadBundled(SOURCE_GLB, 'alice-fbx-source.glb')}>Quell-GLB</button>
             </div>
             <label className="vrm-upload">
