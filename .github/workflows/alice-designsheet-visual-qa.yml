@@ -1,4 +1,5 @@
 name: ALICE design-sheet visual QA
+# v2: verify the redesigned anime face and calibrated character silhouette
 
 on:
   push:
