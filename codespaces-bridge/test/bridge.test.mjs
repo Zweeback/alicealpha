@@ -12,6 +12,7 @@ const mock=http.createServer(async(req,res)=>{
  if(req.method==='GET' && req.url.startsWith('/user/codespaces?'))res.end(JSON.stringify({total_count:1,codespaces:[{name:'my-cs',state:'Available'}]}));
  else if(req.method==='POST' && req.url==='/user/codespaces/my-cs/start')res.end(JSON.stringify({name:'my-cs',state:'Starting'}));
  else if(req.method==='POST' && req.url==='/repos/Zweeback/alicealpha/codespaces')res.end(JSON.stringify({name:'new-cs',state:'Creating'}));
+ else if(req.method==='POST' && req.url==='/repos/Zweeback/alicealpha/pulls/128/codespaces')res.end(JSON.stringify({name:'pr-cs',state:'Creating'}));
  else if(req.method==='DELETE' && req.url==='/user/codespaces/my-cs'){res.statusCode=202;res.end()}
  else{res.statusCode=404;res.end('{"message":"unknown"}')}
 });
@@ -84,5 +85,12 @@ test('unknown methods fail cleanly, no command injection',async()=>{
  assert.equal(a.body.result.isError,true);
  const b=await mc('codespaces_exec',{name:'my-cs',operation:'rm -rf',confirmation:'EXEC my-cs rm -rf'});
  assert.equal(b.body.result.isError,true);
+});
+test('pull request creation requires allowlisted repo and exact PR target',async()=>{
+ const n=requestLog.length;
+ let x=await mc('codespaces_create_pr',{repository:'Zweeback/alicealpha',pull_number:128,confirmation:'CREATE_PR Zweeback/alicealpha#129'});
+ assert.equal(x.body.result.isError,true);assert.equal(requestLog.length,n);
+ x=await mc('codespaces_create_pr',{repository:'Zweeback/alicealpha',pull_number:128,confirmation:'CREATE_PR Zweeback/alicealpha#128'});
+ assert.equal(x.body.result.isError,undefined);assert.equal(requestLog.at(-1).url,'/repos/Zweeback/alicealpha/pulls/128/codespaces');
 });
 test.after(async()=>{await new Promise(r=>server.close(r));await new Promise(r=>mock.close(r))});
