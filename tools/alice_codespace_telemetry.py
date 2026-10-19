@@ -11,7 +11,7 @@ def run(args):
         return p.stdout.strip() if p.returncode==0 else None
     except (OSError,subprocess.TimeoutExpired): return None
 def version(v):
-    m=re.search(r"\\d+(?:\\.\\d+){1,3}",v or "")
+    m=re.search(r"\d+(?:\.\d+){1,3}",v or "")
     return m.group() if m else None
 def checksha(path):
     if not path.is_file(): return None
@@ -41,7 +41,7 @@ data={
   "sourceGLBVerified":sha==EXPECTED
 }
 data["status"]="ready" if blender and commit and sha==EXPECTED else "incomplete"
-payload=json.dumps(data,indent=2,ensure_ascii=False)+"\\n"
+payload=json.dumps(data,indent=2,ensure_ascii=False)+"\n"
 print(payload,end="")
 if "--write-local" in sys.argv[1:]:
     path=ROOT/".alice/telemetry/latest.json"
