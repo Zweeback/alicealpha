@@ -1,0 +1,72 @@
+name: ALICE design-sheet rigged character reconstruction
+
+on:
+  push:
+    branches:
+      - feat/alice-designsheet-3d-20261019
+    paths:
+      - tools/build_alice_designsheet.py
+      - .github/workflows/alice-designsheet-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sculpt-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender python3-numpy
+          blender --version
+      - name: Reconstruct clothes and hair, preserving source facial rig
+        run: |
+          blender --background --python tools/build_alice_designsheet.py
+          test -s public/avatars/alice-designsheet-candidate.glb
+          test -s public/avatars/alice-designsheet-candidate.json
+      - name: Convert GLB candidate into VRM 1.0
+        run: |
+          python3 tools/alice_glb_to_vrm.py \
+            public/avatars/alice-designsheet-candidate.glb \
+            public/avatars/alice-designsheet-candidate.vrm \
+            --report public/avatars/alice-designsheet-candidate.vrm.audit.json
+      - name: Verify ALICE design candidate
+        run: |
+          python3 - <<'PY'
+          import json,importlib.util
+          from pathlib import Path
+          doc=json.loads(Path('public/avatars/alice-designsheet-candidate.json').read_text())
+          assert doc['sourceCharacterMeshPreserved']
+          assert doc['newModelParts'] >= 90
+          assert doc['rigBoneCount'] >= 73
+          assert doc['faceMorphCount'] > 10
+          assert not doc['visualIdentityVerified']
+          spec=importlib.util.spec_from_file_location('vrm','tools/alice_glb_to_vrm.py')
+          vrm=importlib.util.module_from_spec(spec);spec.loader.exec_module(vrm)
+          model,_=vrm.read_glb(Path('public/avatars/alice-designsheet-candidate.vrm').read_bytes())
+          assert 'VRMC_vrm' in model['extensions']
+          assert len(model.get('meshes',[])) > 50
+          assert len(model.get('skins',[])) >= 1
+          audit=json.loads(Path('public/avatars/alice-designsheet-candidate.vrm.audit.json').read_text())
+          assert audit['approvedCanonical'] is False
+          assert len(audit['presetExpressions']) >= 8
+          print('ALICE_DESIGNSHEET_PIPELINE_PASSED',doc['newModelParts'],len(model['meshes']),audit['humanoidBoneCount'])
+          PY
+      - name: Save candidate in feature branch for visual QA
+        run: |
+          git config user.name alice-designsheet-builder
+          git config user.email alice-designsheet-builder@users.noreply.github.com
+          git add public/avatars/alice-designsheet-candidate.glb \
+            public/avatars/alice-designsheet-candidate.json \
+            public/avatars/alice-designsheet-candidate.vrm \
+            public/avatars/alice-designsheet-candidate.vrm.audit.json
+          if git diff --cached --quiet; then
+            echo 'Candidate unchanged'
+          else
+            git commit -m 'asset(alice): export rigged design-sheet visual candidate'
+            git push origin "HEAD:""$GITHUB_REF_NAME"
+          fi
