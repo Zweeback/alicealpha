@@ -44,7 +44,7 @@ function jsonResult(value,error=false){return {content:[{type:'text',text:JSON.s
 function matchSecret(got,want){if(!want)return false;const a=Buffer.from(got||'');const b=Buffer.from(want);return a.length===b.length&&crypto.timingSafeEqual(a,b);}
 function requireBridge(req,res,next){
  const auth=req.get('Authorization')||'';
- if(!matchSecret(auth,'Bearer '+AUTH)){res.status(401).json({error:'Unauthorized bridge request'});return;}
+ if(!AUTH||!matchSecret(auth,'Bearer '+AUTH)){res.status(401).json({error:'Unauthorized bridge request'});return;}
  next();
 }
 function fail(message,status=400){const e=new Error(message);e.status=status;throw e;}
@@ -89,7 +89,7 @@ async function propose(kind,args){
  } else {
   await getCodespace(args.name);
   if(kind==='command'){
-   if(!ADMIN_PIN)fail('Remote commands locked: set ADMIN_PIN privately in Render environment.',403);
+   if(ADMIN_PIN.length<8)fail('Remote commands locked: set an 8+ character ADMIN_PIN privately in Render environment.',403);
    if(typeof args.command!=='string'||args.command.length<1||args.command.length>500||/[\r\n\x00]/.test(args.command))fail('Command must be 1-500 characters without newlines.');
    if(args.timeout_seconds!==undefined&&(!Number.isInteger(args.timeout_seconds)||args.timeout_seconds<3||args.timeout_seconds>90))fail('Timeout must be 3-90 seconds');
   }
@@ -120,7 +120,7 @@ async function dispatch(name,args={}){
   return {bridge:'ready',github_token_configured:!!GITHUB_TOKEN,pin_configured:!!ADMIN_PIN,
    allowed_repositories:[...REPOS],github_user_expected:REQUIRED_USER,
    github_identity_verified:GITHUB_TOKEN?await verifyIdentity().then(()=>true):false,
-   capabilities:{read:true,lifecycle:'manual_browser_approval',remote_command:ADMIN_PIN?'manual_browser_approval':'locked'},
+   capabilities:{read:true,lifecycle:'manual_browser_approval',remote_command:ADMIN_PIN.length>=8?'manual_browser_approval':'locked'},
    ...(GITHUB_TOKEN?{}:{blocker:LIMIT_MESSAGE})};
  case 'codespaces_list':{
   await verifyIdentity();
@@ -199,7 +199,7 @@ app.post('/approve/:id',(req,res)=>{
  const ip=req.ip;const state=attempts.get(ip)||{n:0,until:Date.now()+600000};
  if(state.until<Date.now()){state.n=0;state.until=Date.now()+600000;}
  if(state.n>=8){res.status(429).send('Too many attempts.');return;}
- if(!ADMIN_PIN||!matchSecret(req.body.pin,ADMIN_PIN)){state.n++;attempts.set(ip,state);res.status(403).send('Incorrect or unconfigured administrator PIN. No action performed.');return;}
+ if(ADMIN_PIN.length<8||!matchSecret(req.body.pin,ADMIN_PIN)){state.n++;attempts.set(ip,state);res.status(403).send('Incorrect or unconfigured administrator PIN. No action performed.');return;}
  p.status='approved';p.approved_at=Date.now();
  console.log(JSON.stringify({at:new Date().toISOString(),audit:'external_approval',action:p.kind,id:req.params.id.slice(0,12)}));
  res.type('html').send('<h1>Approved</h1><p>Return to ChatGPT to execute the approved proposal. Approval expires automatically.</p>');
