@@ -40,7 +40,7 @@ function confirm(action,value,actual){
 }
 async function github(method,path,body){
  if(!ghToken())throw Error('GITHUB_CODESPACES_TOKEN nicht hinterlegt. Nur per Render Environment setzen.');
- if(!/^\/(user\/codespaces(?:\/[A-Za-z0-9_.-]+(?:\/(?:start|stop|machines))?)?|repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/codespaces)$/.test(path))
+ if(!/^\/(user\/codespaces(?:\?per_page=[0-9]{1,3}|\/[A-Za-z0-9_.-]+(?:\/(?:start|stop|machines))?)?|repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/codespaces)$/.test(path))
     throw Error('API-Pfad nicht freigegeben');
  const ctl=new AbortController(), timeout=setTimeout(()=>ctl.abort(),20000);
  try{
