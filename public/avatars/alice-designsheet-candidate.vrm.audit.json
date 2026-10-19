@@ -1,10 +1,10 @@
 {
   "format": "VRM 1.0 / glTF 2.0",
-  "sourceSha256": "a1b3b699c55d6e426c12a07c4e6f69fcedcbe59b2f564db18dd6c57c1850ffca",
-  "outputSha256": "205014756790c6bcdf45795bcd94000e59987ab40dc3c129909df1a6092c9daf",
+  "sourceSha256": "f57ffca0363f082cf0962dd68c1011741603e9f43e6b050cb3a9a8263b155106",
+  "outputSha256": "87acbc22a29263a83bd010dff5050f7d00f03b5476a92b62ffa3e7b87010d601",
   "originalGlbPayloadPreserved": true,
   "skinCount": 1,
-  "meshCount": 128,
+  "meshCount": 157,
   "humanoidBoneCount": 54,
   "presetExpressions": [
     "aa",
