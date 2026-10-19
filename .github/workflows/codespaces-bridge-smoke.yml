@@ -1,0 +1,25 @@
+name: Codespaces private bridge security smoke
+on:
+  push:
+    branches: [feat/codespaces-private-connector-20261019]
+    paths: ['codespaces-bridge/**', '.github/workflows/codespaces-bridge-smoke.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install backend dependencies
+        working-directory: codespaces-bridge
+        run: npm install --no-audit --no-fund
+      - name: Confirm bearer authorization and MCP tools
+        working-directory: codespaces-bridge
+        run: npm test
+      - name: Build isolated production image with GitHub CLI
+        run: docker build -f codespaces-bridge/Dockerfile -t alice-codespaces-private-bridge:test .
