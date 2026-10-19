@@ -1,0 +1,94 @@
+name: ALICE design-sheet visual QA
+
+on:
+  push:
+    branches:
+      - feat/alice-designsheet-3d-20261019
+    paths:
+      - 'src/viewer/**'
+      - 'public/avatars/alice-designsheet-candidate.vrm'
+      - 'public/avatars/alice-designsheet-candidate.glb'
+      - '.github/workflows/alice-designsheet-visual-qa.yml'
+  workflow_dispatch:
+
+jobs:
+  browser-view:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install mobile Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start production viewer
+        run: |
+          nohup npm run preview -- --port 4173 >/tmp/alice-designsheet-qa.log 2>&1 &
+          for i in {1..35}; do
+            if curl -fsS 'http://127.0.0.1:4173/?viewer=vrm&model=designsheet' >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/alice-designsheet-qa.log
+          exit 1
+      - name: Verify rigged VRM actually renders with live expressions and capture angle renders
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright'),fs=require('fs');
+          (async()=>{
+            const browser=await chromium.launch({
+              headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader']
+            });
+            const page=await browser.newPage({viewport:{width:900,height:1050},deviceScaleFactor:1});
+            const responses=[],errors=[];
+            page.on('pageerror',e=>errors.push(e.message));
+            page.on('response',r=>{
+              if(r.url().includes('alice-designsheet-candidate.vrm'))
+                responses.push({status:r.status(),url:r.url()});
+            });
+            await page.goto('http://127.0.0.1:4173/?viewer=vrm&model=designsheet',
+              {waitUntil:'domcontentloaded',timeout:60000});
+            await page.locator('.vrm-stage-top').getByText('VRM 1.0 · 3D-Modell geladen')
+              .waitFor({timeout:90000});
+            const stats=await page.locator('.vrm-audit dd').allTextContents();
+            const expressions=await page.locator('.vrm-expressions button').allTextContents();
+            await page.getByRole('button',{name:'Vorne'}).click();
+            await page.waitForTimeout(1300);
+            await page.locator('.vrm-stage canvas').screenshot({path:'alice-designsheet-front.png'});
+            await page.getByRole('button',{name:'Seite'}).click();
+            await page.waitForTimeout(700);
+            await page.locator('.vrm-stage canvas').screenshot({path:'alice-designsheet-side.png'});
+            await page.getByRole('button',{name:'Hinten'}).click();
+            await page.waitForTimeout(700);
+            await page.locator('.vrm-stage canvas').screenshot({path:'alice-designsheet-back.png'});
+            await page.getByRole('button',{name:'Vorne'}).click();
+            await page.getByRole('button',{name:'happy',exact:true}).click();
+            await page.waitForTimeout(200);
+            await page.locator('.vrm-stage canvas').screenshot({path:'alice-designsheet-happy.png'});
+            const report={stats,expressions,responses,errors};
+            fs.writeFileSync('alice-designsheet-visual-qa.json',JSON.stringify(report,null,2));
+            console.log('ALICE_DESIGNSHEET_VISUAL_QA='+JSON.stringify(report));
+            if(!responses.some(r=>r.status===200))throw Error('New rigged VRM failed to load');
+            if(Number(stats[1])<100)throw Error('New designed parts missing: mesh count='+stats[1]);
+            if(Number(stats[2])<70)throw Error('Skeleton missing: bone count='+stats[2]);
+            if(!expressions.includes('happy'))throw Error('VRM expressions absent');
+            if(errors.length)throw Error('Runtime page errors: '+errors.join(','));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-designsheet-visual-qa
+          path: |
+            alice-designsheet-front.png
+            alice-designsheet-side.png
+            alice-designsheet-back.png
+            alice-designsheet-happy.png
+            alice-designsheet-visual-qa.json
+          if-no-files-found: warn
