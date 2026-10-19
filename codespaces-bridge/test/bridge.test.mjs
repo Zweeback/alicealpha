@@ -48,7 +48,7 @@ test('MCP handshake, list and diagnostic',async()=>{
  const list=await fetch(url+'/mcp',{method:'POST',headers:{'content-type':'application/json','x-bridge-key':process.env.CODESPACES_BRIDGE_KEY},body:JSON.stringify({jsonrpc:'2.0',id:4,method:'tools/list'})});
  const info=await list.json();assert(info.result.tools.length>=10);
  const result=await mc('codespaces_status');
- assert.match(result.body.result.content[0].text,/'connected": true/);
+ assert.equal(JSON.parse(result.body.result.content[0].text).connected,true);
 });
 test('list passes Github OAuth token only to Github mocked upstream',async()=>{
  const r=await mc('codespaces_list',{per_page:1});assert.equal(r.body.result.isError,undefined);
