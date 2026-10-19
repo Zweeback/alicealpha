@@ -66,5 +66,11 @@ export function createSourceArtifact(input) {
 }
 
 export function mayEnterAliceContext(artifact) {
-  return artifact?.approval === 'accepted' && /^[a-f0-9]{64}$/.test(artifact?.sha256 ?? '')
+  if (artifact?.approval !== 'accepted' || !/^[a-f0-9]{64}$/.test(artifact?.sha256 ?? '')) return false
+  try {
+    const actualHash = createHash('sha256').update(stableJson(artifact.payload ?? null)).digest('hex')
+    return actualHash === artifact.sha256
+  } catch {
+    return false
+  }
 }
