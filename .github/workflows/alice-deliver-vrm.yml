@@ -1,0 +1,48 @@
+name: ALICE deliver existing VRM file
+on:
+  push:
+    branches: [deliver/alice-vrm-designsheet-20261019]
+    paths: ['.github/workflows/alice-deliver-vrm.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify VRM and source files
+        run: |
+          python3 - <<'PY'
+          import json,hashlib,struct
+          from pathlib import Path
+          asset=Path('public/avatars/alice-designsheet-candidate.vrm')
+          glb=Path('public/avatars/alice-designsheet-candidate.glb')
+          assert asset.is_file() and glb.is_file(), 'Model not found in git checkout'
+          binary=asset.read_bytes()
+          magic,version,length=struct.unpack('<4sII',binary[:12])
+          assert (magic,version,length)==(b'glTF',2,len(binary))
+          size,tag=struct.unpack('<I4s',binary[12:20])
+          assert tag==b'JSON'
+          doc=json.loads(binary[20:20+size])
+          assert doc['extensions']['VRMC_vrm']['specVersion']=='1.0'
+          assert doc.get('skins') and len(doc.get('meshes',[]))>100
+          report={'VRM_1_0':True,'source':'Zweeback/alicealpha',
+           'sha256':hashlib.sha256(binary).hexdigest(),'bytes':len(binary),
+           'meshes':len(doc.get('meshes',[])),'skins':len(doc.get('skins',[])),
+           'note':'WIP design-sheet interpretation; visual fidelity NOT approved'}
+          Path('ALICE_3D_manifest.json').write_text(json.dumps(report,indent=2))
+          print('DELIVERABLE_VERIFIED:',report)
+          PY
+      - name: Collect output with original names
+        run: |
+          cp public/avatars/alice-designsheet-candidate.vrm ALICE_Designsheet_3D_WIP.vrm
+          cp public/avatars/alice-designsheet-candidate.glb ALICE_Designsheet_3D_WIP.glb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALICE_Designsheet_3D_WIP_verified
+          path: |
+            ALICE_Designsheet_3D_WIP.vrm
+            ALICE_Designsheet_3D_WIP.glb
+            ALICE_3D_manifest.json
+          if-no-files-found: error
