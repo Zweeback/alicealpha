@@ -6,16 +6,7 @@ import { createRenderQueue } from './renderQueue.js';
 import './newsStudio.css';
 
 const defaultScript = 'Guten Abend. Hier ist Parallax News. Ich bin Alice.';
-const defaultArticleInput = `{
-  "articles": [
-    {
-      "title": "Beispielmeldung",
-      "body": "Hier kommt ein Artikel oder Rohtext hinein. Die Engine trennt ihn automatisch in sendefähige Moderationssegmente. Jedes Segment wird zu einer eigenen Alice-Szene mit Quelle, Evidenzstatus und Rendervertrag.",
-      "source": "Redaktion",
-      "evidence": "VERIFIED"
-    }
-  ]
-}`;
+const defaultArticleInput = '';
 
 function visemeFor(character) {
   const ch = String(character || '').toLowerCase();
