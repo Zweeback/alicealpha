@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { getGLTFLoader } from '../xr/loader.js';
+import { createBroadcastSet } from './BroadcastSet.js';
 
 function damp(current, target, lambda, dt) {
   return THREE.MathUtils.damp(current, target, lambda, dt);
@@ -195,6 +196,7 @@ export class NewsWorld {
     this.scene.add(this.anchor.root);
 
     this.#buildStudio();
+    this.setShot('anchor');
     this.#wire();
     this.resize();
     this.renderer.setAnimationLoop(this.#render);
@@ -239,6 +241,9 @@ export class NewsWorld {
     );
     wall.position.y = 0.7;
     this.scene.add(wall);
+
+    this.broadcastSet = createBroadcastSet();
+    this.scene.add(this.broadcastSet.root);
   }
 
   #wire() {
@@ -289,6 +294,28 @@ export class NewsWorld {
     model.position.y -= bounds.min.y + 1.12;
     this.camera.position.set(0, Math.max(0.4, size.y * 0.48), Math.max(2.8, size.y * 1.55));
     this.camera.lookAt(0, Math.max(0.35, size.y * 0.46), 0);
+  }
+
+  setShot(name = 'anchor') {
+    const presets = {
+      anchor: { pos: [0, 0.95, 3.75], target: [0, 0.56, 0], fov: 41 },
+      wide: { pos: [0, 1.55, 7.2], target: [0, 0.35, -0.5], fov: 54 },
+      side: { pos: [3.2, 1.25, 4.5], target: [0, 0.45, -0.2], fov: 48 },
+      close: { pos: [0, 1.32, 2.35], target: [0, 1.22, 0], fov: 35 },
+    };
+    const shot = presets[name] || presets.anchor;
+    this.camera.fov = shot.fov;
+    this.camera.position.set(...shot.pos);
+    this.camera.lookAt(...shot.target);
+    this.camera.updateProjectionMatrix();
+  }
+
+  setHeadline(text) {
+    this.broadcastSet?.setHeadline(text);
+  }
+
+  setOnAir(enabled) {
+    this.broadcastSet?.setOnAir(enabled);
   }
 
   setAvatarStyle(style = 'anime') {
@@ -454,6 +481,7 @@ export class NewsWorld {
   dispose() {
     window.removeEventListener('resize', this.resize);
     this.renderer.setAnimationLoop(null);
+    this.broadcastSet?.dispose();
     this.renderer.dispose();
   }
 }
