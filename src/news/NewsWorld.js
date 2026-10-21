@@ -284,6 +284,19 @@ export class NewsWorld {
     return { vrm: Boolean(this.vrm) };
   }
 
+  async loadAssetFile(file) {
+    if (!file || !/\.(vrm|glb)$/i.test(file.name || '')) {
+      throw new Error('Bitte eine .vrm- oder .glb-Datei wählen.');
+    }
+    if (file.size > 50 * 1024 * 1024) throw new Error('Maximal 50 MB pro Avatar.');
+    const localUrl = URL.createObjectURL(file);
+    try {
+      return await this.loadAsset(localUrl);
+    } finally {
+      URL.revokeObjectURL(localUrl);
+    }
+  }
+
   #frame(model) {
     model.updateMatrixWorld(true);
     const bounds = new THREE.Box3().setFromObject(model);
