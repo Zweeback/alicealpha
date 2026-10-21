@@ -189,6 +189,8 @@ export default function NewsStudio() {
 
       setSelectedScene(index);
       setScript(scene.script);
+      setShot(index === 0 ? 'wide' : index % 3 === 0 ? 'side' : index % 3 === 2 ? 'close' : 'anchor');
+      worldRef.current?.playCue(index === 0 ? 'present' : 'nod', 900);
       speakText(scene.script, () => play(index + 1));
     };
 
@@ -249,6 +251,23 @@ export default function NewsStudio() {
     } catch {
       setAssetStatus('MISSING → FALLBACK');
       setAsset('procedural');
+    }
+  };
+
+  const previewLocalAvatar = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAssetStatus('IMPORTING LOCAL AVATAR');
+    try {
+      const result = await worldRef.current?.loadAssetFile(file);
+      worldRef.current?.setShot(shot);
+      setAsset('local-file');
+      setAssetStatus(result?.vrm ? 'LOKALER VRM LIVE' : 'LOKALER GLB LIVE');
+    } catch (error) {
+      setAssetStatus('IMPORT FEHLGESCHLAGEN');
+      console.error('Local avatar import failed:', error);
+    } finally {
+      event.target.value = '';
     }
   };
 
@@ -397,7 +416,11 @@ export default function NewsStudio() {
 
         <section className="news-panel">
           <label>Avatar-Asset</label>
+          <label htmlFor="local-news-avatar" className="news-import-label">Eigenen VRM/GLB lokal einsetzen · kein Upload an GitHub</label>
+          <input id="local-news-avatar" type="file" accept=".vrm,.glb,model/gltf-binary"
+            onChange={previewLocalAvatar} className="news-file-input" />
           <select value={asset} onChange={(event) => selectAsset(event.target.value)}>
+            <option value="local-file" disabled>Lokaler VRM/GLB · Sitzungs-Vorschau</option>
             <option value="alice-glb">/alice.glb · echter 3D-Kandidat</option>
             <option value="procedural">Prozedurale Alice · Fallback</option>
             <option value="news-vrm">/alice-news.vrm</option>
