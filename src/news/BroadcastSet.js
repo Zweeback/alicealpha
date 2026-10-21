@@ -57,6 +57,7 @@ function textTexture({ title, eyebrow, footer, accent = '#57d9ed', compact = fal
   ctx.letterSpacing = '5px';
   ctx.fillText((eyebrow || 'ALICE NETWORK').toUpperCase(), 74, 93);
   ctx.fillStyle = '#f4f7fc';
+  ctx.font = '800 ' + (compact ? 53 : 75) + 'px Arial,sans-serif';
   const lines = [];
   const words = String(title || 'PARALLAX NEWS').trim().split(/\s+/);
   let current = '';
@@ -94,6 +95,7 @@ export function createBroadcastSet() {
   });
   const electric = glow('#50d4eb');
   const warm = glow('#ff435e');
+  const standby = glow('#324052');
   const screenBack = mat('#0a1627', 0.2, 0.62);
   const generatedTextures = [];
   const displays = [];
@@ -190,7 +192,7 @@ export function createBroadcastSet() {
     block(root, 'light-rig-' + x, [1.75, .06, .1], [x, 2.83, -.55], steel);
     block(root, 'softbox-' + x, [1.45, .045, .36], [x, 2.75, -.48], glow('#fff4dc'));
   }
-  const tally = block(root, 'tally-sign', [1.05, .25, .08], [0, 2.54, -3.23], glow('#324052'));
+  const tally = block(root, 'tally-sign', [1.05, .25, .08], [0, 2.54, -3.23], standby);
   const state = { onAir: false, headline: 'PARALLAX NEWS' };
 
   function setHeadline(headline) {
@@ -215,11 +217,12 @@ export function createBroadcastSet() {
   }
   function setOnAir(enabled) {
     state.onAir = Boolean(enabled);
-    tally.material = state.onAir ? warm : glow('#324052');
+    tally.material = state.onAir ? warm : standby;
     tally.name = state.onAir ? 'ON_AIR' : 'STANDBY';
   }
   function dispose() {
     generatedTextures.forEach((texture) => texture.dispose());
+    standby.dispose();
     root.traverse((object) => {
       if (object.geometry) object.geometry.dispose();
       const materials = object.material ? (Array.isArray(object.material) ? object.material : [object.material]) : [];
