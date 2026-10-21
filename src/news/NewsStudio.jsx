@@ -48,6 +48,7 @@ export default function NewsStudio() {
   const [assetStatus, setAssetStatus] = useState('LOADING ALICE GLB');
   const [cameraStatus, setCameraStatus] = useState('CAMERA OFF');
   const [avatarStyle, setAvatarStyle] = useState('anime');
+  const [shot, setShot] = useState('anchor');
 
   const voices = useMemo(() => globalThis.speechSynthesis?.getVoices?.() || [], [state]);
   const activeScene = plan.scenes[selectedScene] || null;
@@ -86,6 +87,18 @@ export default function NewsStudio() {
   useEffect(() => {
     worldRef.current?.setExpression(expression);
   }, [expression]);
+
+  useEffect(() => {
+    worldRef.current?.setShot(shot);
+  }, [shot]);
+
+  useEffect(() => {
+    worldRef.current?.setOnAir(state === 'ON AIR');
+  }, [state]);
+
+  useEffect(() => {
+    worldRef.current?.setHeadline(activeScene?.lowerThird?.headline || 'PARALLAX NEWS');
+  }, [activeScene?.lowerThird?.headline]);
 
   useEffect(() => {
     worldRef.current?.setLook(look);
@@ -405,6 +418,24 @@ export default function NewsStudio() {
               >
                 {name === 'serious' ? 'SERIÖS' : name === 'warm' ? 'WARM' : name === 'amused' ? 'AMÜSIERT' : 'NEUGIERIG'}
               </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="news-panel">
+          <label>TV-Regie · Kameraschnitt</label>
+          <div className="news-grid four">
+            {[
+              ['anchor', 'CAM 1 · ANKER'],
+              ['wide', 'CAM 2 · TOTAL'],
+              ['side', 'CAM 3 · SEITE'],
+              ['close', 'CAM 4 · CLOSE'],
+            ].map(([name, title]) => (
+              <button type="button" key={name}
+                aria-pressed={shot === name}
+                className={shot === name ? 'selected' : ''}
+                onClick={() => setShot(name)}
+              >{title}</button>
             ))}
           </div>
         </section>
