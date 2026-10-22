@@ -1,0 +1,14 @@
+plugins {
+    id 'com.android.application' version '8.7.3'
+}
+android {
+    namespace 'dev.alice.androidbridge'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'dev.alice.androidbridge'
+        minSdk 29
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+    }
+}
