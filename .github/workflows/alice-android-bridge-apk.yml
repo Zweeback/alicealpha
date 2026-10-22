@@ -6,6 +6,12 @@ on:
     paths:
       - 'android-control/**'
       - '.github/workflows/alice-android-bridge-apk.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'android-control/**'
+      - '.github/workflows/alice-android-bridge-apk.yml'
   workflow_dispatch:
 jobs:
   build:
