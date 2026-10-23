@@ -375,7 +375,11 @@ app.post('/api/tts', express.json({ limit: '64kb' }), async (request, response) 
   }
 });
 
-app.post('/api/glados-tts', express.json({ limit: '64kb' }), async (request, response) => {
+app.post('/api/glados-tts', chatRateLimiter, express.json({ limit: '64kb' }), async (request, response) => {
+  if (!originAllowed(request)) {
+    response.status(403).json({ error: 'glados-origin-denied' });
+    return;
+  }
   const target = process.env.ALICE_GLADOS_TTS_URL;
   if (!target) {
     response.status(503).json({ error: 'glados-tts-not-configured' });

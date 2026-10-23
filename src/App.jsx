@@ -114,6 +114,11 @@ export default function App() {
       setCaption(result.reply);
       // Only report actual speech once playback starts, not while TTS is loading.
       voiceRef.current?.speak(result.plan, {
+        onError: () => {
+          if (voiceModeRef.current === 'glados') {
+            setCaption(`${result.reply} · GLaDOS-Audio nicht erreichbar (keine Ersatzstimme).`);
+          }
+        },
         onStart: () => {
           setPhase('speaking');
           worldRef.current?.playPlan(result.plan);
