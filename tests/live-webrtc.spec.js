@@ -38,7 +38,7 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
     const probe=await page.evaluate(()=>window.__aliceProbe); console.log('ALICE_WEBRTC_PROBE',JSON.stringify(probe)); expect(probe.peerCreated).toBe(true); expect(probe.dataChannelCreated).toBe(true); expect(probe.dataChannelOpen).toBe(true); expect(probe.microphoneGranted).toBe(true); expect(probe.remoteAudioTrack).toBe(true); expect(probe.sessionStatus).toBe(200);
   }else{
     console.log('ALICE_REALTIME_QUOTA_BLOCKED',JSON.stringify(probeBeforeBranch));
-    await expect(page.locator('.live-state')).toContainText('Basismodus',{timeout:30_000});
+    await expect(page.locator('.live-state')).toContainText('Offline · keine KI-Verbindung',{timeout:30_000});
     await expect.poll(async()=>((await page.locator('.alice-caption').textContent().catch(()=>''))||'').trim().length>0,{timeout:30_000}).toBe(true);
     expect(probeBeforeBranch.peerCreated).toBe(true);expect(probeBeforeBranch.dataChannelCreated).toBe(true);expect(probeBeforeBranch.microphoneGranted).toBe(true);expect(probeBeforeBranch.sessionStatus).toBe(429);
   }
@@ -61,7 +61,7 @@ test('touching Alice degrades to free local input when Realtime quota is unavail
   const probe=await page.evaluate(()=>window.__aliceVoiceFallbackProbe);
   expect(probe.peerCreated).toBe(true);expect(probe.dataChannelCreated).toBe(true);expect(probe.microphoneGranted).toBe(true);
   await expect(page.locator('#alice-text')).toBeVisible({timeout:30_000});
-  await expect(page.locator('.live-state')).toContainText('Basismodus',{timeout:30_000});
+  await expect(page.locator('.live-state')).toContainText('Offline · keine KI-Verbindung',{timeout:30_000});
   console.log('ALICE_FREE_FALLBACK_PROBE',JSON.stringify(probe));
   await context.close();await browser.close();
 });
