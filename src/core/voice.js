@@ -149,6 +149,7 @@ export class VoiceChannel {
       onStart: callbacks.onStart || (() => {}),
       onBoundary: callbacks.onBoundary || (() => {}),
       onEnd: callbacks.onEnd || (() => {}),
+      onError: callbacks.onError || (() => {}),
     };
 
     this.stopSpeaking();
@@ -165,8 +166,11 @@ export class VoiceChannel {
     if (this.mode === 'glados' && globalThis.fetch && globalThis.Audio) {
       const controller = new AbortController();
       this.activeTtsController = controller;
-      this.#speakRemote(this.gladosEndpoint, voicedPlan, normalized, controller, 'glados').catch(() => {
-        if (!controller.signal.aborted) this.#speakBrowser(voicedPlan, normalized);
+      this.#speakRemote(this.gladosEndpoint, voicedPlan, normalized, controller, 'glados').catch((error) => {
+        if (controller.signal.aborted) return;
+        this.#releaseAudio();
+        normalized.onError(error);
+        normalized.onEnd();
       });
       return { cancel: () => this.stopSpeaking() };
     }
@@ -214,7 +218,7 @@ export class VoiceChannel {
     return { cancel: () => this.stopSpeaking() };
   }
 
-  async #speakRemote(endpoint, plan, { onStart, onEnd }, controller, provider) {
+  async #speakRemote(endpoint, plan, { onStart, onEnd, onError }, controller, provider) {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -244,6 +248,7 @@ export class VoiceChannel {
     };
     audio.onerror = () => {
       this.#releaseAudio();
+      onError(new Error('tts-playback-failed'));
       onEnd();
     };
     await audio.play();
