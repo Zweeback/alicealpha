@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { handleAliceMcpHttp } from './aliceMcp.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
+import { createGladosUpstreamRequest } from './gladosTransport.js';
 import { callOllama } from './ollama.js';
 import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
@@ -393,16 +394,10 @@ app.post('/api/glados-tts', chatRateLimiter, express.json({ limit: '64kb' }), as
   }
 
   try {
-    const upstream = await fetch(target, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        text: text.slice(0, 1600),
-        language: 'en',
-        provider: 'glados',
-      }),
+    const upstreamRequest = createGladosUpstreamRequest(target, text.slice(0, 1600), {
       signal: AbortSignal.timeout(Math.max(1000, Number(process.env.ALICE_GLADOS_TTS_TIMEOUT_MS || 45000))),
     });
+    const upstream = await fetch(upstreamRequest.url, upstreamRequest.options);
 
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '');
