@@ -84,12 +84,19 @@ export default function VRMViewer() {
     setStatus('Prüfe und lade 3D-Modell …');
     let gltf;
     let vrmParsingError;
+    const isVrmFile = /\\.vrm$/i.test(name);
     try {
-      gltf = await getGLTFLoader().parseAsync(bytes, '');
+      // Plain GLB files must go through the plain glTF loader first. The VRM
+      // plugin is only required for .vrm assets (or GLBs carrying VRM extensions).
+      gltf = isVrmFile
+        ? await getGLTFLoader().parseAsync(bytes, '')
+        : await new GLTFLoader().parseAsync(bytes, '');
     } catch (cause) {
       vrmParsingError = cause;
       try {
-        gltf = await new GLTFLoader().parseAsync(bytes, '');
+        gltf = isVrmFile
+          ? await new GLTFLoader().parseAsync(bytes, '')
+          : await getGLTFLoader().parseAsync(bytes, '');
       } catch (fallbackCause) {
         if (request !== loadIdRef.current) return;
         setLoading(false);
