@@ -16,13 +16,13 @@ Do not attempt to install or run the Unreal Editor on the Pixel 9a, Surface Go 2
 
 ## Production architecture
 
-- **Digital human:** MetaHuman Creator as the canonical high-fidelity human. Do not promote the existing procedural mesh or FBX-derived GLB to final.
-- **Face/performance:** MetaHuman Live Link for real-time audio, mono camera, or supported phone capture; MetaHuman Animator for offline solving. Validate the Pixel 9a against Epic's current device matrix before relying on it.
+- **Digital human:** MetaHuman Creator as the canonical high-fidelity human. UE 5.8's Mesh to MetaHuman can conform both head and body from an arbitrary-topology human mesh, so photogrammetry or a cleaned scan can become the rigged production character. Do not promote the existing procedural mesh or FBX-derived GLB to final.
+- **Face/performance:** MetaHuman Live Link for real-time audio, mono camera, or supported phone capture; MetaHuman Animator for offline solving. UE 5.8 adds single-camera markerless body capture (experimental plugin via Fab) and improved audio-driven face animation. Validate the Pixel 9a against Epic's current device matrix before relying on it.
 - **Body:** Control Rig and Animation Blueprint; use motion capture / retargeted animation rather than hand-authored primitive ellipsoids.
 - **Skin, eyes, hair, cloth:** MetaHuman physically based materials, strand grooms, layered skin shading, eye refraction/cornea and groom/cloth simulation. Tune under neutral daylight and cinematic key/fill/rim setups.
 - **Lighting/render:** Lumen GI/reflections as the default scalable baseline. Enable hardware ray tracing only on a validated GPU; it has a material performance cost. Use Movie Render Queue for offline hero shots.
 - **Worlds / photogrammetry:** use RealityScan/RealityCapture or Blender for reconstruction and cleanup; import calibrated meshes/materials. Use Nanite for suitable dense static environments, not as a substitute for a properly rigged digital human.
-- **Gaussian splats:** evaluate YaGS as an optional environment-capture plugin, not as the avatar body. Its documented target is UE 5.5+ and its recommended GPU baseline is RTX 3070 / RX 6700 XT class with 8 GB+ VRAM. Pin a release/commit and validate its license and build against UE 5.8 before adding it.
+- **Gaussian splats:** evaluate YaGS as an optional environment-capture plugin, not as the avatar body. Its current README declares UE 5.5–5.7 support (recommended 5.7.3), DX12/Vulkan, and 8 GB+ VRAM; it is Apache-2.0. Do **not** add it to the UE 5.8 project until a UE 5.8 build is verified. Use it for captured environments, not the animated human.
 - **VR/AR:** OpenXR for headset VR; retain the current WebXR/PWA surface for browser/mobile. Build a separate Android AR path only after device and rendering profiling. Do not promise desktop MetaHuman fidelity on a mobile GPU.
 - **Pixel sprites / 2D effects:** use Niagara flipbooks, sprites and render-target compositing for stylized effects and UI accents. Keep these as a separate presentation layer; they do not replace physically based skin, hair or face geometry.
 - **Voice / Companion:** the existing Node/Realtime and companion memory APIs remain authoritative. Unreal receives bounded semantic cues (emotion, gaze, gesture, viseme/audio energy) through a versioned local WebSocket adapter; Unreal never receives model credentials or writes confirmed memory.
@@ -37,7 +37,7 @@ The existing `public/avatars/alice-fbx-source.glb` remains a reference/import ca
 ## Install and verification
 
 1. Install Epic Games Launcher and Unreal Engine 5.8 on the workstation; select MetaHuman Creator Core Data.
-2. Open `ALICE/ALICE.uproject` and allow the editor to compile shaders and initialize plugins.
+2. Open `ALICE/ALICE.uproject` and allow the editor to compile shaders and initialize plugins. This is a Blueprint-first scaffold; no native C++ module is present yet.
 3. Create a MetaHuman character asset in the Content Browser and assemble it into `/Game/ALICE/Characters`.
 4. Create `L_ALICE_Studio`, then add the MetaHuman, neutral studio lighting, CineCameraActor and Post Process Volume.
 5. Connect the MetaHuman Live Link source and test audio/mono-camera capture before phone capture.
