@@ -3,13 +3,6 @@
   "EngineAssociation": "5.8",
   "Category": "Open Alice Project",
   "Description": "Unreal Engine digital-human, realtime performance, cinematic and XR runtime for ALICE.",
-  "Modules": [
-    {
-      "Name": "ALICE",
-      "Type": "Runtime",
-      "LoadingPhase": "Default"
-    }
-  ],
   "Plugins": [
     {
       "Name": "MetaHumanCreator",
