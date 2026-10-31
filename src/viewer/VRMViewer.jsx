@@ -314,7 +314,7 @@ export default function VRMViewer() {
         <div>
           <span className="vrm-overline">CHARACTER LAB · ALICE / GLB + VRM</span>
           <h1>ALICE <em>3D Viewer</em></h1>
-          <p>FBX-abgeleiteter VRM-Kandidat · Live-Inspektion</p>
+          <p>{fileName.endsWith('.glb') ? 'FBX-abgeleiteter GLB-Quellkandidat · Live-Inspektion' : 'FBX-abgeleiteter VRM-Kandidat · Live-Inspektion'}</p>
         </div>
         <a href="./" className="vrm-back">← ALICE Hauptansicht</a>
       </header>
