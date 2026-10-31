@@ -5,8 +5,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getGLTFLoader } from '../xr/loader.js';
 import './vrmViewer.css';
 
-export const BUILT_IN_VRM = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
-const SOURCE_GLB = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
+export const BUILT_IN_GLB = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
+export const BUILT_IN_VRM = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.vrm';
+const SOURCE_GLB = BUILT_IN_GLB;
 const DESIGNSHEET_VRM = import.meta.env.BASE_URL + 'avatars/alice-designsheet-candidate.vrm';
 const EXPRESSIONS = [
   'neutral', 'happy', 'cheerful', 'smile', 'curious', 'surprised',
