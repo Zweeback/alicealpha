@@ -63,7 +63,7 @@ The configured GPT name “Open Alice Project” and the repository product name
 
 ### Visual proof and limits
 
-A Playwright/Chromium run on 31 October 2026 loaded the FBX-derived GLB into the Three.js viewer. The successful run reported HTTP 200 for the GLB, 8 meshes, 73 bones, no browser errors and produced a screenshot artifact. A separate successful VRM browser run reported VRM 1.0 loaded, 8 meshes, 73 bones, the expression controls and no browser errors.
+The dual-format Playwright/Chromium proof is run https://github.com/Zweeback/alicealpha/actions/runs/41157182363 (success; tested commit `823171db0a30e415f87ae8018c73d769500436db`; artifact ID `13026275826`). It loaded both source files with HTTP 200, captured GLB and VRM screenshots, reported 8 meshes, 73 bones, 73,908 triangles, 66 morph targets and 0 embedded animation clips, and found no browser errors. The GLB canvas pixel check measured 13,959 unique sampled colors and 36,065 non-background pixels. A separate VRM-only smoke run also succeeded: https://github.com/Zweeback/alicealpha/actions/runs/41156923394 (commit `ede69c369ebc943a6c4a2a7ec069e5ea2ba45074`). These are dated evidence runs, not a claim that every later viewer-code revision has already passed the same browser test.
 
 These tests prove that the files load and render. They do **not** prove identity fidelity, clean deformation under animation, body-animation clips, or final approval. The source conversion record lists no embedded animation actions. The rendered candidate shown in the QA screenshot is a T-pose character in a shirt and jeans; it is not yet verified against the intended towel-Alice reference.
 
