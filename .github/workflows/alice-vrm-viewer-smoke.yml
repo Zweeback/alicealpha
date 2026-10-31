@@ -64,16 +64,20 @@ jobs:
             const meshCount=await page.locator('.vrm-audit dd').nth(1).innerText();
             const boneCount=await page.locator('.vrm-audit dd').nth(2).innerText();
             const expressionButtons=await page.locator('.vrm-expressions button').allTextContents();
-            const result={status,alerts:alert,meshCount,boneCount,expressionButtons,responses,errors};
-            console.log('ALICE_VRM_VIEWER_SMOKE='+JSON.stringify(result));
+            await page.waitForTimeout(1500);
+            const canvasInfo=await page.locator('.vrm-stage canvas').evaluate(c=>({
+              width:c.width,height:c.height,pngBytes:c.toDataURL('image/png').length
+            }));
+            const result={status,alerts:alert,meshCount,boneCount,expressionButtons,responses,errors,canvasInfo};
+            console.log('ALICE_GLB_VIEWER_SMOKE='+JSON.stringify(result));
             fs.writeFileSync('alice-glb-viewer-qa.json',JSON.stringify(result,null,2));
             await page.screenshot({path:'alice-glb-viewer-mobile.png',fullPage:true});
             await page.getByRole('button',{name:'Seite'}).click();
             await page.screenshot({path:'alice-glb-viewer-side.png',fullPage:true});
             if(!responses.some(r=>r.status===200)) throw Error('GLB file was not served');
             if(!status.includes('GLB-Rohansicht · VRM-Runtime nicht aktiv')) throw Error('FBX-derived GLB did not load: '+status+' '+alert.join(', '));
-            if(!(Number(meshCount)>0) || !(Number(boneCount)>0)) throw Error('No rigged geometry loaded');
             if(!(Number(meshCount)>0) || !(Number(boneCount)>0)) throw Error('GLB scene has no meshes or rig bones');
+            if(canvasInfo.width<100 || canvasInfo.height<100 || canvasInfo.pngBytes<1000) throw Error('Rendered canvas is empty or too small: '+JSON.stringify(canvasInfo));
             if(errors.length || alert.length) throw Error('Page errors: '+errors.join(' | ')+' / '+alert.join(' | '));
             await browser.close();
           })().catch(e=>{console.error(e);process.exitCode=1;});
@@ -81,9 +85,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: alice-vrm-viewer-qa
+          name: alice-glb-viewer-qa
           path: |
-            alice-vrm-viewer-qa.json
-            alice-vrm-viewer-mobile.png
-            alice-vrm-viewer-side.png
+            alice-glb-viewer-qa.json
+            alice-glb-viewer-mobile.png
+            alice-glb-viewer-side.png
           if-no-files-found: warn
