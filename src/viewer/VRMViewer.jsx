@@ -74,7 +74,7 @@ export default function VRMViewer() {
   const [expression, setExpression] = useState('neutral');
   const [turntable, setTurntable] = useState(false);
   const [grid, setGrid] = useState(true);
-  const [fileName, setFileName] = useState('alice-fbx-source.vrm');
+  const [fileName, setFileName] = useState('alice-fbx-source.glb');
   const [loading, setLoading] = useState(true);
 
   const loadBytes = useCallback(async (bytes, name) => {
@@ -231,10 +231,13 @@ export default function VRMViewer() {
         webgl.render(scene, camera);
       });
       const selectedModel = new URLSearchParams(globalThis.location.search).get('model');
-      loadBundled(selectedModel === 'designsheet' ? DESIGNSHEET_VRM
-        : selectedModel === 'glb' ? BUILT_IN_GLB : BUILT_IN_VRM,
-        selectedModel === 'designsheet' ? 'alice-designsheet-candidate.vrm'
-          : selectedModel === 'glb' ? 'alice-fbx-source.glb' : 'alice-fbx-source.vrm');
+      // The repository's verified built-in source asset is GLB. VRM remains an
+      // explicit opt-in only; the default viewer must not request a missing .vrm.
+      const useDesignsheet = selectedModel === 'designsheet';
+      const useVrm = selectedModel === 'vrm';
+      loadBundled(useDesignsheet ? DESIGNSHEET_VRM : useVrm ? BUILT_IN_VRM : BUILT_IN_GLB,
+        useDesignsheet ? 'alice-designsheet-candidate.vrm'
+          : useVrm ? 'alice-fbx-source.vrm' : 'alice-fbx-source.glb');
     } catch (cause) {
       setError('WebGL konnte nicht gestartet werden: ' + String(cause?.message || cause));
       setLoading(false);
