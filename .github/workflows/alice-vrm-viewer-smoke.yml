@@ -73,7 +73,7 @@ jobs:
             if(!responses.some(r=>r.status===200)) throw Error('GLB file was not served');
             if(!status.includes('GLB-Rohansicht · VRM-Runtime nicht aktiv')) throw Error('FBX-derived GLB did not load as a GLB scene: '+status+' '+alert.join(', '));
             if(!(Number(meshCount)>0) || !(Number(boneCount)>0)) throw Error('No rigged geometry loaded');
-            if(!expressionButtons.includes('happy')) throw Error('VRM happy expression missing');
+            if(!expressionButtons.includes('aa')) throw Error('GLB phoneme morph aa missing');
             if(errors.length || alert.length) throw Error('Page errors: '+errors.join(' | ')+' / '+alert.join(' | '));
             await browser.close();
           })().catch(e=>{console.error(e);process.exitCode=1;});
