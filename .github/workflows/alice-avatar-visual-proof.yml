@@ -1,0 +1,125 @@
+name: ALICE avatar visual proof
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/viewer/**'
+      - 'src/main.jsx'
+      - 'src/xr/loader.js'
+      - 'public/avatars/alice-fbx-source.glb'
+      - 'public/avatars/alice-fbx-source.vrm'
+      - '.github/workflows/alice-avatar-visual-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start production preview
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/alice-preview.log 2>&1 &
+          for i in {1..60}; do
+            if curl -fsS 'http://127.0.0.1:4173/?viewer=vrm' >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/alice-preview.log
+          exit 1
+      - name: Load both source formats and capture real browser frames
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          (async () => {
+            const browser = await chromium.launch({ headless: true, args: [
+              '--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader'
+            ]});
+            const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
+            const errors = [], responses = [];
+            page.on('pageerror', e => errors.push(e.message));
+            page.on('response', r => {
+              if (r.url().includes('alice-fbx-source.')) responses.push({ url: r.url(), status: r.status() });
+            });
+            await page.goto('http://127.0.0.1:4173/?viewer=vrm', { waitUntil: 'domcontentloaded' });
+            await page.waitForFunction(() => {
+              const status = document.querySelector('.vrm-stage-top')?.innerText || '';
+              return status.includes('GLB-Rohansicht') || !!document.querySelector('[role=alert]');
+            }, { timeout: 120000 });
+            await page.waitForTimeout(1500);
+            const glbStatus = await page.locator('.vrm-stage-top').innerText();
+            const glbAlert = await page.locator('[role=alert]').allTextContents();
+            const glbName = await page.locator('.vrm-filename').innerText();
+            const glbMetrics = await page.locator('.vrm-audit dd').allTextContents();
+            const glbCanvas = await page.locator('canvas').evaluate(canvas => {
+              const gl = canvas.getContext('webgl2');
+              if (!gl) return { ok: false, reason: 'WebGL2 unavailable' };
+              const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
+              const pixels = new Uint8Array(width * height * 4);
+              gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+              const colors = new Set();
+              let nonBackground = 0;
+              const bg = [pixels[0], pixels[1], pixels[2]];
+              for (let i = 0; i < pixels.length; i += 4) {
+                const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
+                colors.add(r+','+g+','+b);
+                if (Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2]) > 18) nonBackground++;
+              }
+              return { ok: true, width, height, uniqueSampledColors: colors.size, nonBackgroundPixels: nonBackground };
+            });
+            await page.screenshot({ path: 'alice-source-glb-mobile.png', fullPage: true });
+            if (!glbStatus.includes('GLB-Rohansicht')) throw new Error('GLB did not load: '+glbStatus+' '+glbAlert.join(' | '));
+            if (glbAlert.length) throw new Error('GLB alert: '+glbAlert.join(' | '));
+            if (glbName !== 'alice-fbx-source.glb') throw new Error('Incorrect loaded asset label: '+glbName);
+            if (!(Number(glbMetrics[1]) > 0) || !(Number(glbMetrics[2]) > 0) || !(Number(glbMetrics[3]) > 0))
+              throw new Error('GLB geometry/rig/triangles missing: '+JSON.stringify(glbMetrics));
+            if (!glbCanvas.ok || glbCanvas.width === 0 || glbCanvas.height === 0 || glbCanvas.uniqueSampledColors < 20 || glbCanvas.nonBackgroundPixels < 100)
+              throw new Error('GLB frame is blank or WebGL unavailable: '+JSON.stringify(glbCanvas));
+
+            await page.getByRole('button', { name: 'FBX-VRM' }).click();
+            await page.waitForFunction(() => {
+              const status = document.querySelector('.vrm-stage-top')?.innerText || '';
+              return status.includes('VRM 1.0 · 3D-Modell geladen') || !!document.querySelector('[role=alert]');
+            }, { timeout: 120000 });
+            await page.waitForTimeout(1000);
+            const vrmStatus = await page.locator('.vrm-stage-top').innerText();
+            const vrmAlert = await page.locator('[role=alert]').allTextContents();
+            const vrmMetrics = await page.locator('.vrm-audit dd').allTextContents();
+            const expressions = await page.locator('.vrm-expressions button').allTextContents();
+            await page.screenshot({ path: 'alice-source-vrm-mobile.png', fullPage: true });
+            const result = { glb: { status: glbStatus, file: glbName, metrics: glbMetrics, canvas: glbCanvas }, vrm: { status: vrmStatus, metrics: vrmMetrics, expressions }, responses, errors };
+            fs.writeFileSync('alice-avatar-visual-proof.json', JSON.stringify(result, null, 2));
+            console.log('ALICE_AVATAR_VISUAL_PROOF='+JSON.stringify(result));
+            await browser.close();
+            if (!vrmStatus.includes('VRM 1.0 · 3D-Modell geladen')) throw new Error('VRM plugin did not load: '+vrmStatus+' '+vrmAlert.join(' | '));
+            if (vrmAlert.length || errors.length) throw new Error('Browser errors: '+errors.join(' | ')+' / '+vrmAlert.join(' | '));
+            if (!(Number(vrmMetrics[1]) > 0) || !(Number(vrmMetrics[2]) > 0)) throw new Error('VRM geometry/rig missing');
+            if (!expressions.includes('happy')) throw new Error('VRM happy expression missing');
+            if (!responses.some(r => r.url.includes('.glb') && r.status === 200)) throw new Error('GLB source was not served');
+            if (!responses.some(r => r.url.includes('.vrm') && r.status === 200)) throw new Error('VRM source was not served');
+          })().catch(e => { console.error(e); process.exitCode = 1; });
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-avatar-visual-proof
+          path: |
+            alice-avatar-visual-proof.json
+            alice-source-glb-mobile.png
+            alice-source-vrm-mobile.png
+            /tmp/alice-preview.log
+          if-no-files-found: warn
