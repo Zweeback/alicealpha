@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AvatarWorkbench } from '../avatar/AvatarWorkbench.js';
 import { getGLTFLoader } from '../xr/loader.js';
+import { collectWorkbenchSnapshot } from './vrmComponentStats.js';
 
+const BASE = import.meta.env.BASE_URL;
 const SOURCES = {
-  original: '/avatars/alice-fbx-source.vrm',
-  design: '/avatars/alice-designsheet-candidate.vrm',
-  glb: '/avatars/alice-fbx-source.glb',
+  original: `${BASE}avatars/alice-fbx-source.vrm`,
+  design: `${BASE}avatars/alice-designsheet-candidate.vrm`,
+  glb: `${BASE}avatars/alice-fbx-source.glb`,
 };
 
 const css = `
@@ -35,14 +37,16 @@ export default function VRMComponentsApp(){
   const [source,setSource]=useState('alice-fbx-source.vrm');
   const [busy,setBusy]=useState(false);
   const refresh=()=>{
-    const w=workbenchRef.current;if(!w?.model)return;
-    const items=[];w.model.traverse(o=>{if(o.isMesh)items.push({name:o.name||'Mesh',visible:o.visible,uuid:o.uuid});});
-    setParts(items);setStats({type:w.type,boneCount:w.bones.length,meshCount:w.countMeshes(),bones:w.bones.map(b=>b.name),morphs:[...new Set(items.flatMap(x=>[]))]});
+    const w=workbenchRef.current;
+    if(!w?.model)return;
+    const snapshot=collectWorkbenchSnapshot(w);
+    setParts(snapshot.parts);
+    setStats(snapshot.stats);
   };
   useEffect(()=>{
     let alive=true;
     try{
-      const w=new AvatarWorkbench(canvasRef.current, next=>{if(alive){setStats(next);refresh();}});
+      const w=new AvatarWorkbench(canvasRef.current,()=>{if(alive)refresh();});
       workbenchRef.current=w;
       const load=async()=>{
         try{
@@ -52,9 +56,11 @@ export default function VRMComponentsApp(){
           const gltf=await getGLTFLoader().parseAsync(bytes,'');
           if(!alive)return;
           const vrm=gltf.userData?.vrm||null;
-          w.setModel(vrm?.scene||gltf.scene,vrm,'vrm');
-          setSource('alice-fbx-source.vrm');setStatus(vrm?'Original-VRM geladen':'GLB/VRM-Szene geladen');refresh();
-        }catch(e){setStatus('Prozeduraler Startkörper aktiv');setError(String(e.message||e));refresh();}
+          w.setModel(vrm?.scene||gltf.scene,vrm,vrm?'vrm':'glb');
+          setSource('alice-fbx-source.vrm');
+          setStatus(vrm?'Original-VRM geladen':'GLB/VRM-Szene geladen · VRM-Erweiterung nicht aktiv');
+          refresh();
+        }catch(e){if(!alive)return;setStatus('Prozeduraler Startkörper aktiv');setError(String(e.message||e));refresh();}
       };
       load();
     }catch(e){setError(String(e.message||e));setStatus('WebGL konnte nicht gestartet werden');}
@@ -65,20 +71,22 @@ export default function VRMComponentsApp(){
     try{
       const response=await fetch(SOURCES[key]);if(!response.ok)throw new Error('HTTP '+response.status);
       const bytes=await response.arrayBuffer();const gltf=await getGLTFLoader().parseAsync(bytes,'');
-      const vrm=gltf.userData?.vrm||null;workbenchRef.current.setModel(vrm?.scene||gltf.scene,vrm,key==='glb'?'glb':'vrm');
+      const vrm=gltf.userData?.vrm||null;
+      workbenchRef.current.setModel(vrm?.scene||gltf.scene,vrm,vrm?'vrm':'glb');
       setSource(key==='original'?'alice-fbx-source.vrm':key==='design'?'alice-designsheet-candidate.vrm':'alice-fbx-source.glb');
-      setStatus('Geladen · '+key);refresh();
+      setStatus(vrm?'VRM geladen · '+key:'GLB geladen · '+key);
+      refresh();
     }catch(e){setError(String(e.message||e));setStatus('Laden fehlgeschlagen');}
     finally{setBusy(false);}
   };
   const upload=async e=>{const f=e.target.files?.[0];if(!f)return;setBusy(true);setError('');try{await workbenchRef.current.loadFile(f);setSource(f.name);setStatus('Importiert · '+f.name);refresh();}catch(x){setError(String(x.message||x));}finally{setBusy(false);e.target.value='';}};
   const toggle=(uuid,visible)=>{workbenchRef.current?.model?.traverse(o=>{if(o.uuid===uuid)o.visible=visible;});setParts(p=>p.map(x=>x.uuid===uuid?{...x,visible}:x));};
-  const exportModel=async()=>{try{const blob=await workbenchRef.current.exportGLB();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='alice-components-edit.glb';a.click();URL.revokeObjectURL(url);setStatus('GLB exportiert');}catch(e){setError(String(e.message||e));}};
+  const exportModel=async()=>{try{const blob=await workbenchRef.current.exportGLB();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='alice-components-edit.glb';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);setStatus('GLB exportiert');}catch(e){setError(String(e.message||e));}};
   return <main className="vca"><style>{css}</style><header><div><div className="eyebrow">ALICE · VRM COMPONENT LAB / MVP</div><h1>3D-Komponenten-App</h1><p>Modell laden · Meshes ein-/ausblenden · prüfen · als GLB exportieren</p></div><a href="./?viewer=vrm" style={{color:'#c6b9ff'}}>Zum VRM-Viewer ↗</a></header>
   <section className="vca-grid"><div className="vca-stage"><canvas ref={canvasRef}/><div className="status">{status}</div></div><aside className="vca-side">
     <section className="vca-panel"><h2>MODELLQUELLE</h2><div className="muted">{source}</div><div className="row" style={{marginTop:10}}><button disabled={busy} onClick={()=>loadBuiltIn('original')}>Original VRM</button><button disabled={busy} onClick={()=>loadBuiltIn('design')}>Design-WIP</button><button disabled={busy} onClick={()=>loadBuiltIn('glb')}>Quell-GLB</button></div><label className="upload"><input type="file" accept=".vrm,.glb" onChange={upload}/>Eigene VRM / GLB importieren</label></section>
-    <section className="vca-panel"><h2>KOMPONENTEN / MESHES</h2><div className="parts">{parts.map((p,i)=><label className="part" key={p.uuid}><input type="checkbox" checked={p.visible} onChange={e=>toggle(p.uuid,e.target.checked)}/><span>{p.name}</span></label>)}</div><p className="muted">Jede Mesh-Komponente lässt sich separat sichtbar oder unsichtbar schalten. Das Original-Rig bleibt beim Laden erhalten.</p></section>
-    <section className="vca-panel"><h2>MODELLAUDIT</h2><div className="metric"><span>Format</span><b>{stats.type}</b></div><div className="metric"><span>Meshes</span><b>{stats.meshCount}</b></div><div className="metric"><span>Bones</span><b>{stats.boneCount}</b></div><div className="metric"><span>Expressions</span><b>{stats.morphs?.length||0}</b></div><div className="metric"><span>Rig-Knoten</span><b>{stats.bones?.length||0}</b></div></section>
+    <section className="vca-panel"><h2>KOMPONENTEN / MESHES</h2><div className="parts">{parts.map(p=><label className="part" key={p.uuid}><input type="checkbox" checked={p.visible} onChange={e=>toggle(p.uuid,e.target.checked)}/><span>{p.name}</span></label>)}</div><p className="muted">Jede Mesh-Komponente lässt sich separat sichtbar oder unsichtbar schalten. Das Original-Rig bleibt beim Laden erhalten.</p></section>
+    <section className="vca-panel"><h2>MODELLAUDIT</h2><div className="metric"><span>Format</span><b>{stats.type}</b></div><div className="metric"><span>Meshes</span><b>{stats.meshCount}</b></div><div className="metric"><span>Bones</span><b>{stats.boneCount}</b></div><div className="metric"><span>Morph Targets</span><b>{stats.morphs?.length||0}</b></div><div className="metric"><span>Rig-Knoten</span><b>{stats.bones?.length||0}</b></div></section>
     <section className="vca-panel"><h2>EXPORT / EDITOR</h2><div className="row"><button onClick={()=>workbenchRef.current?.resetPose()}>Pose zurücksetzen</button><button onClick={exportModel}>GLB exportieren</button><button onClick={()=>workbenchRef.current?.undo()}>Sculpt rückgängig</button></div><p className="muted">Orbit: ziehen · Zoom: Pinch/Mausrad. Der Sculpt-Editor und Bone-Editor sind im Workbench-Kern vorhanden; dieser MVP bindet zuerst Mesh-Komponenten und Export an.</p>{error&&<p role="alert" style={{color:'#ffb4bd'}}>{error}</p>}</section>
   </aside></section></main>;
 }
