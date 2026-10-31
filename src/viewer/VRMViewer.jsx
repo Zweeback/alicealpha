@@ -223,10 +223,11 @@ export default function VRMViewer() {
         controls.update();
         webgl.render(scene, camera);
       });
-      loadBundled(new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
-        ? DESIGNSHEET_VRM : BUILT_IN_VRM,
-        new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
-          ? 'alice-designsheet-candidate.vrm' : 'alice-fbx-source.glb');
+      const selectedModel = new URLSearchParams(globalThis.location.search).get('model');
+      loadBundled(selectedModel === 'designsheet' ? DESIGNSHEET_VRM
+        : selectedModel === 'glb' ? BUILT_IN_GLB : BUILT_IN_VRM,
+        selectedModel === 'designsheet' ? 'alice-designsheet-candidate.vrm'
+          : selectedModel === 'glb' ? 'alice-fbx-source.glb' : 'alice-fbx-source.vrm');
     } catch (cause) {
       setError('WebGL konnte nicht gestartet werden: ' + String(cause?.message || cause));
       setLoading(false);
