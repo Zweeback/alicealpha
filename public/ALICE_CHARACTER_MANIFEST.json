@@ -40,7 +40,7 @@
       "path": "/avatars/candidates/model.fbx",
       "kind": "fbx",
       "status": "candidate",
-      "provenance": "FBX avatar candidate source imported from validated PR #97; not canonical until promotion gate approval",
+      "provenance": "Repository records SHA-256 da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59. The identical Git blob (accf84261c30260a2e047b621e0bf633a83bba06) exists on main and in open PR #97; main registration commit 54f21e04933b2200fab634176f00dede4a413c92. PR #97 remains unmerged. Original creator, source licence and redistribution rights are not independently verified; candidate only.",
       "sha256": "da4e5c3bc65b21bdbf9c73c2651df81a645bb315d747c2d9383aa0da025e4c59"
     }
   ],
