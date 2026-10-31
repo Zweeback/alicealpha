@@ -84,7 +84,7 @@ export default function VRMViewer() {
     setStatus('Prüfe und lade 3D-Modell …');
     let gltf;
     let vrmParsingError;
-    const isVrmFile = /\\.vrm$/i.test(name);
+    const isVrmFile = /\.vrm$/i.test(name);
     try {
       // Plain GLB files must go through the plain glTF loader first. The VRM
       // plugin is only required for .vrm assets (or GLBs carrying VRM extensions).
