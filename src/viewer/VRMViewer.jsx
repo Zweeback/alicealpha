@@ -67,7 +67,7 @@ export default function VRMViewer() {
   const canvasRef = useRef(null);
   const runtimeRef = useRef(null);
   const loadIdRef = useRef(0);
-  const [status, setStatus] = useState('Lade ALICE VRM …');
+  const [status, setStatus] = useState('Lade ALICE 3D-Modell …');
   const [error, setError] = useState('');
   const [info, setInfo] = useState(null);
   const [expression, setExpression] = useState('neutral');
@@ -225,7 +225,7 @@ export default function VRMViewer() {
       loadBundled(new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
         ? DESIGNSHEET_VRM : BUILT_IN_VRM,
         new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
-          ? 'alice-designsheet-candidate.vrm' : 'alice-fbx-source.vrm');
+          ? 'alice-designsheet-candidate.vrm' : 'alice-fbx-source.glb');
     } catch (cause) {
       setError('WebGL konnte nicht gestartet werden: ' + String(cause?.message || cause));
       setLoading(false);
@@ -303,9 +303,9 @@ export default function VRMViewer() {
     <main className="vrm-viewer-shell">
       <header className="vrm-top">
         <div>
-          <span className="vrm-overline">CHARACTER LAB · ALICE / VRM 1.0</span>
+          <span className="vrm-overline">CHARACTER LAB · ALICE / FBX → GLB</span>
           <h1>ALICE <em>3D Viewer</em></h1>
-          <p>Original-Mesh · Live-Inspektion · kein Ersatzavatar</p>
+          <p>Originalmodell · Live-Inspektion · kein Ersatzavatar</p>
         </div>
         <a href="./" className="vrm-back">← ALICE Hauptansicht</a>
       </header>
@@ -325,10 +325,10 @@ export default function VRMViewer() {
             <div className="vrm-filename">{fileName}</div>
             <p className="vrm-helper">{fileName.includes('designsheet')
               ? 'DESIGNSHEET WIP: technisch rigged, visuell noch nicht vorlagentreu und nicht freigegeben.'
-              : 'Eigener VRM-1.0-Kandidat. Nicht als kanonische ALICE freigegeben.'}</p>
+              : 'FBX-abgeleitetes GLB-Quellmodell. Darstellung und Rig werden hier direkt geprüft.'}</p>
             <div className="vrm-action-grid">
               <button type="button" disabled={loading} onClick={() => loadBundled(DESIGNSHEET_VRM, 'alice-designsheet-candidate.vrm')}>Designsheet WIP</button>
-              <button type="button" disabled={loading} onClick={() => loadBundled(BUILT_IN_VRM, 'alice-fbx-source.vrm')}>Original VRM</button>
+              <button type="button" disabled={loading} onClick={() => loadBundled(BUILT_IN_VRM, 'alice-fbx-source.vrm')}>FBX-GLB laden</button>
               <button type="button" disabled={loading} onClick={() => loadBundled(SOURCE_GLB, 'alice-fbx-source.glb')}>Quell-GLB</button>
             </div>
             <label className="vrm-upload">
