@@ -55,7 +55,7 @@ jobs:
             page.on('response', r => {
               if (r.url().includes('alice-fbx-source.')) responses.push({ url: r.url(), status: r.status() });
             });
-            await page.goto('http://127.0.0.1:4173/?viewer=vrm', { waitUntil: 'domcontentloaded' });
+            await page.goto('http://127.0.0.1:4173/?viewer=vrm&model=glb', { waitUntil: 'domcontentloaded' });
             await page.waitForFunction(() => {
               const status = document.querySelector('.vrm-stage-top')?.innerText || '';
               return status.includes('GLB-Rohansicht') || !!document.querySelector('[role=alert]');
@@ -99,9 +99,10 @@ jobs:
             const vrmStatus = await page.locator('.vrm-stage-top').innerText();
             const vrmAlert = await page.locator('[role=alert]').allTextContents();
             const vrmMetrics = await page.locator('.vrm-audit dd').allTextContents();
+            const vrmName = await page.locator('.vrm-filename').innerText();
             const expressions = await page.locator('.vrm-expressions button').allTextContents();
             await page.screenshot({ path: 'alice-source-vrm-mobile.png', fullPage: true });
-            const result = { glb: { status: glbStatus, file: glbName, metrics: glbMetrics, canvas: glbCanvas }, vrm: { status: vrmStatus, metrics: vrmMetrics, expressions }, responses, errors };
+            const result = { glb: { status: glbStatus, file: glbName, metrics: glbMetrics, canvas: glbCanvas }, vrm: { status: vrmStatus, file: vrmName, metrics: vrmMetrics, expressions }, responses, errors };
             fs.writeFileSync('alice-avatar-visual-proof.json', JSON.stringify(result, null, 2));
             console.log('ALICE_AVATAR_VISUAL_PROOF='+JSON.stringify(result));
             await browser.close();
