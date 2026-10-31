@@ -123,6 +123,21 @@ export default function VRMViewer() {
       return;
     }
 
+    // Scale the root once: all descendants (meshes, bones and morphs)
+    // inherit the same transform, preserving the rig's relative hierarchy.
+    const sourceHeight = result.bounds.getSize(new THREE.Vector3()).y;
+    const scaleFactor = 1.7 / sourceHeight;
+    if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) {
+      setError('Das Modell hat keine gültige Höhe für die Skalierung.');
+      setLoading(false);
+      return;
+    }
+    model.scale.multiplyScalar(scaleFactor);
+    model.updateMatrixWorld(true);
+    const normalizedBounds = new THREE.Box3().setFromObject(model);
+    model.position.y -= normalizedBounds.min.y;
+    model.updateMatrixWorld(true);
+
     if (runtime.model) runtime.scene.remove(runtime.model);
     runtime.scene.add(model);
     model.traverse((object) => {
@@ -139,7 +154,7 @@ export default function VRMViewer() {
     setInfo({
       meshes: result.meshes, bones: result.bones, triangles: result.triangles,
       morphTargets: result.morphTargets, animations: result.animations,
-      vrm: result.vrm, expressions: result.expressions,
+      vrm: result.vrm, expressions: result.expressions, scaleFactor,
       degraded: Boolean(vrmParsingError),
     });
     setExpression('neutral');
@@ -379,6 +394,7 @@ export default function VRMViewer() {
               <div><dt>Dreiecke</dt><dd>{info?.triangles?.toLocaleString('de-DE') ?? '–'}</dd></div>
               <div><dt>Morphnamen</dt><dd>{info?.morphTargets ?? '–'}</dd></div>
               <div><dt>Animationsclips</dt><dd>{info?.animations ?? '–'}</dd></div>
+              <div><dt>Skalierung</dt><dd>{info ? `×${info.scaleFactor.toFixed(3)} · Zielhöhe 1,70 m` : '–'}</dd></div>
             </dl>
             {info?.degraded && <p className="vrm-warning">VRM-Plugin meldete einen Fehler. Angezeigt wird nur die GLB-Rohgeometrie.</p>}
             <p className="vrm-helper">Design-Übereinstimmung, Skin-Deformation und Gesichtsausdrücke sind erst nach Sichtprüfung bestätigt.</p>
