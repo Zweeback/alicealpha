@@ -224,7 +224,7 @@ export default function VRMViewer() {
         webgl.render(scene, camera);
       });
       loadBundled(new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
-        ? DESIGNSHEET_VRM : BUILT_IN_VRM,
+        ? DESIGNSHEET_VRM : BUILT_IN_GLB,
         new URLSearchParams(globalThis.location.search).get('model') === 'designsheet'
           ? 'alice-designsheet-candidate.vrm' : 'alice-fbx-source.glb');
     } catch (cause) {
