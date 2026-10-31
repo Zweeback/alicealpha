@@ -21,6 +21,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_glados_sidecar.py' -v
       - run: npm ci
       - run: npm run test:run
+      - run: npm run test:unreal-scaffold
       - run: npm run build
       - name: Runtime smoke test
         shell: bash
