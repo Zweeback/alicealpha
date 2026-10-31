@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getGLTFLoader } from '../xr/loader.js';
 import './vrmViewer.css';
 
-export const BUILT_IN_VRM = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.vrm';
+export const BUILT_IN_VRM = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
 const SOURCE_GLB = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
 const DESIGNSHEET_VRM = import.meta.env.BASE_URL + 'avatars/alice-designsheet-candidate.vrm';
 const EXPRESSIONS = [
@@ -73,7 +73,7 @@ export default function VRMViewer() {
   const [expression, setExpression] = useState('neutral');
   const [turntable, setTurntable] = useState(false);
   const [grid, setGrid] = useState(true);
-  const [fileName, setFileName] = useState('alice-fbx-source.vrm');
+  const [fileName, setFileName] = useState('alice-fbx-source.glb');
   const [loading, setLoading] = useState(true);
 
   const loadBytes = useCallback(async (bytes, name) => {
