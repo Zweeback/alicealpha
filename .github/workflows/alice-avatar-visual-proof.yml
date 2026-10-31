@@ -45,8 +45,9 @@ jobs:
           node <<'NODE'
           const { chromium } = require('playwright');
           const fs = require('fs');
+          let browser;
           (async () => {
-            const browser = await chromium.launch({ headless: true, args: [
+            browser = await chromium.launch({ headless: true, args: [
               '--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader'
             ]});
             const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
@@ -112,7 +113,7 @@ jobs:
             if (!expressions.includes('happy')) throw new Error('VRM happy expression missing');
             if (!responses.some(r => r.url.includes('.glb') && r.status === 200)) throw new Error('GLB source was not served');
             if (!responses.some(r => r.url.includes('.vrm') && r.status === 200)) throw new Error('VRM source was not served');
-          })().catch(e => { console.error(e); process.exitCode = 1; });
+          })().catch(async e => { console.error(e); try { await browser?.close(); } catch {} process.exitCode = 1; });
           NODE
       - uses: actions/upload-artifact@v4
         if: always()
