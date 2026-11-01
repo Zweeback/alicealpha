@@ -44,6 +44,41 @@ GitHub Codespaces is configured in `.devcontainer/devcontainer.json`. It install
 
 `OPENAI_API_KEY` belongs in `.env.local` or the deployment host's secret store. It is used only by `server/index.js` and is never bundled into the browser.
 
+### Drive-Inventar in Codespaces
+
+Nach dem Erstellen oder Neuaufbauen des Dev Containers sind `rclone` und
+`python3` verfügbar. Drive bleibt von Alice und den Modellanbietern getrennt:
+Dieses Inventar lädt keine Dateiinhalte herunter und sendet nichts an KI-Dienste.
+
+Einmalig `rclone config` im Codespace ausführen und einen Google-Drive-Remote
+`bentropy` anlegen. Für den Scope ausdrücklich `drive.metadata.readonly`
+verwenden, nicht eine versionsabhängige Menünummer. Einen eigenen Google-OAuth-
+Client nach der [rclone-Anleitung](https://rclone.org/drive/#making-your-own-client-id)
+verwenden. Die Anmeldung im Browser selbst freigeben; keine Tokens,
+Client-Secrets oder `rclone.conf` in Chats, Commits oder Repository-Dateien teilen.
+Falls der Browser-Callback aus Codespaces nicht funktioniert, dem dokumentierten
+[Remote-Setup](https://rclone.org/remote_setup/) folgen. Die Konfiguration verbleibt
+außerhalb des Repositorys; ein Codespace ist dennoch kein dauerhafter Datenspeicher.
+
+Danach kann Copilot im Codespace den Inventarlauf ausführen:
+
+```bash
+bash tools/drive-inventory.sh bentropy:
+```
+
+Jeder Lauf erhält ein eigenes, nur für den Benutzer zugängliches Verzeichnis unter
+`~/.local/share/alicealpha/drive-inventory/`. Es enthält das Fehler-/Hinweislog,
+den rclone-Exitcode und erst nach erfolgreichem vollständigem JSON-Parse
+`inventory.json`. Abgebrochene oder ungültige Ausgaben bleiben als
+`inventory.partial.json` erhalten und gelten nicht als vollständiges Inventar.
+Auch bei Exitcode 0 das Log auf ausgelassene Dateien prüfen. Inventare enthalten
+potenziell sensible Namen und Metadaten und gehören nicht ins Repository.
+
+Drive-Erstellungszeit ist nicht automatisch ursprüngliche Entstehungs- oder
+Uploadzeit; Änderungszeiten können übernommen worden sein. Diese Auflistung
+liefert keine vollständige Versions- oder Aktivitätshistorie. Für die spätere
+Analyse ausgewählter Exportinhalte ist eine separate Freigabe erforderlich.
+
 The Render preview is deployed from `main` in Frankfurt. Until `OPENAI_API_KEY` is entered directly in the Render service's secret environment, it intentionally reports `realtime: false` and uses the browser fallback; the key is never copied through GitHub or the public client. GitHub Pages remains an optional manual workflow because a static host cannot run the secret-holding session endpoint.
 
 Optional environment variables:

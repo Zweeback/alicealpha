@@ -1,7 +1,7 @@
 {
   "name": "Alice Alpha",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
-  "postCreateCommand": "npm ci",
+  "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y rclone python3 && npm ci",
   "forwardPorts": [5173, 8787],
   "portsAttributes": {
     "5173": {
