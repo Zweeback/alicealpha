@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#111}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/","@pixiv/three-vrm":"./node_modules/@pixiv/three-vrm/lib/three-vrm.module.js"}}</script>
+</head><body><script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 900), H = +(q.get('h') || 1200);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = +(q.get('exp') || 1.0);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color((q.get('bg') || 'studio') === 'dark' ? 0x0b1118 : 0x8a919a);
+const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = +(q.get('env') || 0.55);
+const key = new THREE.DirectionalLight(0xfff1e6, 2.2); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -1.5; key.shadow.camera.right = 1.5; key.shadow.camera.top = 2.2; key.shadow.camera.bottom = -0.3; key.shadow.bias = -0.0004;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x9fe8ff, 1.6); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xdbe8ff, 0.5); fill.position.set(2.2, 0.6, 1.8); scene.add(fill);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(2.5, 48), new THREE.MeshStandardMaterial({ color: 0x70767e, roughness: 0.9 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const loader = new GLTFLoader(); loader.register((p) => new VRMLoaderPlugin(p));
+const gltf = await loader.loadAsync(q.get('model'));
+const vrm = gltf.userData.vrm; scene.add(vrm.scene);
+vrm.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+const HIDE = (q.get('hide') || '').split(',').filter(Boolean); vrm.scene.traverse(o => { if (o.isMesh && HIDE.some(h => (o.material && [].concat(o.material).some(m => m.name.includes(h))) || o.name.includes(h))) o.visible = false; });
+const hum = vrm.humanoid; const pose = q.get('pose') || 'relaxed';
+const rot = (n, x, y, z) => { const b = hum.getNormalizedBoneNode(n); if (b) b.rotation.set(x, y, z); };
+if (pose === 'relaxed') { rot('leftUpperArm', 0, 0, -1.15); rot('rightUpperArm', 0, 0, 1.15); rot('leftLowerArm', 0, -0.25, -0.12); rot('rightLowerArm', 0, 0.25, 0.12);
+  rot('leftHand', 0, 0, -0.1); rot('rightHand', 0, 0, 0.1); rot('spine', 0, 0.04, 0); rot('head', 0.02, -0.06, 0); }
+if (pose === 'hero') { rot('leftUpperArm', 0, 0, -1.05); rot('rightUpperArm', 0.2, 0.3, 0.55); rot('rightLowerArm', 0, 0, 0.8); rot('hips', 0, 0.12, 0); rot('spine', 0, -0.08, 0); rot('head', 0.04, -0.1, 0.03); }
+for (const kv of (q.get('expr') || '').split(',').filter(Boolean)) { const [k, v] = kv.split(':'); vrm.expressionManager.setValue(k, +v); }
+for (let i = 0; i < +(q.get('sim') || 90); i++) { hum.getNormalizedBoneNode('hips').position.x = Math.sin(i / 14) * 0.02; vrm.update(1 / 60); }
+hum.getNormalizedBoneNode('hips').position.x = 0; vrm.update(1 / 60);
+const box = new THREE.Box3().setFromObject(vrm.scene); const hh = box.max.y;
+const headPos = new THREE.Vector3(); hum.getNormalizedBoneNode('head').getWorldPosition(headPos);
+const cam = new THREE.PerspectiveCamera(+(q.get('fov') || 28), W / H, 0.05, 50);
+const hy = headPos.y + 0.03;
+const shots = { full: [hh * .5, 4.6, 0], q34: [hh * .5, 4.6, 40], side: [hh * .5, 4.6, 90], back: [hh * .5, 4.6, 180],
+  bust: [headPos.y - .18, 1.7, 0], face: [hy - .01, 0.85, 0], face34: [hy - .01, 0.85, 30], head: [hy, 1.25, 0], head34: [hy, 1.25, 35], headback: [hy, 1.25, 180], headside: [hy, 1.25, 90] };
+const [ty, dist, az] = shots[q.get('shot') || 'full'];
+const a = az * Math.PI / 180; cam.position.set(Math.sin(a) * dist, ty, Math.cos(a) * dist); cam.lookAt(0, ty, 0);
+key.position.set(-1.5 * Math.cos(a) + 2.4 * Math.sin(a), 2.6, 2.4 * Math.cos(a) + 1.5 * Math.sin(a));
+rim.position.set(1.8 * Math.cos(a) - 2.0 * Math.sin(a), 1.8, -2.0 * Math.cos(a) - 1.8 * Math.sin(a));
+renderer.render(scene, cam);
+window.__info = { height: hh, head: headPos.toArray(), springs: vrm.springBoneManager ? vrm.springBoneManager.joints.size : 0, expressions: Object.keys(vrm.expressionManager.expressionMap).length };
+window.__done = true;
+</script></body></html>

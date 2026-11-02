@@ -1,0 +1,2 @@
+{ "name": "alice-studio-viewer", "private": true, "type": "module",
+  "dependencies": { "three": "0.170.0", "@pixiv/three-vrm": "3.3.3", "playwright": "1.56.0", "gltf-validator": "2.0.0-dev.3.10" } }
