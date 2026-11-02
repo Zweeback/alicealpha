@@ -1,0 +1,7 @@
+{
+  "name": "ALICE Exploration Viewer",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "forwardPorts": [4173],
+  "portsAttributes": { "4173": { "label": "ALICE Viewer", "onAutoForward": "openPreview" } },
+  "postAttachCommand": "node exploration/viewer/serve.mjs 4173"
+}

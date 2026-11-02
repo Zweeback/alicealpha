@@ -1,0 +1,10 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ALICE Asset Viewer</title>
+<style>:root{--fg:#d9e8f2;--accent:#33e0e8;--panel:rgba(12,22,32,.85)}html,body{margin:0;height:100%;background:#0b1118;color:var(--fg);font:14px system-ui,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%}#bar{position:fixed;left:12px;top:12px;right:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,button{background:#17323f;color:var(--fg);border:1px solid #2b5568;border-radius:10px;padding:7px 10px;font:inherit}button:hover{border-color:var(--accent)}
+#expr{position:fixed;left:12px;bottom:12px;right:12px;display:flex;gap:4px;flex-wrap:wrap}#expr button{padding:4px 8px;font-size:12px}
+#status{opacity:.75;font-size:12px}#info{position:fixed;right:12px;top:60px;max-width:320px;background:var(--panel);padding:8px 10px;border-radius:10px;font-size:12px;line-height:1.4}#info:empty{display:none}
+</style></head><body><canvas id="c"></canvas>
+<div id="bar"><b style="letter-spacing:.2em;color:var(--accent)">ALICE</b><select id="asset"></select><button id="bgEnv">🏥 Klinikum als Hintergrund</button><button id="clearEnv">✕ Umgebung</button><label><input type="checkbox" id="relax" checked> Idle-Pose</label><span id="status">…</span></div>
+<div id="info"></div><div id="expr"></div>
+<script type="module" src="./app.js"></script></body></html>

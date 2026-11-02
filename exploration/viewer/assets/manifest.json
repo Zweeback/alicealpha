@@ -1,0 +1,81 @@
+{
+ "schema": "alice.assets.v1",
+ "updated": "2026-11-02",
+ "assets": [
+  {
+   "id": "alice_v1.1",
+   "name": "Alice v1.1-alpha (realistisch, schwarzer Tech-Look) – AKTUELL",
+   "file": "alice_v1.1_alpha.vrm",
+   "kind": "avatar",
+   "format": "VRM 1.0",
+   "default": true,
+   "notes": "Basis: Avaturn-Körper aus Repo Zweeback/alicealpha (public/avatars/candidates/model.fbx). Türkise Augen, schwarzes Outfit, 18 Preset- + 69 Custom-Expressions (ARKit-52, Visemes, Alice-Emotionen). Offen: Laborkittel, Dutt, Spring-Bones, 2K-Haut."
+  },
+  {
+   "id": "alice_v1.0",
+   "name": "Alice v1.0-alpha (realistisch, Original-Outfit)",
+   "file": "alice_v1.0_alpha.vrm",
+   "kind": "avatar",
+   "format": "VRM 1.0",
+   "notes": "Wie v1.1, aber mit weißem T-Shirt und Jeans."
+  },
+  {
+   "id": "alice_selfbuilt",
+   "name": "Alice v0.10 (Eigenbau MPFB: Kittel, Dutt, Anzug)",
+   "file": "alice_selfbuilt_v0.10.vrm",
+   "kind": "avatar",
+   "format": "VRM 1.0",
+   "notes": "Eigenbau-Pipeline (MakeHuman CC0). Laborkittel, Dutt-Haare, 92 Spring-Bones; Gesicht weniger realistisch. Quelle für Kittel- und Haar-Teile."
+  },
+  {
+   "id": "alice_designsheet",
+   "name": "Alice Designsheet-Kandidat (stilisiert)",
+   "file": "alice_designsheet_stylized.vrm",
+   "kind": "avatar",
+   "format": "VRM 1.0",
+   "notes": "Aus Repo alicealpha, nicht freigegeben, stilisiert/blockig."
+  },
+  {
+   "id": "alice_trellis",
+   "name": "Alice TRELLIS-Rohmodell (ungeriggt)",
+   "file": "alice_trellis_raw.glb",
+   "kind": "model",
+   "format": "GLB",
+   "notes": "KI-generiert (trellis-community/TRELLIS) aus Repo alicealpha, ohne Rig."
+  },
+  {
+   "id": "klinikum_lod2",
+   "name": "Klinikum Dortmund Mitte – amtliches 3D-Modell LoD2 + Luftbild (BESTE)",
+   "file": "klinikum_dortmund_lod2.glb",
+   "kind": "environment",
+   "format": "GLB",
+   "notes": "1271 Gebäude als echte LoD2-Körper mit Dachformen aus den amtlichen 3D-Gebäudemodellen NRW, Dächer und Gelände mit amtlichem Orthophoto (DOP) texturiert, Gelände aus Gebäude-Bodenhöhen interpoliert. 720 x 720 m um E 392900 / N 5707488 (UTM32), Bezugshöhe 99,76 m NHN. Fassaden generisch (keine Fassadenfotos in LoD2).",
+   "attribution": "Geobasis NRW (3D-Gebäudemodelle LoD2, Digitale Orthophotos), Datenlizenz Deutschland – Zero – Version 2.0"
+  },
+  {
+   "id": "klinikum_osm",
+   "name": "Klinikum Dortmund – Klinikzentrum Mitte (echte OSM-Daten)",
+   "file": "klinikum_dortmund_osm.glb",
+   "kind": "environment",
+   "format": "GLB",
+   "notes": "Echte Gebäudegrundrisse, Geschosszahlen, Straßen, Straßenbahn, Grünflächen und Bäume aus OpenStreetMap (Radius 330 m um Beurhausstraße 40). 94 Klinik- und 590 Umgebungsgebäude, 1 Einheit = 1 m, Ursprung = Klinikum-Mitte. Fassaden generisch (keine Fotos). Daten © OpenStreetMap-Mitwirkende, ODbL 1.0.",
+   "attribution": "© OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright)"
+  },
+  {
+   "id": "klinikum",
+   "name": "Klinikum Dortmund (stilisierte Fantasie-Szene, alt)",
+   "file": "klinikum_dortmund.glb",
+   "kind": "environment",
+   "format": "GLB",
+   "notes": "Freie, stilisierte Interpretation (keine exakte Nachbildung, kein Logo): Bettenhaus, Flügel, Glas-Eingangshalle, Notaufnahme-Vordach, Dach-Landeplatz. 1 Einheit = 1 m."
+  },
+  {
+   "id": "rtw",
+   "name": "Rettungswagen (RTW, generisch)",
+   "file": "rtw_rettungswagen.glb",
+   "kind": "model",
+   "format": "GLB",
+   "notes": "Generischer deutscher Rettungswagen mit Kastenaufbau, weiß/rot reflektierend, Blaulicht, ohne Marken oder Schriftzüge. ~6,9 x 2,3 x 2,9 m, Generator pipeline/build_rtw.py. Steht in den Screenshots an der Liegendeinfahrt (lokal x≈42, Nord≈-147)."
+  }
+ ]
+}
