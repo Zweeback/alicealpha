@@ -3,12 +3,20 @@
  "updated": "2026-11-02",
  "assets": [
   {
+   "id": "alice_v1.2",
+   "name": "Alice v1.2-alpha – Laborkittel, Dutt, Anhänger (AKTUELL)",
+   "file": "alice_v1.2.vrm",
+   "kind": "avatar",
+   "format": "VRM 1.0",
+   "default": true,
+   "notes": "v1.1 + langer weißer Laborkittel (offen, Ärmel, Kapuze im Nacken), A-Patch am linken Ärmel, Gürtel mit Teal-Schnalle, leuchtender Teal-Anhänger, Haare zum hohen Dutt hochgesteckt mit Teal-Haargummi. Generatoren: fin/build_parts.py + fin/merge_parts.py."
+  },
+  {
    "id": "alice_v1.1",
    "name": "Alice v1.1-alpha (realistisch, schwarzer Tech-Look) – AKTUELL",
    "file": "alice_v1.1_alpha.vrm",
    "kind": "avatar",
    "format": "VRM 1.0",
-   "default": true,
    "notes": "Basis: Avaturn-Körper aus Repo Zweeback/alicealpha (public/avatars/candidates/model.fbx). Türkise Augen, schwarzes Outfit, 18 Preset- + 69 Custom-Expressions (ARKit-52, Visemes, Alice-Emotionen). Offen: Laborkittel, Dutt, Spring-Bones, 2K-Haut."
   },
   {
