@@ -64,6 +64,41 @@ function frameCamera(runtime, direction = 'front') {
   runtime.grid.position.y = box.min.y - 0.005;
 }
 
+function animateAliceIdle(runtime, seconds) {
+  if (!runtime.model || runtime.alive === false) return;
+  // Keep the imported rig untouched and animate only its root and normalized head.
+  if (Number.isFinite(runtime.restModelY)) {
+    runtime.model.position.y = runtime.restModelY + Math.sin(seconds * 1.45) * 0.006;
+  }
+  const head = runtime.vrm?.humanoid?.getNormalizedBoneNode?.('head');
+  if (head) {
+    if (runtime.idleHeadNode !== head) {
+      runtime.idleHeadNode = head;
+      runtime.idleHeadBase = head.rotation.clone();
+    }
+    const base = runtime.idleHeadBase;
+    head.rotation.set(
+      base.x + Math.sin(seconds * 0.73) * 0.018,
+      base.y + Math.sin(seconds * 0.39) * 0.032,
+      base.z + Math.sin(seconds * 0.51) * 0.012,
+    );
+  }
+  const cycle = seconds % 4.7;
+  const blink = cycle < 0.11 ? cycle / 0.11
+    : cycle < 0.28 ? (0.28 - cycle) / 0.17 : 0;
+  const expressions = runtime.vrm?.expressionManager;
+  if (expressions?.getExpression?.('blink') && runtime.manualExpression !== 'blink') {
+    expressions.setValue('blink', Math.max(0, Math.min(1, blink)));
+  } else if (!runtime.vrm && runtime.manualExpression !== 'blink') {
+    runtime.model.traverse((obj) => {
+      const index = obj.morphTargetDictionary?.blink;
+      if (obj.isMesh && Number.isInteger(index) && obj.morphTargetInfluences) {
+        obj.morphTargetInfluences[index] = blink;
+      }
+    });
+  }
+}
+
 export default function VRMViewer() {
   const canvasRef = useRef(null);
   const runtimeRef = useRef(null);
@@ -73,6 +108,7 @@ export default function VRMViewer() {
   const [info, setInfo] = useState(null);
   const [expression, setExpression] = useState('neutral');
   const [turntable, setTurntable] = useState(false);
+  const [alive, setAlive] = useState(true);
   const [grid, setGrid] = useState(true);
   const [fileName, setFileName] = useState('alice-fbx-source.glb');
   const [loading, setLoading] = useState(true);
@@ -147,6 +183,10 @@ export default function VRMViewer() {
       }
     });
     runtime.model = model;
+    runtime.restModelY = model.position.y;
+    runtime.idleHeadNode = null;
+    runtime.idleHeadBase = null;
+    runtime.manualExpression = 'neutral';
     runtime.vrm = vrm;
     runtime.gltf = gltf;
     runtime.expressionNames = result.expressions;
@@ -238,9 +278,12 @@ export default function VRMViewer() {
       observer.observe(canvas);
       resize();
       const clock = new THREE.Clock();
+      let elapsed = 0;
       webgl.setAnimationLoop(() => {
         if (disposed) return;
         const delta = Math.min(clock.getDelta(), 0.1);
+        elapsed += delta;
+        animateAliceIdle(runtime, elapsed);
         runtime.vrm?.update(delta);
         controls.update();
         webgl.render(scene, camera);
@@ -273,11 +316,18 @@ export default function VRMViewer() {
     if (!runtime) return;
     runtime.controls.autoRotate = turntable;
     runtime.grid.visible = grid;
-  }, [turntable, grid]);
+    runtime.alive = alive;
+    if (!alive && Number.isFinite(runtime.restModelY)) {
+      if (runtime.model) runtime.model.position.y = runtime.restModelY;
+      if (runtime.idleHeadNode && runtime.idleHeadBase) runtime.idleHeadNode.rotation.copy(runtime.idleHeadBase);
+      if (runtime.vrm?.expressionManager?.getExpression?.('blink')) runtime.vrm.expressionManager.setValue('blink', 0);
+    }
+  }, [turntable, grid, alive]);
 
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (!runtime?.model) return;
+    runtime.manualExpression = expression;
     const manager = runtime.vrm?.expressionManager;
     if (manager) {
       for (const name of runtime.expressionNames) {
@@ -371,6 +421,7 @@ export default function VRMViewer() {
               <button type="button" disabled={!info} onClick={() => frameCamera(runtimeRef.current, 'back')}>Hinten</button>
               <button type="button" disabled={!info} onClick={screenshot}>PNG speichern</button>
             </div>
+            <label className="vrm-toggle"><input type="checkbox" checked={alive} onChange={(event) => setAlive(event.target.checked)} /> Lebendig · Atmung, Blinzeln, Blick</label>
             <label className="vrm-toggle"><input type="checkbox" checked={turntable} onChange={(event) => setTurntable(event.target.checked)} /> Drehteller</label>
             <label className="vrm-toggle"><input type="checkbox" checked={grid} onChange={(event) => setGrid(event.target.checked)} /> Bodengitter</label>
           </section>
