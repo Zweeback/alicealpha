@@ -3,13 +3,13 @@
  "updated": "2026-11-02",
  "assets": [
   {
-   "id": "alice_v1.2",
-   "name": "Alice v1.2-alpha – Laborkittel, Dutt, Anhänger (AKTUELL)",
-   "file": "alice_v1.2.vrm",
+   "id": "alice_v1.3",
+   "name": "Alice v1.3-alpha – Kittel + Dutt mit Spring-Bones (AKTUELL)",
+   "file": "alice_v1.3.vrm",
    "kind": "avatar",
    "format": "VRM 1.0",
    "default": true,
-   "notes": "v1.1 + langer weißer Laborkittel (offen, Ärmel, Kapuze im Nacken), A-Patch am linken Ärmel, Gürtel mit Teal-Schnalle, leuchtender Teal-Anhänger, Haare zum hohen Dutt hochgesteckt mit Teal-Haargummi. Generatoren: fin/build_parts.py + fin/merge_parts.py."
+   "notes": "v1.2 + VRMC_springBone: 8 Ketten an den Kittelschößen (4 Glieder), Dutt-Kette, Collider an Hüfte/Beinen/Kopf. Generator fin/add_springs.py."
   },
   {
    "id": "alice_v1.1",
