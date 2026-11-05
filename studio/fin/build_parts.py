@@ -236,6 +236,53 @@ for poly in pat.data.polygons:
         v = pat.data.vertices[pat.data.loops[li].vertex_index].co; uvd[li].uv = (v.x / 0.068 + 0.5, v.y / 0.068 + 0.5)
 pack('patch', pat, 'patch', weight_fn=lambda p: {'LeftArm': 1.0})
 
+# ---------------------------------------------------------------- 5b) Taschen + Harness-Gurte auf dem Kittel
+Image.new('RGB', (64, 64), (214, 218, 222)).save(D + '/tex/pocket.png')
+def front_hit(x, z, T=T_coat):
+    h = T.ray_cast(Vector((x, -0.6, z)), Vector((0, 1, 0)), 1.2); return (h[0], h[1]) if h[0] is not None else (None, None)
+def surface_patch(name, cx, cz, w, h, mat, off=0.004, n=8):
+    bm = bmesh.new(); G = []
+    for i in range(n + 1):
+        row = []
+        for k in range(n + 1):
+            x = cx - w / 2 + w * i / n; z = cz - h / 2 + h * k / n; p, nr = front_hit(x, z)
+            xx = x
+            while p is None and abs(xx) > 0.01: xx *= 0.9; p, nr = front_hit(xx, z)
+            if p is None: p, nr = Vector((x, -0.15, z)), Vector((0, -1, 0))
+            row.append(bm.verts.new(p + nr * off))
+        G.append(row)
+    for i in range(n):
+        for k in range(n): bm.faces.new((G[i][k], G[i + 1][k], G[i + 1][k + 1], G[i][k + 1]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    if sum(p_.normal.y for p_ in me.polygons) > 0: [p_.flip() for p_ in me.polygons]
+    me.uv_layers.new(name='UV'); sl = o.modifiers.new('s', 'SOLIDIFY'); sl.thickness = 0.003; sl.offset = -1
+    bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier='s'); return o
+def ribbon_on(name, pts2d, w, mat, off=0.006):
+    bm = bmesh.new(); L, R = [], []
+    P3 = []
+    for x, z in pts2d:
+        p, nr = front_hit(x, z)
+        if p is None: continue
+        P3.append((p + nr * off, nr))
+    for i, (p, nr) in enumerate(P3):
+        a = P3[max(i - 1, 0)][0]; b2 = P3[min(i + 1, len(P3) - 1)][0]; t = (b2 - a).normalized(); sd = t.cross(nr).normalized() * w / 2
+        L.append(bm.verts.new(p - sd)); R.append(bm.verts.new(p + sd))
+    for i in range(len(L) - 1): bm.faces.new((L[i], R[i], R[i + 1], L[i + 1]))
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free(); o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    if sum(p_.normal.y for p_ in me.polygons) > 0: [p_.flip() for p_ in me.polygons]
+    me.uv_layers.new(name='UV'); sl = o.modifiers.new('s', 'SOLIDIFY'); sl.thickness = 0.003; sl.offset = -1
+    bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier='s'); return o
+coatw = lambda p: {'Hips': 0.7, 'Spine': 0.3} if p.z < 1.0 else ({'Spine1': 0.6, 'Spine2': 0.4} if p.z < 1.25 else {'Spine2': 1.0})
+for sg in (-1, 1):
+    pk = surface_patch(f'Pocket{sg}', sg * 0.175, 0.80, 0.11, 0.13, 'pocket'); pack(f'pocket{sg}', pk, 'pocket', weight_fn=lambda p: {'Hips': 1.0})
+    st = ribbon_on(f'Strap{sg}', [(sg * (0.115 + 0.01 * t), 1.43 - 0.40 * t) for t in np.linspace(0, 1, 24)], 0.032, 'belt')
+    pack(f'strap{sg}', st, 'belt', weight_fn=coatw)
+    p_, n_ = front_hit(sg * 0.12, 1.27)
+    if p_ is not None:
+        bpy.ops.mesh.primitive_cube_add(location=p_ + n_ * 0.011, scale=(0.02, 0.005, 0.014)); cl = bpy.context.object; cl.data.uv_layers.new(name='UV')
+        pack(f'clip{sg}', cl, 'teal', weight_fn=lambda p: {'Spine2': 1.0})
+cp = surface_patch('ChestPocket', -0.105, 1.33, 0.065, 0.075, 'pocket'); pack('chestpocket', cp, 'pocket', weight_fn=lambda p: {'Spine2': 1.0})
 # ---------------------------------------------------------------- 6) Dutt + lose Strähnen (UV in Haar-Bereich der Kopftextur)
 def hair_uv(u, v):   # linke Haarbahn der Kopftextur (u 0.04..0.28, v 0.25..0.85)
     return (0.04 + 0.24 * (u % 1.0), 0.25 + 0.6 * min(max(v, 0), 1))
@@ -290,6 +337,39 @@ for sgn in (-1, 1):
             pts.append(Vector((x, y, z)))
         o = strand(f'Strand{sgn}{k}', pts, 0.0035)
         pass  # Strähnen weggelassen (wirkten wie dunkle Balken)
+# ---------------------------------------------------------------- 7) Haarkappe Seite/Hinterkopf (zurückgekämmt)
+from PIL import Image as _I
+ht = _I.open('/tmp/claude-0/-home-claude/ba6ce5eb-0729-5bb9-9dab-f777d50aa901/scratchpad/AvatarHeadFemale_Color_1K.png').convert('RGB')
+W_, H_ = ht.size; strip = ht.crop((int(0.03 * W_), int(0.12 * H_), int(0.27 * W_), int(0.88 * H_))).rotate(90, expand=True).resize((1024, 256))
+_a = np.asarray(strip).astype(float); _a = _a / _a.reshape(-1, 3).mean(0) * np.array([112, 40, 20]); _a = np.clip((_a - _a.mean()) * 1.15 + _a.mean(), 0, 255)
+strip = _I.fromarray(_a.astype(np.uint8)); strip.save(D + '/tex/hair_strip.png')
+CY, CZ, RX, RY, RZ = 1.635, -0.006, 0.081 + 0.007, 0.106 + 0.007, 0.100 + 0.007   # glTF-Ellipsoid (+7 mm)
+bm = bmesh.new(); NT, NH = 48, 22; grid = []
+TH = np.linspace(math.radians(62), math.radians(298), NT)
+for i, th in enumerate(TH):
+    t_back = 1 - abs(math.cos(th / 2))     # 0 vorn .. 1 hinten
+    ylow = 1.585 - 0.055 * min(1, abs(th - math.pi) < math.radians(80) and 1 or 0.4)
+    col = []
+    for k in range(NH):
+        yv = ylow + (1.742 - ylow) * k / (NH - 1)
+        sc = math.sqrt(max(0.05, 1 - ((max(yv, 1.56) - CY) / RY) ** 2))
+        if yv < 1.56: sc = math.sqrt(max(0.05, 1 - ((1.56 - CY) / RY) ** 2)) * (0.92 + 0.08 * (yv - 1.50) / 0.06)
+        ex = 1 + 0.10 * max(0, (yv - 1.66) / 0.08)        # oben mehr Abstand (Haarvolumen)
+        xg = math.sin(th) * RX * sc * ex; zg = CZ + math.cos(th) * RZ * sc * ex
+        col.append(bm.verts.new((xg, -zg, yv)))            # Blender-Frame
+    grid.append(col)
+for i in range(NT - 1):
+    for k in range(NH - 1): bm.faces.new((grid[i][k], grid[i + 1][k], grid[i + 1][k + 1], grid[i][k + 1]))
+bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+me = bpy.data.meshes.new('cap'); bm.to_mesh(me); bm.free(); cap = bpy.data.objects.new('Alice_HairCap', me); bpy.context.scene.collection.objects.link(cap)
+# nach außen zeigende Normalen sicherstellen
+if sum((p.center - Vector((0, 0.006, 1.635))).dot(p.normal) for p in me.polygons) < 0: [p.flip() for p in me.polygons]
+me.uv_layers.new(name='UV'); uvd = me.uv_layers.active.data
+for poly in me.polygons:
+    poly.use_smooth = True
+    for li in poly.loop_indices:
+        vi = me.loops[li].vertex_index; i, k = divmod(vi, NH); uvd[li].uv = (i / (NT - 1), k / (NH - 1))
+# pack('haircap', ...)  # verworfen: wirkte wie ein Helm (Textur zu holzig), v1.3-Stand beibehalten
 np.savez_compressed(D + '/parts.npz', **{f'{n}__{k}': v for n, d in PARTS.items() for k, v in d.items()})
 print('BUN center', tuple(round(x, 3) for x in bc), 'pendant', tuple(round(x, 3) for x in pf))
 print('SAVED', len(PARTS), 'parts')

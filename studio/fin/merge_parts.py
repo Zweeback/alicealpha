@@ -49,7 +49,7 @@ MAT = {'coat': add_mat('Alice_Coat_Fabric', add_tex(f'{D}/tex/coat.png', 'coat_f
        'teal': add_mat('Alice_Teal_Glow', add_tex(f'{D}/tex/teal.png', 'teal'), 0.25, emissive=[0.2, 0.9, 0.95]),
        'cord': add_mat('Alice_Cord', add_tex(f'{D}/tex/cord.png', 'cord'), 0.5),
        'patch': add_mat('Alice_Patch_A', add_tex(f'{D}/tex/patch.png', 'patch_A'), 0.6),
-       'head': head_prim['material']}
+       'pocket': add_mat('Alice_Coat_Pocket', add_tex(f'{D}/tex/pocket.png', 'pocket'), 0.8), 'head': head_prim['material']}
 if 'KHR_materials_emissive_strength' not in j.setdefault('extensionsUsed', []): j['extensionsUsed'].append('KHR_materials_emissive_strength')
 
 # ---------------------------------------------------------------- Teile einfügen
