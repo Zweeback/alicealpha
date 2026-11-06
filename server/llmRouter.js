@@ -1,6 +1,6 @@
 import { ALICE_REALTIME_INSTRUCTIONS } from './alicePrompt.js';
 
-const DEFAULT_CHAIN = 'gemini:gemini-2.5-flash,groq:llama-3.3-70b-versatile,openrouter:google/gemini-2.5-flash:free';
+const DEFAULT_CHAIN = 'gemini:gemini-3.5-flash,gemini:gemini-flash-latest,groq:llama-3.3-70b-versatile,openrouter:google/gemini-2.5-flash:free';
 const CIRCUIT_COOLDOWN_MS = 60_000;
 const circuitBreakers = new Map();
 
@@ -8,7 +8,7 @@ const PROVIDERS = Object.freeze({
   gemini: {
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     key: 'GEMINI_API_KEY',
-    defaultModel: 'gemini-2.5-flash',
+    defaultModel: 'gemini-3.5-flash',
   },
   groq: {
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
@@ -157,7 +157,7 @@ async function callProvider({
         model,
         messages,
         temperature: 0.65,
-        max_tokens: 240,
+        max_tokens: Number(env.ALICE_LLM_MAX_TOKENS || 1024),
         stream: false,
       }),
       signal: controller.signal,

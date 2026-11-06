@@ -7,6 +7,7 @@ import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
 import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
+import { gladosPiperDir, synthesizeGladosDe } from './gladosPiper.js';
 import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
 
 try {
@@ -186,7 +187,8 @@ app.get('/api/health', (_request, response) => {
     ollamaModel: process.env.ALICE_OLLAMA_MODEL || 'mistral',
     tts: Boolean(process.env.ALICE_TTS_URL),
     ttsProvider: process.env.ALICE_TTS_PROVIDER || (process.env.ALICE_TTS_URL ? 'sidecar' : null),
-    gladosTts: Boolean(process.env.ALICE_GLADOS_TTS_URL),
+    gladosTts: Boolean(process.env.ALICE_GLADOS_TTS_URL || gladosPiperDir()),
+    gladosPiperDe: Boolean(gladosPiperDir()),
     chat: {
       endpoint: '/api/chat',
       operational: availableChatProviders.length > 0,
@@ -380,15 +382,28 @@ app.post('/api/glados-tts', chatRateLimiter, express.json({ limit: '64kb' }), as
     response.status(403).json({ error: 'glados-origin-denied' });
     return;
   }
-  const target = process.env.ALICE_GLADOS_TTS_URL;
-  if (!target) {
-    response.status(503).json({ error: 'glados-tts-not-configured' });
-    return;
-  }
-
   const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
   if (!text) {
     response.status(400).json({ error: 'missing-text' });
+    return;
+  }
+
+  const language = String(request.body?.language || 'de').toLowerCase();
+  if (language.startsWith('de') && gladosPiperDir()) {
+    try {
+      const wav = synthesizeGladosDe(text.slice(0, 1600));
+      response.set({ 'Cache-Control': 'no-store', 'Content-Type': 'audio/wav', 'Content-Length': String(wav.length), 'X-Alice-Voice': 'piper-de_DE-glados-medium' });
+      response.send(wav);
+    } catch (error) {
+      console.error('GLaDOS Piper synthesis failed:', error instanceof Error ? error.message : 'unknown');
+      response.status(503).json({ error: 'glados-piper-failed' });
+    }
+    return;
+  }
+
+  const target = process.env.ALICE_GLADOS_TTS_URL;
+  if (!target) {
+    response.status(503).json({ error: 'glados-tts-not-configured' });
     return;
   }
 
