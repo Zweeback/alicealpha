@@ -1,0 +1,55 @@
+name: Capture HZplan Alice 3D
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/capture-hzplan-alice.yml'
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Capture HZplan Alice view
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+            const url = 'https://hzplan.uk/plans/pln_9ae6d5aa-fb5d-4735-9bea-e24b574f5dcc/storeys/s1?ref=mcp';
+            await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
+            await page.waitForTimeout(5000);
+            console.log('TITLE', await page.title());
+            console.log('URL', page.url());
+            console.log('BODY', (await page.locator('body').innerText()).slice(0, 4000));
+            await page.screenshot({ path: 'hzplan-alice-initial.png', fullPage: true });
+
+            const texts = ['3D','Walk','Preview','View','Scene'];
+            for (const t of texts) {
+              const loc = page.getByText(t, {exact:false}).first();
+              if (await loc.count()) {
+                try {
+                  await loc.click({timeout:1500});
+                  await page.waitForTimeout(3500);
+                  await page.screenshot({path:`hzplan-alice-after-${t.toLowerCase()}.png`, fullPage:true});
+                } catch {}
+              }
+            }
+            await browser.close();
+          })();
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hzplan-alice-3d-screenshots
+          path: hzplan-alice-*.png
+          if-no-files-found: error
