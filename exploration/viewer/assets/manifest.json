@@ -3,12 +3,20 @@
  "updated": "2026-11-02",
  "assets": [
   {
+   "id": "alice_paralax_v1",
+   "name": "Alice – Paralax-Look v1",
+   "file": "alice_paralax_v1.vrm",
+   "kind": "avatar",
+   "format": "vrm",
+   "default": true,
+   "notes": "Nach Referenzbild: lila Argyle-Kapuzenjacke, Gurte, Crop-Top, Minirock, Overknees, Choker, Perlen, Oberschenkel-Strap; kinnlanger Bob, blaue Augen; 8 Spring-Ketten an der Jacke."
+  },
+  {
    "id": "alice_v1.4",
    "name": "Alice v1.4-alpha – Kittel mit Harness, Taschen, Spring-Bones (AKTUELL)",
    "file": "alice_v1.4.vrm",
    "kind": "avatar",
    "format": "VRM 1.0",
-   "default": true,
    "notes": "Laborkittel (offen, Ärmel, Kapuze, Taschen), Harness-Gurte mit Teal-Clips, A-Patch, Gürtel, Teal-Anhänger, hoher Dutt; Spring-Bones an Kittelschößen und Dutt. Generatoren: fin/build_parts.py, fin/merge_parts.py, fin/add_springs.py."
   },
   {
