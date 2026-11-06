@@ -1,0 +1,61 @@
+name: Private Codespaces MCP protocol smoke
+on:
+  push:
+    branches: [feat/private-codespaces-mcp-20261019]
+    paths:
+      - 'codespaces-bridge/**'
+      - '.github/workflows/codespaces-mcp-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install isolated bridge
+        working-directory: codespaces-bridge
+        run: npm install --no-audit --no-fund
+      - name: Check syntax
+        working-directory: codespaces-bridge
+        run: node --check server.js
+      - name: Exercise real MCP JSON-RPC with GitHub token absent
+        working-directory: codespaces-bridge
+        env:
+          GATEWAY_KEY: 'this_is_a_test_only_gateway_key_1234567890'
+          GITHUB_ALLOWED_REPOS: 'Zweeback/alicealpha'
+          MUTATIONS_ENABLED: 'false'
+          DELETE_ENABLED: 'false'
+          PORT: '3080'
+        run: |
+          node server.js > /tmp/codespace-mcp.out 2>&1 &
+          for i in {1..20}; do curl -sf http://127.0.0.1:3080/health > /tmp/mcp-health.json && break || sleep 1; done
+          node --input-type=module <<'JS'
+          const root='http://127.0.0.1:3080';
+          const headers={'content-type':'application/json','accept':'application/json, text/event-stream','x-gateway-key':'this_is_a_test_only_gateway_key_1234567890'};
+          const json=async (method,params,id=1) => {
+            const r=await fetch(root+'/mcp',{method:'POST',headers,body:JSON.stringify({jsonrpc:'2.0',id,method,params})});
+            const t=await r.text();
+            if(r.status!==200)throw new Error(method+' HTTP '+r.status+': '+t);
+            return JSON.parse(t);
+          };
+          let unauth=await fetch(root+'/mcp',{method:'POST',headers:{...headers,'x-gateway-key':'wrong'},body:'{}'});
+          if(unauth.status!==401)throw Error('Unauthorized client was not rejected');
+          let init=await json('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'smoke-test',version:'1.0'}});
+          if(init.result?.serverInfo?.name!=='alice-codespaces-bridge')throw Error('MCP handshake failed '+JSON.stringify(init));
+          let tools=await json('tools/list',{},2);
+          let names=(tools.result?.tools||[]).map(t=>t.name);
+          for(const x of ['codespace_list','codespace_view','codespace_create','codespace_start','codespace_stop','codespace_delete','codespace_capabilities']){
+            if(!names.includes(x))throw Error('Missing tool '+x);
+          }
+          let info=await json('tools/call',{name:'codespace_capabilities',arguments:{}},3);
+          const status=JSON.parse(info.result.content[0].text);
+          if(status.connected||status.mutations_enabled||status.deletion_enabled||status.commands_enabled)throw Error('Unsafe default '+JSON.stringify(status));
+          let list=await json('tools/call',{name:'codespace_list',arguments:{}},4);
+          if(!list.result.isError||!list.result.content[0].text.includes('NOT_CONNECTED'))throw Error('Unconfigured account should be blocked '+JSON.stringify(list));
+          console.log('PRIVATE_CODESPACES_MCP_SMOKE_OK',names.length,'tools; fail-closed behavior verified');
+          JS
