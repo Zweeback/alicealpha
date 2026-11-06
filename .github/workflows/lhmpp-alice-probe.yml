@@ -1,0 +1,87 @@
+name: LHM++ Alice Probe
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/lhmpp-alice-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Download canonical Alice reference
+        run: |
+          curl -L --fail --retry 3             -o alice-reference.jpg             "https://cdn.openart.ai/openart-uploads/production/attachment-transfers/56a729acb797c0fec9f7929625a7d774a377914d15b1b771f650af724c1a6809.jpg"
+
+      - name: Run LHM++ ZeroGPU Space
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1280,height:1000},acceptDownloads:true});
+            page.setDefaultTimeout(30000);
+            await page.goto('https://lingteng-lhmpp.hf.space/',{waitUntil:'domcontentloaded',timeout:120000});
+            await page.waitForTimeout(12000);
+            console.log('TITLE',await page.title());
+            console.log('BODY0',(await page.locator('body').innerText()).slice(0,5000));
+            await page.screenshot({path:'lhmpp-before.png',fullPage:true});
+
+            const inputs=page.locator('input[type=file]');
+            console.log('FILE_INPUTS',await inputs.count());
+            if(await inputs.count()<1) throw new Error('No upload input');
+            await inputs.first().setInputFiles('alice-reference.jpg');
+            await page.waitForTimeout(5000);
+            await page.screenshot({path:'lhmpp-loaded.png',fullPage:true});
+
+            const generate=page.getByRole('button',{name:/Generate/i}).first();
+            await generate.click();
+            console.log('GENERATE_CLICKED');
+
+            const deadline=Date.now()+12*60*1000;
+            let done=false;
+            while(Date.now()<deadline){
+              await page.waitForTimeout(10000);
+              const body=await page.locator('body').innerText();
+              console.log('POLL',new Date().toISOString(),body.slice(-2000));
+              await page.screenshot({path:'lhmpp-progress.png',fullPage:true});
+              if(/quota exceeded|error/i.test(body) && !/no error/i.test(body)){
+                if(/quota exceeded|runtime error/i.test(body)) break;
+              }
+              const vids=page.locator('video');
+              if(await vids.count()>0){
+                for(let i=0;i<await vids.count();i++){
+                  const src=await vids.nth(i).getAttribute('src');
+                  if(src && !src.startsWith('blob:')){
+                    console.log('VIDEO',i,src);
+                    done=true;
+                  }
+                }
+              }
+              if(done) break;
+            }
+            await page.screenshot({path:'lhmpp-final.png',fullPage:true});
+            console.log('DONE',done);
+            await browser.close();
+            if(!done) process.exitCode=2;
+          })();
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-lhmpp-probe
+          path: lhmpp-*.png
+          if-no-files-found: warn
