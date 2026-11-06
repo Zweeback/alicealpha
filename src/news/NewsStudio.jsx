@@ -6,16 +6,7 @@ import { createRenderQueue } from './renderQueue.js';
 import './newsStudio.css';
 
 const defaultScript = 'Guten Abend. Hier ist Parallax News. Ich bin Alice.';
-const defaultArticleInput = `{
-  "articles": [
-    {
-      "title": "Beispielmeldung",
-      "body": "Hier kommt ein Artikel oder Rohtext hinein. Die Engine trennt ihn automatisch in sendefähige Moderationssegmente. Jedes Segment wird zu einer eigenen Alice-Szene mit Quelle, Evidenzstatus und Rendervertrag.",
-      "source": "Redaktion",
-      "evidence": "VERIFIED"
-    }
-  ]
-}`;
+const defaultArticleInput = '';
 
 function visemeFor(character) {
   const ch = String(character || '').toLowerCase();
@@ -48,6 +39,7 @@ export default function NewsStudio() {
   const [assetStatus, setAssetStatus] = useState('LOADING ALICE GLB');
   const [cameraStatus, setCameraStatus] = useState('CAMERA OFF');
   const [avatarStyle, setAvatarStyle] = useState('anime');
+  const [shot, setShot] = useState('anchor');
 
   const voices = useMemo(() => globalThis.speechSynthesis?.getVoices?.() || [], [state]);
   const activeScene = plan.scenes[selectedScene] || null;
@@ -86,6 +78,18 @@ export default function NewsStudio() {
   useEffect(() => {
     worldRef.current?.setExpression(expression);
   }, [expression]);
+
+  useEffect(() => {
+    worldRef.current?.setShot(shot);
+  }, [shot]);
+
+  useEffect(() => {
+    worldRef.current?.setOnAir(state === 'ON AIR');
+  }, [state]);
+
+  useEffect(() => {
+    worldRef.current?.setHeadline(activeScene?.lowerThird?.headline || 'PARALLAX NEWS');
+  }, [activeScene?.lowerThird?.headline]);
 
   useEffect(() => {
     worldRef.current?.setLook(look);
@@ -176,6 +180,8 @@ export default function NewsStudio() {
 
       setSelectedScene(index);
       setScript(scene.script);
+      setShot(index === 0 ? 'wide' : index % 3 === 0 ? 'side' : index % 3 === 2 ? 'close' : 'anchor');
+      worldRef.current?.playCue(index === 0 ? 'present' : 'nod', 900);
       speakText(scene.script, () => play(index + 1));
     };
 
@@ -236,6 +242,23 @@ export default function NewsStudio() {
     } catch {
       setAssetStatus('MISSING → FALLBACK');
       setAsset('procedural');
+    }
+  };
+
+  const previewLocalAvatar = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAssetStatus('IMPORTING LOCAL AVATAR');
+    try {
+      const result = await worldRef.current?.loadAssetFile(file);
+      worldRef.current?.setShot(shot);
+      setAsset('local-file');
+      setAssetStatus(result?.vrm ? 'LOKALER VRM LIVE' : 'LOKALER GLB LIVE');
+    } catch (error) {
+      setAssetStatus('IMPORT FEHLGESCHLAGEN');
+      console.error('Local avatar import failed:', error);
+    } finally {
+      event.target.value = '';
     }
   };
 
@@ -384,7 +407,11 @@ export default function NewsStudio() {
 
         <section className="news-panel">
           <label>Avatar-Asset</label>
+          <label htmlFor="local-news-avatar" className="news-import-label">Eigenen VRM/GLB lokal einsetzen · kein Upload an GitHub</label>
+          <input id="local-news-avatar" type="file" accept=".vrm,.glb,model/gltf-binary"
+            onChange={previewLocalAvatar} className="news-file-input" />
           <select value={asset} onChange={(event) => selectAsset(event.target.value)}>
+            <option value="local-file" disabled>Lokaler VRM/GLB · Sitzungs-Vorschau</option>
             <option value="alice-glb">/alice.glb · echter 3D-Kandidat</option>
             <option value="procedural">Prozedurale Alice · Fallback</option>
             <option value="news-vrm">/alice-news.vrm</option>
@@ -405,6 +432,24 @@ export default function NewsStudio() {
               >
                 {name === 'serious' ? 'SERIÖS' : name === 'warm' ? 'WARM' : name === 'amused' ? 'AMÜSIERT' : 'NEUGIERIG'}
               </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="news-panel">
+          <label>TV-Regie · Kameraschnitt</label>
+          <div className="news-grid four">
+            {[
+              ['anchor', 'CAM 1 · ANKER'],
+              ['wide', 'CAM 2 · TOTAL'],
+              ['side', 'CAM 3 · SEITE'],
+              ['close', 'CAM 4 · CLOSE'],
+            ].map(([name, title]) => (
+              <button type="button" key={name}
+                aria-pressed={shot === name}
+                className={shot === name ? 'selected' : ''}
+                onClick={() => setShot(name)}
+              >{title}</button>
             ))}
           </div>
         </section>
