@@ -73,12 +73,12 @@ tex = np.asarray(Image.open(io.BytesIO(bytes(b[bv.get('byteOffset', 0):bv.get('b
 Ht, Wt = tex.shape[:2]; px = np.clip((UVH[:, 0] % 1 * Wt).astype(int), 0, Wt - 1); py = np.clip((UVH[:, 1] % 1 * Ht).astype(int), 0, Ht - 1)
 sat = tex[py, px, 1] / 255; val = tex[py, px, 2] / 255
 x, y, z = PH[:, 0], PH[:, 1], PH[:, 2]
-Y0 = float(os.environ.get('BOB_Y0', 1.60)); YE = float(os.environ.get('BOB_END', 1.468))
+Y0 = float(os.environ.get('BOB_Y0', 1.60)); YE = float(os.environ.get('BOB_END', 1.485))
 hair = (sat > 0.45) & (val < 0.75) & ((np.abs(x) > 0.058) | (z < 0.0)) & (y < Y0)
 ymin = float(y[hair].min()); k = (Y0 - YE) / (Y0 - ymin)
 yn = Y0 - (Y0 - y) * k; s = np.clip((Y0 - yn) / (Y0 - YE), 0, 1)
 cx, cz = 0.0, -0.006; dx, dz = x - cx, z - cz; rr = np.hypot(dx, dz) + 1e-9
-push = 0.010 * s ** 1.5 + 0.006 * np.clip((s - 0.8) / 0.2, 0, 1)       # leicht ausgestellte Spitzen
+push = 0.004 * np.clip(s / 0.15, 0, 1) + 0.010 * s ** 1.2
 PH2 = PH.copy(); PH2[hair, 1] = yn[hair]; PH2[hair, 0] = (x + dx / rr * push)[hair]; PH2[hair, 2] = (z + dz / rr * push)[hair]
 pa['POSITION'] = add_acc(PH2.astype(np.float32), 5126, 'VEC3', 34962, True)
 print('bob: hair verts', int(hair.sum()), 'ymin', round(ymin, 3), 'k', round(k, 3))

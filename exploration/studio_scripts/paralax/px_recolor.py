@@ -95,6 +95,7 @@ from scipy.ndimage import distance_transform_edt
 def bleed(arr, mask):
     _, (iy, ix) = distance_transform_edt(~mask, return_indices=True); return arr[iy, ix]
 out = np.where(m[..., None], out, bleed(out, m))
+paint(shoe & m, (0.95, 0.94, 0.95), 0.25, 0.8)
 put(oim, out)
 # Normalmap in Haut-/Strumpf-Flächen glätten (keine Jeansnähte mehr)
 flat = gaussian_filter((shirt & ((y < cropy) | vskin) | skin_leg | sock | (jeans & (y >= 1.03))).astype(np.float32), 1.5)[..., None]
@@ -104,6 +105,28 @@ Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8)).save('out/px/outfit
 bim, B = img('AvatarBodyFemale_Color_1K'); Hb, Wb = B.shape[:2]; bpos, _, bm = raster('AvatarBody', Hb, Wb)
 ank = bm & (bpos[..., 1] < 0.17); wa = gaussian_filter(ank.astype(np.float32), 0.8)[..., None]
 B2 = B * (1 - wa) + np.array([0.95, 0.94, 0.95]) * wa; put(bim, B2)
+# ---------------------------------------------------------------- Kopf: Haar kupfern/heller, Sommersprossen
+him, HT = img('AvatarHeadFemale_Color_1K'); Hh, Wh = HT.shape[:2]; hp, hn, hm = raraster = raster('AvatarHead', Hh, Wh)
+hx, hy, hz = hp[..., 0], hp[..., 1], hp[..., 2]
+hsv = np.asarray(Image.fromarray((HT * 255).astype(np.uint8)).convert('HSV')).astype(np.float32); hh_, hs_, hv_ = hsv[..., 0] * 360 / 255, hsv[..., 1] / 255, hsv[..., 2] / 255
+face = hm & (hz > 0.035) & (np.abs(hx) < 0.056) & (hy < 1.655)
+hairm = (hs_ > 0.40) & (hv_ < 0.80) & ~face & ((hh_ < 40) | (hh_ > 340))
+facew = gaussian_filter(face.astype(np.float32), 6.0)
+hairw = gaussian_filter(hairm.astype(np.float32), 1.0) * (1 - np.clip(facew * 1.6, 0, 1))
+nh = np.full_like(hh_, 19.0); ns = np.clip(hs_ * 0.92, 0, 1); nv = np.clip(hv_ * 1.45 + 0.04, 0, 1)
+newh = np.asarray(Image.fromarray(np.dstack([nh / 360 * 255, ns * 255, nv * 255]).astype(np.uint8), 'HSV').convert('RGB')).astype(np.float32) / 255
+HT2 = HT * (1 - hairw[..., None]) + newh * hairw[..., None]
+# Sommersprossen: Wangen + Nasenrücken
+fr = hm & (hz > 0.05) & (hy > 1.565) & (hy < 1.628) & (np.abs(hx) < 0.062) & ~hairm
+ys_, xs_ = np.nonzero(fr); rngf = np.random.default_rng(11); pick = rngf.choice(len(ys_), size=min(len(ys_), 340), replace=False)
+dots = np.zeros((Hh, Wh), np.float32)
+for i in pick:
+    yq, xq = ys_[i], xs_[i]; r = rngf.uniform(0.6, 1.4); a = rngf.uniform(0.18, 0.45)
+    d = np.zeros((Hh, Wh), np.float32)
+    dots[max(yq - 2, 0):yq + 3, max(xq - 2, 0):xq + 3] = np.maximum(dots[max(yq - 2, 0):yq + 3, max(xq - 2, 0):xq + 3], a * np.exp(-((np.mgrid[-2:3, -2:3] ** 2).sum(0)) / (2 * r * r))[:min(yq + 3, Hh) - max(yq - 2, 0), :min(xq + 3, Wh) - max(xq - 2, 0)])
+frc = np.array([0.62, 0.38, 0.26]); HT2 = HT2 * (1 - dots[..., None]) + (HT2 * frc / frc.max() * 0.8) * dots[..., None]
+put(him, HT2); Image.fromarray((np.clip(HT2, 0, 1) * 255).astype(np.uint8)).save('out/px/head_tex.png'); print('hair px', int(hairm.sum()), 'freckles', len(pick))
+# Augenbrauen/Wimpern-Haare im Haar-Mesh? (Augenbrauen sind Kopftextur: werden mit kupfern, passt zur Referenz)
 # ---------------------------------------------------------------- Iris -> blau
 eim, E = img('AvatarEyes_Color_512')
 hsv = np.asarray(Image.fromarray((E * 255).astype(np.uint8)).convert('HSV')).astype(np.float32); h, s, v = hsv[..., 0] * 360 / 255, hsv[..., 1] / 255, hsv[..., 2] / 255
