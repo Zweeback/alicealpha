@@ -1,0 +1,50 @@
+name: GLaDOS local Qwen HTTP inference proof
+on:
+  push:
+    branches: [experiment/glados-de-e2e-20261107]
+    paths: ['.github/workflows/glados-local-qwen-proof.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-llm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Build free llama.cpp server
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
+          cmake -S /tmp/llama.cpp -B /tmp/llama.cpp/build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF
+          cmake --build /tmp/llama.cpp/build --target llama-server -j 2
+      - name: Download GGUF and verify header
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLSs --retry 3 --max-time 300 'https://huggingface.co/tensorblock/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf' -o /tmp/qwen.gguf
+          test "$(head -c 4 /tmp/qwen.gguf)" = GGUF
+          test "$(wc -c < /tmp/qwen.gguf)" -gt 440000000
+          sha256sum /tmp/qwen.gguf | cut -d' ' -f1
+      - name: Generate real text over local OpenAI-compatible HTTP API
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/llama.cpp/build/bin/llama-server -m /tmp/qwen.gguf --alias local-qwen --host 127.0.0.1 --port 8080 --ctx-size 2048 --threads 2 > /tmp/llama.log 2>&1 &
+          trap 'kill $!' EXIT
+          ready=0
+          for i in $(seq 1 90); do
+            if curl --max-time 2 -fsS http://127.0.0.1:8080/health 2>/dev/null | grep -q '"status": "ok"'; then ready=1;break;fi
+            sleep 2
+          done
+          test "$ready" = 1 || { tail -80 /tmp/llama.log; exit 1; }
+          python - <<'PY'
+          import json,urllib.request
+          data={"model":"local-qwen","messages":[{"role":"system","content":"Antworte auf Deutsch, maximal ein Satz."},{"role":"user","content":"Wie lautet das Wort für hello auf Deutsch?"}],"stream":False,"temperature":0.2,"max_tokens":100,"chat_template_kwargs":{"enable_thinking":False}}
+          req=urllib.request.Request("http://127.0.0.1:8080/v1/chat/completions",data=json.dumps(data).encode(),headers={"Content-Type":"application/json"})
+          with urllib.request.urlopen(req,timeout=120) as r: out=json.load(r)
+          answer=out["choices"][0]["message"]["content"]
+          assert isinstance(answer,str) and answer.strip(),out
+          assert "<think>" not in answer,answer
+          print("LOCAL_CHAT_SUCCESS:",answer[:300])
+          PY
