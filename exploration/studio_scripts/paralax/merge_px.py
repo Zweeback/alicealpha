@@ -49,7 +49,10 @@ MS = json.load(open(f'{D}/mats_px.json')); MAT = {}
 for k, c in MS.items():
     MAT[k] = add_mat('Alice_PX_' + k, add_tex(f'{D}/tex_px/{c["tex"]}', 'px_' + k), c.get('rough', 0.7), c.get('emissive'), c.get('ds', False), c.get('metal', 0.0), c.get('alpha'), c.get('es', 2.5))
 if 'KHR_materials_emissive_strength' not in j.setdefault('extensionsUsed', []): j['extensionsUsed'].append('KHR_materials_emissive_strength')
-Z = np.load(f'{D}/parts_px.npz'); parts = sorted({k.split('__')[0] for k in Z.files})
+Z0 = np.load(f'{D}/parts_px.npz'); ZD = {k: Z0[k] for k in Z0.files}
+if os.path.exists(f'{D}/parts_hair.npz') and os.environ.get('NO_HAIR') != '1':
+    Zh = np.load(f'{D}/parts_hair.npz'); ZD.update({k: Zh[k] for k in Zh.files})
+Z = ZD; parts = sorted({k.split('__')[0] for k in Z})
 scene_nodes = j['scenes'][j.get('scene', 0)]['nodes']; tot = 0
 for pn in parts:
     P, N, UV, J, W, I, mat = (Z[f'{pn}__{k}'] for k in ('P', 'N', 'UV', 'J', 'W', 'I', 'mat'))
@@ -73,15 +76,13 @@ tex = np.asarray(Image.open(io.BytesIO(bytes(b[bv.get('byteOffset', 0):bv.get('b
 Ht, Wt = tex.shape[:2]; px = np.clip((UVH[:, 0] % 1 * Wt).astype(int), 0, Wt - 1); py = np.clip((UVH[:, 1] % 1 * Ht).astype(int), 0, Ht - 1)
 sat = tex[py, px, 1] / 255; val = tex[py, px, 2] / 255
 x, y, z = PH[:, 0], PH[:, 1], PH[:, 2]
-Y0 = float(os.environ.get('BOB_Y0', 1.60)); YE = float(os.environ.get('BOB_END', 1.485))
-hair = (sat > 0.45) & (val < 0.75) & ((np.abs(x) > 0.058) | (z < 0.0)) & (y < Y0)
-ymin = float(y[hair].min()); k = (Y0 - YE) / (Y0 - ymin)
-yn = Y0 - (Y0 - y) * k; s = np.clip((Y0 - yn) / (Y0 - YE), 0, 1)
-cx, cz = 0.0, -0.006; dx, dz = x - cx, z - cz; rr = np.hypot(dx, dz) + 1e-9
-push = 0.004 * np.clip(s / 0.15, 0, 1) + 0.010 * s ** 1.2
-PH2 = PH.copy(); PH2[hair, 1] = yn[hair]; PH2[hair, 0] = (x + dx / rr * push)[hair]; PH2[hair, 2] = (z + dz / rr * push)[hair]
-pa['POSITION'] = add_acc(PH2.astype(np.float32), 5126, 'VEC3', 34962, True)
-print('bob: hair verts', int(hair.sum()), 'ymin', round(ymin, 3), 'k', round(k, 3))
+# Haarschale unterhalb des Oberkopfs entfernen (Dreiecke löschen) – sichtbares Haar = Hair-Cards
+YCUT = float(os.environ.get('SHELL_CUT', 1.645))
+hair = (sat > 0.45) & (val < 0.80) & ((np.abs(x) > 0.05) | (z < 0.01))
+cut = hair & (y < YCUT)
+IH = acc(head_prim['indices']).reshape(-1, 3); keep = ~cut[IH].any(1)
+head_prim['indices'] = add_acc(IH[keep].reshape(-1).astype(np.uint32), 5125, 'SCALAR', 34963)
+print('shell hair tris removed', int((~keep).sum()), 'of', len(IH))
 v = j['extensions']['VRMC_vrm']; v['meta']['version'] = '2.0-paralax'; v['meta']['name'] = 'ALICE (Paralax look)'
 j['buffers'][0]['byteLength'] = len(b)
 while len(b) % 4: b.append(0)

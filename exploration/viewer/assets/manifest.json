@@ -3,21 +3,13 @@
  "updated": "2026-11-02",
  "assets": [
   {
-   "id": "alice_paralax_v2",
-   "name": "Alice – Paralax-Look v2",
-   "file": "alice_paralax_v2.vrm",
+   "id": "alice_paralax_v3",
+   "name": "Alice – Paralax-Look v3",
+   "file": "alice_paralax_v3.vrm",
    "kind": "avatar",
    "format": "vrm",
    "default": true,
-   "notes": "v1 + kupferrote Haare mit mehr Volumen, Sommersprossen, sanfterer Haaransatz, Socken-weiße Schuhe."
-  },
-  {
-   "id": "alice_paralax_v1",
-   "name": "Alice – Paralax-Look v1",
-   "file": "alice_paralax_v1.vrm",
-   "kind": "avatar",
-   "format": "vrm",
-   "notes": "Nach Referenzbild: lila Argyle-Kapuzenjacke, Gurte, Crop-Top, Minirock, Overknees, Choker, Perlen, Oberschenkel-Strap; kinnlanger Bob, blaue Augen; 8 Spring-Ketten an der Jacke."
+   "notes": "Hair-Card-Bob mit Haar-Spring-Bones, Paralax-Outfit, Strumpf-Füße."
   },
   {
    "id": "alice_v1.4",

@@ -95,15 +95,30 @@ from scipy.ndimage import distance_transform_edt
 def bleed(arr, mask):
     _, (iy, ix) = distance_transform_edt(~mask, return_indices=True); return arr[iy, ix]
 out = np.where(m[..., None], out, bleed(out, m))
-paint(shoe & m, (0.95, 0.94, 0.95), 0.25, 0.8)
+paint(shoe & m, (0.95, 0.94, 0.95), 0.0, 1.5)
 put(oim, out)
+
+# Sneaker -> Strumpffuß: Schuh-Geometrie schlanker/flacher formen (Sohle verschwindet optisch)
+_on = next(x_ for x_ in j['nodes'] if x_.get('name') == 'outfit'); _pr = j['meshes'][_on['mesh']]['primitives'][0]
+_P = acc(_pr['attributes']['POSITION']); sh = _P[:, 1] < 0.115
+for sg in (-1, 1):
+    m_ = sh & (np.sign(_P[:, 0]) == sg)
+    if not m_.any(): continue
+    cxf = np.median(_P[m_, 0]); czf = np.median(_P[m_, 2]); ymin = _P[m_, 1].min()
+    t = np.clip((0.115 - _P[m_, 1]) / 0.06, 0, 1)                     # 0 am Knöchel, 1 unten
+    _P[m_, 0] = cxf + (_P[m_, 0] - cxf) * (1 - 0.24 * t)
+    _P[m_, 2] = czf + (_P[m_, 2] - czf) * (1 - 0.08 * t)
+    _P[m_, 1] = ymin + (_P[m_, 1] - ymin) * (1 - 0.18 * t) + 0.004 * t
+while len(b) % 4: b.append(0)
+_d = _P.astype(np.float32).tobytes(); j['bufferViews'].append({'buffer': 0, 'byteOffset': len(b), 'byteLength': len(_d), 'target': 34962}); b.extend(_d)
+j['accessors'].append({'bufferView': len(j['bufferViews']) - 1, 'componentType': 5126, 'count': len(_P), 'type': 'VEC3', 'min': _P.min(0).tolist(), 'max': _P.max(0).tolist()}); _pr['attributes']['POSITION'] = len(j['accessors']) - 1
 # Normalmap in Haut-/Strumpf-Flächen glätten (keine Jeansnähte mehr)
-flat = gaussian_filter((shirt & ((y < cropy) | vskin) | skin_leg | sock | (jeans & (y >= 1.03))).astype(np.float32), 1.5)[..., None]
+flat = gaussian_filter((shirt & ((y < cropy) | vskin) | skin_leg | sock | (jeans & (y >= 1.03)) | (shoe & m)).astype(np.float32), 1.5)[..., None]
 NM2 = NM * (1 - flat) + np.array([0.5, 0.5, 1.0]) * flat; NM2 = np.where(m[..., None], NM2, bleed(NM2, m)); put(nim, NM2)
 Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8)).save('out/px/outfit_tex.png')
 # ---------------------------------------------------------------- Körper: Knöchel/Fuß-Ansatz weiß (Strumpf unter Jeans-Saum)
 bim, B = img('AvatarBodyFemale_Color_1K'); Hb, Wb = B.shape[:2]; bpos, _, bm = raster('AvatarBody', Hb, Wb)
-ank = bm & (bpos[..., 1] < 0.17); wa = gaussian_filter(ank.astype(np.float32), 0.8)[..., None]
+ank = bm & (bpos[..., 1] < 0.25); wa = gaussian_filter(ank.astype(np.float32), 0.8)[..., None]
 B2 = B * (1 - wa) + np.array([0.95, 0.94, 0.95]) * wa; put(bim, B2)
 # ---------------------------------------------------------------- Kopf: Haar kupfern/heller, Sommersprossen
 him, HT = img('AvatarHeadFemale_Color_1K'); Hh, Wh = HT.shape[:2]; hp, hn, hm = raraster = raster('AvatarHead', Hh, Wh)

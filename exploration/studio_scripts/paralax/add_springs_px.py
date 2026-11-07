@@ -78,6 +78,39 @@ for nm, ni in list(nid.items()):
     if not lw.any(): continue
     reweight(pr, Pp, acc(pr['attributes']['JOINTS_0']).astype(np.int64), acc(pr['attributes']['WEIGHTS_0']).astype(np.float64), lw); nh += 1
 print('hanging parts reweighted', nh)
+# ---- Haar-Ketten (Bob): 8 Ketten um den Kopf, unterhalb 1.60 umgewichtet
+coat_chains, coat_YS, coat_cx, coat_cz = chains, YS, cx, cz
+if 'Alice_haircards' in nid:
+    hp_ = j['meshes'][j['nodes'][nid['Alice_haircards']]['mesh']]['primitives'][0]; PHc = acc(hp_['attributes']['POSITION'])
+    cx, cz = 0.0, -0.004; YS = [1.62, 1.555, 1.49]; chains = []
+    for c in range(NCH):
+        a = -math.pi + 2 * math.pi * (c + 0.5) / NCH; parent = HEAD; ch_ = []
+        for k, yv in enumerate(YS):
+            m_ = (np.abs(PHc[:, 1] - yv) < 0.02) & (np.abs(((np.arctan2(PHc[:, 0] - cx, PHc[:, 2] - cz) - a + math.pi) % (2 * math.pi)) - math.pi) < math.pi / NCH)
+            r = float(np.median(np.hypot(PHc[m_, 0] - cx, PHc[m_, 2] - cz))) * 0.9 if m_.any() else 0.09
+            node, ji = add_joint(f'hair_{c}_{k}', parent, np.array([cx + r * math.sin(a), yv, cz + r * math.cos(a)])); ch_.append((node, ji, None)); parent = node
+        chains.append((a, ch_))
+    hair_chains = chains
+    def hw(nm):
+        pr = j['meshes'][j['nodes'][nid[nm]]['mesh']]['primitives'][0]; Pp = acc(pr['attributes']['POSITION'])
+        J_ = acc(pr['attributes']['JOINTS_0']).astype(np.int64); W_ = acc(pr['attributes']['WEIGHTS_0']).astype(np.float64)
+        low_ = Pp[:, 1] < 1.62; ang = np.arctan2(Pp[:, 0] - cx, Pp[:, 2] - cz)
+        for i in np.where(low_)[0]:
+            y = Pp[i, 1]; t = float(np.clip((1.62 - y) / 0.06, 0, 1)) * 0.9
+            f = (ang[i] + math.pi) / (2 * math.pi) * NCH - 0.5; c0 = int(math.floor(f)) % NCH; c1 = (c0 + 1) % NCH; fc = f - math.floor(f)
+            seg = 0 if y > YS[1] else 1; w = {}
+            for cc, wc in ((c0, 1 - fc), (c1, fc)):
+                jn = chains[cc][1][seg][1]; w[jn] = w.get(jn, 0) + t * wc
+            for k_, wk in zip(J_[i], W_[i]):
+                if wk > 0: w[int(k_)] = w.get(int(k_), 0) + wk * (1 - t)
+            top = sorted(w.items(), key=lambda kv: -kv[1])[:4]; s_ = sum(v for _, v in top)
+            J_[i] = [k_ for k_, _ in top] + [0] * (4 - len(top)); W_[i] = [v / s_ for _, v in top] + [0] * (4 - len(top))
+        pr['attributes']['JOINTS_0'] = add_acc(J_.astype(np.uint16), 5123, 'VEC4', 34962); pr['attributes']['WEIGHTS_0'] = add_acc(W_.astype(np.float32), 5126, 'VEC4', 34962)
+    for nm in ('Alice_haircards', 'Alice_hairbase'):
+        if nm in nid: hw(nm)
+    print('hair chains', len(hair_chains))
+else: hair_chains = []
+chains = coat_chains
 # IBM neu schreiben
 skin['inverseBindMatrices'] = add_acc(IBM.astype(np.float32), 5126, 'MAT4')
 # ---- Collider + Springs
@@ -89,13 +122,17 @@ for side in ('left', 'right'):
     for o_ in (0.0, -0.13, -0.26): col(up, 0.085, (0, o_, 0))
     for o_ in (0.0, -0.15): col(lo, 0.065, (0, o_, 0))
 col(HEAD, 0.10, (0, 0.06, 0))
+col(hb['neck']['node'], 0.055, (0, 0.03, 0)); col(hb['upperChest']['node'] if 'upperChest' in hb else hb['chest']['node'], 0.12, (0, 0.06, -0.02))
 springs = []
 for a, ch_ in chains:
     springs.append({'name': f'coat_{round(math.degrees(a))}', 'colliderGroups': [0],
                     'joints': [{'node': n_, 'hitRadius': 0.03, 'stiffness': 1.4 if k == 0 else 0.9, 'gravityPower': 0.25, 'gravityDir': [0, -1, 0], 'dragForce': 0.55} for k, (n_, _, _) in enumerate(ch_)]})
 pass  # kein Dutt
 if False: springs.append({'name': 'bun', 'colliderGroups': [1], 'joints': [{'node': b0, 'hitRadius': 0.03, 'stiffness': 2.5, 'gravityPower': 0.05, 'gravityDir': [0, -1, 0], 'dragForce': 0.6}, {'node': b1, 'hitRadius': 0.02, 'stiffness': 2.5, 'gravityPower': 0.05, 'gravityDir': [0, -1, 0], 'dragForce': 0.6}]})
-j['extensions']['VRMC_springBone'] = {'specVersion': '1.0', 'colliders': cols, 'colliderGroups': [{'name': 'legs', 'colliders': list(range(len(cols) - 1))}, {'name': 'head', 'colliders': [len(cols) - 1]}], 'springs': springs}
+for a, ch_ in hair_chains:
+    springs.append({'name': f'hair_{round(math.degrees(a))}', 'colliderGroups': [1],
+                    'joints': [{'node': n_, 'hitRadius': 0.02, 'stiffness': 1.6 if k == 0 else 1.1, 'gravityPower': 0.15, 'gravityDir': [0, -1, 0], 'dragForce': 0.5} for k, (n_, _, _) in enumerate(ch_)]})
+j['extensions']['VRMC_springBone'] = {'specVersion': '1.0', 'colliders': cols, 'colliderGroups': [{'name': 'legs', 'colliders': list(range(len(cols) - 3))}, {'name': 'headneck', 'colliders': [len(cols) - 3, len(cols) - 2, len(cols) - 1]}], 'springs': springs}
 if 'VRMC_springBone' not in j['extensionsUsed']: j['extensionsUsed'].append('VRMC_springBone')
 j['extensions']['VRMC_vrm']['meta']['version'] = '2.0-paralax'
 j['buffers'][0]['byteLength'] = len(b)
