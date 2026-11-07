@@ -1,0 +1,30 @@
+name: GLaDOS DE offline asset bundle isolated branch
+on:
+  push:
+    branches:
+      - experiment/glados-de-e2e-20261107
+    paths:
+      - 'experiments/glados_de/build_assets.sh'
+      - '.github/workflows/glados-de-bundle.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch, verify and run German voice inference
+        run: bash experiments/glados_de/build_assets.sh
+      - name: Upload temporary offline runtime and model artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glados-de-offline-assets
+          path: experiments/glados_de/dist/
+          if-no-files-found: error
+          retention-days: 1
