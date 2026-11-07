@@ -1,0 +1,22 @@
+name: GLaDOS DE Alice public backend health
+on:
+  push:
+    branches: [experiment/glados-de-e2e-20261107]
+    paths: ['experiments/glados_de/live_health_probe.py', '.github/workflows/glados-de-live-health.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe live Alice without sending a paid chat request
+        run: python experiments/glados_de/live_health_probe.py
+      - name: Save health evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: alice-health-evidence
+          path: alice-health-proof.json
+          retention-days: 3
