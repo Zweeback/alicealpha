@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#08151b"><title>GLaDOS DE · Offline TTS</title>
+<style>
+:root{color-scheme:dark;--bg:#08151b;--fg:#e4f7f3;--accent:#ade8d3;--sub:#aac2bf}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#164047,var(--bg) 66%);color:var(--fg);font:16px/1.5 system-ui, sans-serif}
+main{max-width:750px;margin:24px auto;padding:14px}h1{letter-spacing:.13em;font-size:1.75rem;margin:0}
+small,.sub{color:var(--sub)}.box{background:#10262d;border:1px solid #29515a;border-radius:13px;padding:20px;margin:18px 0}
+.switches{display:flex;gap:12px;flex-wrap:wrap}.switches label{flex:1;min-width:220px;padding:12px;border-radius:9px;border:1px solid #335d60}
+.switches label:has(input:checked){border-color:var(--accent);background:#173d3c}
+textarea{display:block;width:100%;min-height:156px;background:#06171b;color:var(--fg);border:1px solid #44666b;border-radius:8px;padding:12px;font:inherit;margin:12px 0}
+button{padding:12px 15px;background:var(--accent);color:#072023;border:0;border-radius:8px;font-weight:700;margin:4px 7px 4px 0;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}.secondary{background:#24434b;color:#e9f9f5}
+#status{color:#ffdb98;min-height:2em}audio{width:100%;margin-top:10px}a{color:var(--accent)}
+</style></head><body><main>
+<h1>GLaDOS · DE</h1><p class="sub">Nur deutsche Portal-Stimmensynthese · vollständig lokal · kein Stimm-Fallback</p>
+<div class="box"><strong>Modus</strong><div class="switches">
+<label><input name="mode" type="radio" value="glados" checked> GLaDOS <small>Deutsches Piper-ONNX-Modell</small></label>
+<label><input name="mode" type="radio" value="hev"> HEV Mark III <small>Statussimulation, Audio gesperrt</small></label>
+</div></div>
+<div class="box"><label for="text"><strong>Text</strong></label>
+<textarea id="text">Willkommen im Testlabor. Deine deutsche Sprachausgabe wird geprüft.</textarea>
+<div><button id="speak" disabled>GLaDOS sprechen lassen</button><button class="secondary" id="stop">Stopp</button><button class="secondary" id="paste">Einfügen</button></div>
+<p id="status" role="status">Initialisierung…</p>
+<audio id="audio" controls preload="none" hidden></audio>
+<p><a id="save" hidden download="glados-de.wav">WAV speichern</a></p>
+<p class="sub">Bei Fehlern bleibt der Player stumm. HEV hat noch keine geprüfte deutsche Stimme. Diese App ersetzt nicht den ChatGPT-Live-Kanal.</p>
+</div>
+</main>
+<script src="./runtime/vendor/ort/ort.wasm.min.js"></script>
+<script src="./runtime/vendor/phonemize/piper_phonemize.js"></script>
+<script src="./runtime/piper-browser.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const MODEL = 'de_DE-glados-medium.onnx';
+let engine = null, busy = false, mode = 'glados', token = 0, blobURL = null;
+const say = message => { $('status').textContent = message; };
+function buttons(){ $('speak').disabled = busy || mode!=='glados' || !engine; }
+function discard() {
+  $('audio').pause(); $('audio').removeAttribute('src'); $('audio').load();
+  $('audio').hidden=true;
+  $('save').removeAttribute('href'); $('save').hidden=true;
+  if (blobURL) { URL.revokeObjectURL(blobURL); blobURL=null; }
+}
+function stop() {token++;discard();say('Gestoppt.');}
+async function init() {
+ try {
+  if(!window.ort || !window.createPiperPhonemize || !window.Piper) throw new Error('Piper-WASM-Laufzeit fehlt.');
+  say('Deutsches Sprachmodell wird geladen (64 MB)…');
+  engine=await Piper.createEngine('./assets/'+MODEL,'./assets/'+MODEL+'.json');
+  if(engine.cfg?.espeak?.voice !== 'de') throw new Error('Falsche Modellsprache.');
+  await Piper.getPhonemizer();
+  say('Bereit: GLaDOS DE. Keine Ersatzstimme.');
+  buttons();
+ } catch(err) {
+  engine=null; say('Keine Sprachausgabe: '+(err?.message||String(err))); buttons(); console.error(err);
+ }
+}
+async function speak() {
+ if(busy || !engine || mode!=='glados') return;
+ const content=$('text').value.trim();
+ if(!content){say('Bitte Text eingeben.');return;}
+ if(content.length>500){say('Maximal 500 Zeichen pro Durchlauf, um Aussetzer zu vermeiden.');return;}
+ const own=++token;discard();busy=true;buttons();say('GLaDOS synthetisiert…');
+ try {
+  const samples=await engine.speak(content,{sentenceSilence:0.18});
+  if(own!==token || mode!=='glados')return;
+  if(!samples?.length || samples.length<engine.sampleRate/5) throw new Error('Kein gültiges Audiosignal.');
+  const buf=Piper.toWav(samples,engine.sampleRate);
+  blobURL=URL.createObjectURL(buf);
+  $('audio').src=blobURL;$('audio').hidden=false;
+  $('save').href=blobURL;$('save').hidden=false;
+  say('GLaDOS bereit · '+(samples.length/engine.sampleRate).toFixed(1)+' Sekunden.');
+  try {await $('audio').play();} catch(e) {
+    if(own===token) say('GLaDOS bereit · Wiedergabe bitte über ▶ im Audioplayer starten.');
+  }
+ } catch(err) {
+  if(own!==token)return;
+  discard();say('Keine Audioausgabe: '+(err?.message||String(err)));console.error(err);
+ } finally {busy=false;buttons();}
+}
+$('speak').addEventListener('click',speak);
+$('stop').addEventListener('click',stop);
+$('paste').addEventListener('click',async()=>{
+ try {$('text').value=await navigator.clipboard.readText();say('Text eingefügt.');}
+ catch {say('Bitte Text manuell einfügen.');}
+});
+document.querySelectorAll('input[name="mode"]').forEach(el=>el.addEventListener('change',()=>{
+  mode=document.querySelector('input[name="mode"]:checked').value;stop();
+  say(mode==='hev'?'HEV Mark III: Audio gesperrt, keine geprüfte deutsche Stimme.':(engine?'GLaDOS DE bereit.':'GLaDOS lädt noch.'));
+  buttons();
+}));
+init();
+</script></body></html>
