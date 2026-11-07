@@ -1,0 +1,26 @@
+name: GLaDOS Android llama prebuilt inspection
+on:
+  push:
+    branches: [experiment/glados-de-e2e-20261107]
+    paths: ['.github/workflows/glados-android-binary-inspect.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download official Android ARM64 release and audit binaries
+        run: |
+          set -euxo pipefail
+          curl -fLSs --retry 3 'https://github.com/ggml-org/llama.cpp/releases/download/b12189/llama-b12189-bin-android-arm64.tar.gz' -o /tmp/llama-android.tar.gz
+          mkdir -p /tmp/llama-android
+          tar -xzf /tmp/llama-android.tar.gz -C /tmp/llama-android
+          find /tmp/llama-android -type f | head -45
+          X="$(find /tmp/llama-android -type f -name llama-server | head -1)"
+          test -n "$X"
+          file "$X"
+          readelf -h "$X" | grep -E 'Class:|Machine:|OS/ABI:'
+          readelf -d "$X" | grep NEEDED | head -25
+          echo "PREBUILT_ANDROID_SERVER_FOUND=YES"
