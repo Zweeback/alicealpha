@@ -166,8 +166,10 @@ jacket.data.uv_layers.new(name='UV'); uvd = jacket.data.uv_layers.active.data
 for poly in jacket.data.polygons:
     for li in poly.loop_indices:
         p = jacket.data.vertices[jacket.data.loops[li].vertex_index].co
-        if abs(p.x) > 0.2: uvd[li].uv = (abs(p.x) * 2.2, (math.atan2(p.z - 1.43, p.y) / (2 * math.pi)) * 0.7)
-        else: uvd[li].uv = ((math.atan2(p.y, p.x) / (2 * math.pi)) * 2.0, p.z * 2.5)
+        if abs(p.x) > 0.2 and p.z > 1.25: uvd[li].uv = (abs(p.x) * 2.2, (math.atan2(p.z - 1.43, p.y) / (2 * math.pi)) * 0.7)
+        else:
+            a_ = math.atan2(p.y, p.x); a_ = a_ + 2 * math.pi if a_ < -math.pi / 2 else a_
+            uvd[li].uv = ((a_ / (2 * math.pi)) * 2.0, p.z * 2.5)
 solid(jacket, 0.007); smooth(jacket)
 _, WJ = dt_weights(jacket, hips_below=0.95); pack_w('jacket', jacket, 'jacket', WJ)
 T_J = bvh_of(jacket)

@@ -53,21 +53,31 @@ for c in range(NCH):
         wpos = np.array([cx + r * math.sin(a), yv, cz + r * math.cos(a)])
         node, ji = add_joint(f'coat_tail_{c}_{k}', parent, wpos); ch_.append((node, ji, wpos)); parent = node
     chains.append((a, ch_))
-# Umgewichten: unterhalb 0.92 zunehmend an die Kettenglieder (nach Winkel zwischen 2 Ketten interpoliert)
-ang = np.arctan2(P[:, 0] - cx, P[:, 2] - cz)
-for i in np.where(low)[0]:
-    y = P[i, 1]; t = float(np.clip((0.93 - y) / 0.10, 0, 1)) * 0.95
-    if t <= 0: continue
-    f = (ang[i] + math.pi) / (2 * math.pi) * NCH - 0.5; c0 = int(math.floor(f)) % NCH; c1 = (c0 + 1) % NCH; fc = f - math.floor(f)
-    seg = int(np.clip(np.searchsorted(-np.array(YS), -y) - 1, 0, len(YS) - 2))   # Segment, in dem y liegt
-    w = {}
-    for cc, wc in ((c0, 1 - fc), (c1, fc)):
-        jn = chains[cc][1][seg][1]; w[jn] = w.get(jn, 0) + t * wc
-    for k_, wk in zip(J0[i], W0[i]):
-        if wk > 0: w[int(k_)] = w.get(int(k_), 0) + wk * (1 - t)
-    top = sorted(w.items(), key=lambda kv: -kv[1])[:4]; s = sum(v for _, v in top)
-    J0[i] = [k_ for k_, _ in top] + [0] * (4 - len(top)); W0[i] = [v / s for _, v in top] + [0] * (4 - len(top))
-cp['attributes']['JOINTS_0'] = add_acc(J0.astype(np.uint16), 5123, 'VEC4', 34962); cp['attributes']['WEIGHTS_0'] = add_acc(W0.astype(np.float32), 5126, 'VEC4', 34962)
+def reweight(cp, P, J0, W0, low):
+    ang = np.arctan2(P[:, 0] - cx, P[:, 2] - cz)
+    for i in np.where(low)[0]:
+        y = P[i, 1]; t = float(np.clip((0.93 - y) / 0.10, 0, 1)) * 0.95
+        if t <= 0: continue
+        f = (ang[i] + math.pi) / (2 * math.pi) * NCH - 0.5; c0 = int(math.floor(f)) % NCH; c1 = (c0 + 1) % NCH; fc = f - math.floor(f)
+        seg = int(np.clip(np.searchsorted(-np.array(YS), -min(y, YS[0])) - 1, 0, len(YS) - 2))
+        w = {}
+        for cc, wc in ((c0, 1 - fc), (c1, fc)):
+            jn = chains[cc][1][seg][1]; w[jn] = w.get(jn, 0) + t * wc
+        for k_, wk in zip(J0[i], W0[i]):
+            if wk > 0: w[int(k_)] = w.get(int(k_), 0) + wk * (1 - t)
+        top = sorted(w.items(), key=lambda kv: -kv[1])[:4]; s_ = sum(v for _, v in top)
+        J0[i] = [k_ for k_, _ in top] + [0] * (4 - len(top)); W0[i] = [v / s_ for _, v in top] + [0] * (4 - len(top))
+    cp['attributes']['JOINTS_0'] = add_acc(J0.astype(np.uint16), 5123, 'VEC4', 34962); cp['attributes']['WEIGHTS_0'] = add_acc(W0.astype(np.float32), 5126, 'VEC4', 34962)
+reweight(cp, P, J0, W0, low)
+# hängende Gurte/Bänder/Schnallen/Laschen an der Jacke mitschwingen lassen (unterhalb Taille)
+nh = 0
+for nm, ni in list(nid.items()):
+    if not nm or not any(nm.startswith('Alice_' + k) for k in ('strap', 'ribbon', 'tip', 'buckle', 'xtab')): continue
+    pr = j['meshes'][j['nodes'][ni]['mesh']]['primitives'][0]; Pp = acc(pr['attributes']['POSITION'])
+    lw = Pp[:, 1] < 0.93
+    if not lw.any(): continue
+    reweight(pr, Pp, acc(pr['attributes']['JOINTS_0']).astype(np.int64), acc(pr['attributes']['WEIGHTS_0']).astype(np.float64), lw); nh += 1
+print('hanging parts reweighted', nh)
 # IBM neu schreiben
 skin['inverseBindMatrices'] = add_acc(IBM.astype(np.float32), 5126, 'MAT4')
 # ---- Collider + Springs
