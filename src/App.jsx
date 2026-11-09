@@ -603,6 +603,12 @@ export default function App() {
         >
           Echten geriggten 3D-Avatar testen
         </a>
+        <a href="?avatar=v04&visual=3d" style={{background:'#e8d9ca',color:'#121116',borderRadius:10,padding:'9px 13px',fontSize:12,fontWeight:700,textDecoration:'none'}}>
+          Alice VRM v0.4
+        </a>
+        <a href="?avatar=v06&visual=3d" style={{background:'#242638',color:'#fff4ef',borderRadius:10,padding:'9px 13px',fontSize:12,textDecoration:'none'}}>
+          Alice VRM v0.6
+        </a>
         {candidateStatus && (
           <small role="status" style={{ background: '#171923dd', color: '#eadbe3',
             fontSize: 10, borderRadius: 8, padding: '7px 9px', lineHeight: 1.4 }}>
