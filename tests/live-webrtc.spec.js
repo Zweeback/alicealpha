@@ -41,7 +41,7 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
     const unavailable = /Die Anfrage ist fehlgeschlagen|keine KI-Antwort|nicht verfügbar/i.test(caption);
     console.log('ALICE_REALTIME_NON_OPERATIONAL',JSON.stringify({
       textInputVerified:true,
-      aiResponseVerified:!unavailable,
+      aiResponseVerified:false,
       result:unavailable?'explicit-no-ai-response':'caption-present-not-proven-model-output'
     }));
     await context.close();await browser.close();return;
