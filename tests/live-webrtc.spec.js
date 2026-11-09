@@ -33,8 +33,17 @@ test('public Alice opens a real WebRTC session and returns a live response', asy
     await expect(page.locator('#alice-text')).toBeVisible({timeout:30_000});
     await page.locator('#alice-text').fill('Hallo Alice');
     await page.locator('form.text-fallback').evaluate(form=>form.requestSubmit());
+    // A nonempty caption may be a boot greeting or an explicit failure, not an AI reply.
+    // Prove the submitted text reached the UI, then classify the resulting caption honestly.
+    await expect(page.locator('.user-caption')).toContainText('Hallo Alice',{timeout:30_000});
     await expect.poll(async()=>((await page.locator('.alice-caption').textContent().catch(()=>''))||'').trim().length>0,{timeout:30_000}).toBe(true);
-    console.log('ALICE_REALTIME_NON_OPERATIONAL: local text fallback verified');
+    const caption = (await page.locator('.alice-caption').textContent() || '').trim();
+    const unavailable = /Die Anfrage ist fehlgeschlagen|keine KI-Antwort|nicht verfügbar/i.test(caption);
+    console.log('ALICE_REALTIME_NON_OPERATIONAL',JSON.stringify({
+      textInputVerified:true,
+      aiResponseVerified:!unavailable,
+      result:unavailable?'explicit-no-ai-response':'caption-present-not-proven-model-output'
+    }));
     await context.close();await browser.close();return;
   }
   await page.getByRole('button',{name:'Texteingabe öffnen'}).click({force:true});
