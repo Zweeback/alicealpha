@@ -2,6 +2,7 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { handleAliceMcpHttp } from './aliceMcp.js';
+import { createDesktopGatewayRouter } from './desktopGatewayRoutes.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
@@ -320,6 +321,8 @@ app.post('/api/news/prepare', express.json({ limit: '2mb' }), (request, response
   response.set('Cache-Control', 'no-store');
   response.json(buildScenePlan(articles, { targetChars }));
 });
+
+app.use('/api/desktop', createDesktopGatewayRouter({ rateLimiter: chatRateLimiter }));
 
 app.post('/api/tts', express.json({ limit: '64kb' }), async (request, response) => {
   const target = process.env.ALICE_TTS_URL;

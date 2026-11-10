@@ -90,3 +90,13 @@ html, body, #root { margin: 0; width: 100%; min-height: 100%; }
   .vrm-stage-top { font-size: 10px; left: 13px; }
   .vrm-stage-bottom { font-size: 9px; left: 13px; bottom: 12px; }
 }
+.vrm-desktop-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.vrm-desktop-form select, .vrm-desktop-form input { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px 8px; font: inherit; }
+.vrm-desktop-item { margin-top: 6px; font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
+.vrm-desktop-item summary { cursor: pointer; }
+@media (max-width: 540px) {
+  /* >=16px avoids forced zoom on mobile browsers when focusing inputs. */
+  .vrm-desktop-form select, .vrm-desktop-form input { font-size: 16px; }
+}
+.vrm-desktop-item ol { margin: 4px 0; padding-left: 18px; }
+.vrm-desktop-item code { font-size: 11px; opacity: .7; }

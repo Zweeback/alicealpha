@@ -1,3 +1,5 @@
+import { desktopGatewayConfig } from './desktopGateway.js';
+
 const CAPABILITY_DEFINITIONS = Object.freeze([
   {
     id: 'persona.core',
@@ -70,6 +72,14 @@ const CAPABILITY_DEFINITIONS = Object.freeze([
     transport: 'mcp-adapter',
     status: () => 'bounded',
     evidence: 'server/githubMcpExecutor.js + server/operatorPolicy.js',
+  },
+  {
+    id: 'operator.desktop',
+    layer: 'tools',
+    authority: 'human-at-desktop-client',
+    transport: 'http-poll',
+    status: (env) => (desktopGatewayConfig(env).enabled ? 'configured' : 'unconfigured'),
+    evidence: 'server/desktopGateway.js + tools/alice-desktop-client.mjs',
   },
   {
     id: 'surface.chatgpt_mcp',
