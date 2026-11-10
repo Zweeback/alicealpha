@@ -33,6 +33,7 @@ export function validateAliceCharacterManifest(manifest = {}) {
   requireField(manifest.identityRevision, 'missing-identity-revision');
   requireField(manifest.sourceReferenceSetRevision, 'missing-source-reference-set-revision');
   requireField(manifest.canonicalAssetStatus, 'missing-canonical-asset-status');
+  requireField(['pending', 'approved'].includes(manifest.canonicalAssetStatus), 'invalid-canonical-asset-status');
   requireField(Array.isArray(manifest.candidateAssets), 'missing-candidate-assets');
   requireField(Array.isArray(manifest.requiredHumanoidBones), 'missing-required-humanoid-bones');
   requireField(Array.isArray(manifest.requiredFacialExpressions), 'missing-required-facial-expressions');
