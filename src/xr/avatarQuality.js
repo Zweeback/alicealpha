@@ -53,7 +53,7 @@ export function validateAliceCharacterManifest(manifest = {}) {
     // Promotion must bind to an already registered, SHA-256-identified candidate.
     // A timestamp and an arbitrary checksum alone must never grant approval.
     const approvedPath = manifest.approvedAsset?.path;
-    const approvedCandidate = approvedPath && manifest.candidateAssets?.find((item) => item.path === approvedPath);
+    const approvedCandidate = approvedPath && (Array.isArray(manifest.candidateAssets) ? manifest.candidateAssets : []).find((item) => item && typeof item === 'object' && item.path === approvedPath);
     requireField(approvedCandidate, 'approved-asset-not-registered-candidate');
 
     if (approvedCandidate) {
@@ -78,5 +78,30 @@ export function validateAliceCharacterManifest(manifest = {}) {
     failures,
     warnings,
     canPromote: failures.length === 0 && manifest.canonicalAssetStatus === 'approved',
+  };
+}
+
+// Hashes the real asset bytes; metadata-only checksums never prove integrity.
+export async function verifyApprovedAssetIntegrity(manifest, readAssetBytes) {
+  const result = validateAliceCharacterManifest(manifest ?? {});
+  const failures = [...result.failures];
+  const approvedPath = manifest?.approvedAsset?.path;
+
+  if (result.canPromote) {
+    try {
+      const bytes = await readAssetBytes(approvedPath);
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+      const actual = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+      if (actual !== manifest.approval.approvedChecksum.toLowerCase()) failures.push('asset-bytes-checksum-mismatch');
+    } catch {
+      failures.push('asset-unreadable');
+    }
+  }
+
+  return {
+    pass: failures.length === 0,
+    failures,
+    warnings: result.warnings,
+    canPromote: failures.length === 0 && result.canPromote,
   };
 }
