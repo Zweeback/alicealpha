@@ -72,6 +72,14 @@ const CAPABILITY_DEFINITIONS = Object.freeze([
     evidence: 'server/githubMcpExecutor.js + server/operatorPolicy.js',
   },
   {
+    id: 'operator.desktop',
+    layer: 'tools',
+    authority: 'human-at-desktop-client',
+    transport: 'http-poll',
+    status: (env) => (env.ALICE_DESKTOP_GATEWAY === '1' && String(env.ALICE_DESKTOP_CLIENT_TOKEN || '').length >= 16 ? 'configured' : 'unconfigured'),
+    evidence: 'server/desktopGateway.js + tools/alice-desktop-client.mjs',
+  },
+  {
     id: 'surface.chatgpt_mcp',
     layer: 'surface',
     authority: 'host',
