@@ -2,13 +2,47 @@ import { mayExecuteOperatorEnvelope, operatorAuditEvent } from './operatorAudit.
 import { enforceOperatorPolicy } from './operatorPolicy.js';
 import { buildOperatorSpan, emitOperatorSpan } from './operatorTelemetry.js';
 
-const EXECUTORS = new Set(['branch.create', 'pr.merge']);
+const EXECUTORS = new Set([
+  'branch.create',
+  'file.create',
+  'file.update',
+  'pr.create',
+  'ci.verify',
+  'pr.merge',
+]);
+
+function requireString(value, code) {
+  if (typeof value !== 'string' || value.length === 0) throw new Error(code);
+}
 
 function verifyExecutorResult(envelope, result) {
+  if (!result || typeof result !== 'object') throw new Error('operator-executor-result-mismatch');
+
   if (envelope.operation === 'branch.create') {
-    if (!result || result.branch !== envelope.payload.branch) {
-      throw new Error('operator-executor-result-mismatch');
+    if (result.branch !== envelope.payload.branch) throw new Error('operator-executor-result-mismatch');
+    return;
+  }
+
+  if (envelope.operation === 'file.create' || envelope.operation === 'file.update') {
+    requireString(result.commit_sha, 'operator-executor-result-mismatch');
+    return;
+  }
+
+  if (envelope.operation === 'pr.create') {
+    if (!Number.isInteger(result.number) || result.number <= 0) throw new Error('operator-executor-result-mismatch');
+    return;
+  }
+
+  if (envelope.operation === 'ci.verify') {
+    if (result.status !== 'success') throw new Error('operator-ci-not-successful');
+    if (envelope.payload?.head_sha && result.head_sha !== envelope.payload.head_sha) {
+      throw new Error('operator-ci-head-mismatch');
     }
+    return;
+  }
+
+  if (envelope.operation === 'pr.merge') {
+    if (result.merged !== true) throw new Error('operator-executor-result-mismatch');
   }
 }
 

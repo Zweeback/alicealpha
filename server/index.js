@@ -2,6 +2,7 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { handleAliceMcpHttp } from './aliceMcp.js';
+import { continueAlice } from './continueAlice.js';
 import { buildAliceKernelSnapshot } from './capabilityRegistry.js';
 import { buildRealtimeSession } from './realtimeSession.js';
 import { callOllama } from './ollama.js';
@@ -131,7 +132,39 @@ app.options('/mcp', (_request, response) => {
   response.status(204).end();
 });
 
-app.post('/mcp', express.json({ limit: '1mb' }), handleAliceMcpHttp);
+async function continueRuntimeStep() {
+  return continueAlice({
+    initialState: {
+      run_id: 'alice-runtime-bootstrap-v1',
+      goal: 'Verify Alice continue runtime wiring',
+      repository: 'Zweeback/alicealpha',
+      steps: [{
+        id: 'runtime-bootstrap',
+        description: 'Execute and verify one bounded runtime step',
+        kind: 'runtime.verify',
+      }],
+    },
+    execute: async () => {
+      const kernel = buildAliceKernelSnapshot(process.env);
+      return {
+        revision: kernel.revision,
+        kernel: kernel.kernel,
+      };
+    },
+    verify: async ({ result }) => {
+      const kernel = buildAliceKernelSnapshot(process.env);
+      const verified = result?.revision === kernel.revision && result?.kernel === kernel.kernel;
+      return {
+        verified,
+        evidence: verified ? [`revision:${kernel.revision}`, `kernel:${kernel.kernel}`] : [],
+      };
+    },
+  });
+}
+
+app.post('/mcp', express.json({ limit: '1mb' }), (request, response) => (
+  handleAliceMcpHttp(request, response, { continueHandler: continueRuntimeStep })
+));
 
 app.get('/mcp', (_request, response) => {
   response.set({
