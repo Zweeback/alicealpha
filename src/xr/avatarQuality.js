@@ -46,6 +46,28 @@ export function validateAliceCharacterManifest(manifest = {}) {
     requireField(manifest.approvedAsset?.path, 'approved-missing-asset-path');
     requireField(manifest.approval?.approvedAt, 'approved-missing-timestamp');
     requireField(manifest.approval?.approvedChecksum, 'approved-missing-checksum');
+    requireField(manifest.approval?.approvedBy, 'approved-missing-approver');
+    requireField(manifest.promotionGate?.requiresRuntimeDiagnostics === true, 'missing-runtime-diagnostics-gate');
+    requireField(manifest.promotionGate?.requiresExplicitVersionBump === true, 'missing-version-bump-gate');
+
+    // Promotion must bind to an already registered, SHA-256-identified candidate.
+    // A timestamp and an arbitrary checksum alone must never grant approval.
+    const approvedPath = manifest.approvedAsset?.path;
+    const approvedCandidate = approvedPath && (Array.isArray(manifest.candidateAssets) ? manifest.candidateAssets : []).find((item) => item && typeof item === 'object' && item.path === approvedPath);
+    requireField(approvedCandidate, 'approved-asset-not-registered-candidate');
+
+    if (approvedCandidate) {
+      const candidateSha = approvedCandidate.sha256;
+      const approvalSha = manifest.approval?.approvedChecksum;
+      requireField(typeof candidateSha === 'string' && /^[a-f0-9]{64}$/i.test(candidateSha), 'approved-candidate-missing-valid-sha256');
+      requireField(
+        typeof approvalSha === 'string' && /^[a-f0-9]{64}$/i.test(approvalSha)
+          && approvalSha.toLowerCase() === candidateSha?.toLowerCase(),
+        'approved-checksum-mismatch',
+      );
+      requireField(approvedCandidate.assetAudit?.identityVerified === true, 'approved-identity-unverified');
+      requireField(approvedCandidate.assetAudit?.faceRigRuntimeVerified === true, 'approved-face-runtime-unverified');
+    }
   } else {
     if (manifest.approvedAsset) warnings.push('approved-asset-present-before-approval');
     if (manifest.approval?.approvedChecksum) warnings.push('checksum-present-before-approval');
@@ -56,5 +78,30 @@ export function validateAliceCharacterManifest(manifest = {}) {
     failures,
     warnings,
     canPromote: failures.length === 0 && manifest.canonicalAssetStatus === 'approved',
+  };
+}
+
+// Hashes the real asset bytes; metadata-only checksums never prove integrity.
+export async function verifyApprovedAssetIntegrity(manifest, readAssetBytes) {
+  const result = validateAliceCharacterManifest(manifest ?? {});
+  const failures = [...result.failures];
+  const approvedPath = manifest?.approvedAsset?.path;
+
+  if (result.canPromote) {
+    try {
+      const bytes = await readAssetBytes(approvedPath);
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+      const actual = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+      if (actual !== manifest.approval.approvedChecksum.toLowerCase()) failures.push('asset-bytes-checksum-mismatch');
+    } catch {
+      failures.push('asset-unreadable');
+    }
+  }
+
+  return {
+    pass: failures.length === 0,
+    failures,
+    warnings: result.warnings,
+    canPromote: failures.length === 0 && result.canPromote,
   };
 }
