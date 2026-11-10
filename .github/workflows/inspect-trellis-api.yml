@@ -1,0 +1,31 @@
+name: Inspect TRELLIS API
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/inspect-trellis-api.yml'
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Gradio client
+        run: pip install -q gradio_client
+      - name: Inspect public TRELLIS API
+        run: |
+          python - <<'PY'
+          from gradio_client import Client
+          c = Client("trellis-community/TRELLIS", verbose=False)
+          c.view_api(all_endpoints=True, print_info=True)
+print("ENDPOINT_COUNT", len(c.endpoints))
+for i, e in enumerate(c.endpoints):
+    try:
+        print("EP", i, e.api_name, getattr(e, "fn_index", None), getattr(e, "dependency", None))
+    except Exception as ex:
+        print("EPERR", i, repr(ex))
+          PY
