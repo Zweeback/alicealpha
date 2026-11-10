@@ -1,0 +1,30 @@
+name: ALICE VRM generator QA
+on:
+  push:
+    branches: [feat/alice-vrm-generator-qa-20261023]
+    paths:
+      - tools/alice_glb_to_vrm.py
+      - tests/test_alice_glb_to_vrm.py
+      - .github/workflows/alice-vrm-generator-qa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  vrm-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Converter regression suite
+        run: python3 -m unittest discover -s tests -p 'test_alice_glb_to_vrm.py' -v
+      - name: Convert tracked real FBX-derived GLB
+        run: |
+          python3 tools/alice_glb_to_vrm.py public/avatars/alice-fbx-source.glb "$RUNNER_TEMP/alice.vrm" \
+            --expected-sha256 4580ac1c35a8bf4b49ac29d390197dd49cea053de42d563dbe940d09c0adeb30 \
+            --report "$RUNNER_TEMP/alice.audit.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-vrm-qa
+          path: ${{ runner.temp }}/alice.audit.json
+          if-no-files-found: ignore
