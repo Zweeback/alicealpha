@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0.0",
+  "asset": {
+    "path": "/avatars/alice-trellis.glb",
+    "bytes": 1608556,
+    "sha256": "24de57c2344cf083dba001e6ef35cf9b3f994aa393111b431e7ad022f5d385fe"
+  },
+  "nodes": [
+    "world",
+    "geometry_0"
+  ],
+  "meshes": [
+    {
+      "index": 0,
+      "name": "geometry_0",
+      "morphTargets": []
+    }
+  ],
+  "morphTargetNames": [],
+  "bones": [],
+  "facialRig": {
+    "status": "blocked",
+    "jawAvailable": false,
+    "jawMorphNames": [],
+    "jawBoneNames": [],
+    "foundHumanoidBones": [],
+    "missingHumanoidBones": [
+      "hips",
+      "spine",
+      "chest",
+      "neck",
+      "head",
+      "leftUpperArm",
+      "leftLowerArm",
+      "leftHand",
+      "rightUpperArm",
+      "rightLowerArm",
+      "rightHand",
+      "leftUpperLeg",
+      "leftLowerLeg",
+      "leftFoot",
+      "rightUpperLeg",
+      "rightLowerLeg",
+      "rightFoot"
+    ],
+    "foundFacialExpressions": [],
+    "missingFacialExpressions": [
+      "blink",
+      "blinkLeft",
+      "blinkRight",
+      "jawOpen",
+      "smile"
+    ],
+    "foundVisemes": [],
+    "missingVisemes": [
+      "A",
+      "I",
+      "U",
+      "E",
+      "O"
+    ],
+    "audioEnergyLipSync": "blocked",
+    "blockers": [
+      "No jawOpen/mouthOpen/viseme-A morph target or jaw bone is present.",
+      "Missing required humanoid bones: hips, spine, chest, neck, head, leftUpperArm, leftLowerArm, leftHand, rightUpperArm, rightLowerArm, rightHand, leftUpperLeg, leftLowerLeg, leftFoot, rightUpperLeg, rightLowerLeg, rightFoot.",
+      "Missing required facial expression morph targets: blink, blinkLeft, blinkRight, jawOpen, smile.",
+      "Missing required viseme morph targets: A, I, U, E, O."
+    ],
+    "recommendedPath": [
+      "Keep this GLB as an unapproved visual source; do not replace the canonical asset.",
+      "In a local rigging workflow, add the required humanoid skeleton and facial shape keys for jawOpen plus visemes A/I/U/E/O (or a measured jaw bone).",
+      "Export a new GLB, rerun this inspection, and retain the source hash and provenance with the candidate.",
+      "Only after a real jaw control exists, drive that control from measured speech energy and record runtime diagnostics; body/chest motion is not lip sync.",
+      "Compare the candidate privately against the reference set and record explicit human identity approval; do not upload reference videos."
+    ]
+  },
+  "runtimeDiagnostics": {
+    "audioEnergyLipSync": "not-run"
+  },
+  "promotion": {
+    "status": "blocked",
+    "blockers": [
+      "Identity has not been visually verified by a human reviewer.",
+      "Record a human visual-pass comment, reviewer, and review timestamp after private reference comparison.",
+      "Candidate metadata does not confirm a facial rig.",
+      "Candidate approval is not recorded.",
+      "No jawOpen/mouthOpen/viseme-A morph target or jaw bone is present.",
+      "Missing required humanoid bones: hips, spine, chest, neck, head, leftUpperArm, leftLowerArm, leftHand, rightUpperArm, rightLowerArm, rightHand, leftUpperLeg, leftLowerLeg, leftFoot, rightUpperLeg, rightLowerLeg, rightFoot.",
+      "Missing required facial expression morph targets: blink, blinkLeft, blinkRight, jawOpen, smile.",
+      "Missing required viseme morph targets: A, I, U, E, O.",
+      "Run and record runtime diagnostics proving measured audio energy drives the real jaw control.",
+      "Canonical manifest approval is pending; keep this asset a candidate.",
+      "Approved manifest asset path does not match the inspected candidate.",
+      "Approved manifest checksum does not match the inspected candidate.",
+      "Manifest lacks explicit reviewer, timestamp, or approved status.",
+      "Identity and source-reference revisions must be explicitly versioned, not pending."
+    ]
+  }
+}
