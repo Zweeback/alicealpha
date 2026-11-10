@@ -1,0 +1,180 @@
+name: Alice Rigging Lab
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/alice-rigging-lab.yml'
+  workflow_dispatch:
+
+jobs:
+  rigging-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright and unzip
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq unzip
+
+      - name: Recover previously generated TRELLIS Alice GLB
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10671300146/zip > trellis.zip
+          unzip -o trellis.zip -d trellis-artifact
+          cp trellis-artifact/alice-trellis.glb alice-input.glb
+          ls -lh alice-input.glb
+          test -s alice-input.glb
+
+      - name: Probe rigging Spaces
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+
+          const targets = [
+            {
+              key:'mia',
+              urls:[
+                'https://jasongzy-make-it-animatable-v2.hf.space/',
+                'https://huggingface.co/spaces/jasongzy/Make-It-Animatable-v2'
+              ]
+            },
+            {
+              key:'skintokens',
+              urls:[
+                'https://vast-ai-skintokens.hf.space/',
+                'https://huggingface.co/spaces/VAST-AI/SkinTokens'
+              ]
+            }
+          ];
+
+          async function probe(browser, target) {
+            const page=await browser.newPage({viewport:{width:1280,height:1000},acceptDownloads:true});
+            page.setDefaultTimeout(25000);
+            let opened=false;
+            for(const url of target.urls){
+              try{
+                await page.goto(url,{waitUntil:'domcontentloaded',timeout:120000});
+                await page.waitForTimeout(10000);
+                const body=await page.locator('body').innerText();
+                console.log(target.key,'URL',page.url());
+                console.log(target.key,'BODY',body.slice(0,5000));
+                if(body.length>50){opened=true;break;}
+              }catch(e){console.log(target.key,'OPEN_ERR',url,String(e));}
+            }
+            await page.screenshot({path:`${target.key}-before.png`,fullPage:true});
+            if(!opened) return {opened:false};
+
+            const inputs=page.locator('input[type=file]');
+            console.log(target.key,'FILE_INPUTS',await inputs.count());
+            if(await inputs.count()<1) return {opened:true,upload:false};
+
+            // Prefer an input whose accept mentions glb/obj; otherwise first input.
+            let chosen=inputs.first();
+            for(let i=0;i<await inputs.count();i++){
+              const accept=(await inputs.nth(i).getAttribute('accept'))||'';
+              console.log(target.key,'INPUT',i,'ACCEPT',accept);
+              if(/glb|gltf|obj|model|octet/i.test(accept)){chosen=inputs.nth(i);break;}
+            }
+            await chosen.setInputFiles('alice-input.glb');
+            await page.waitForTimeout(5000);
+            await page.screenshot({path:`${target.key}-loaded.png`,fullPage:true});
+            const after=await page.locator('body').innerText();
+            console.log(target.key,'AFTER_UPLOAD',after.slice(-5000));
+
+            const names=[/rig/i,/generate/i,/process/i,/run/i,/submit/i,/animate/i];
+            let clicked=false;
+            for(const re of names){
+              const buttons=page.getByRole('button',{name:re});
+              for(let i=0;i<await buttons.count();i++){
+                try{
+                  if(await buttons.nth(i).isEnabled()){
+                    console.log(target.key,'CLICKING',re.toString(),i);
+                    await buttons.nth(i).click();
+                    clicked=true;
+                    break;
+                  }
+                }catch{}
+              }
+              if(clicked) break;
+            }
+            if(!clicked) return {opened:true,upload:true,clicked:false};
+
+            const deadline=Date.now()+10*60*1000;
+            let downloaded=null;
+            while(Date.now()<deadline){
+              await page.waitForTimeout(10000);
+              const body=await page.locator('body').innerText();
+              console.log(target.key,'POLL',new Date().toISOString(),body.slice(-2200));
+              await page.screenshot({path:`${target.key}-progress.png`,fullPage:true});
+
+              const downloadable=page.locator('a[download], a[href$=".glb"], a[href$=".fbx"], a[href$=".obj"]');
+              if(await downloadable.count()){
+                for(let i=0;i<await downloadable.count();i++){
+                  const href=await downloadable.nth(i).getAttribute('href');
+                  console.log(target.key,'RESULT_LINK',i,href);
+                }
+              }
+
+              const buttons=page.getByRole('button',{name:/download|export/i});
+              if(await buttons.count()){
+                for(let i=0;i<await buttons.count();i++){
+                  if(await buttons.nth(i).isEnabled().catch(()=>false)){
+                    try{
+                      const [dl]=await Promise.all([
+                        page.waitForEvent('download',{timeout:15000}),
+                        buttons.nth(i).click()
+                      ]);
+                      const name=dl.suggestedFilename() || `${target.key}-rigged.glb`;
+                      const out=`${target.key}-${name}`;
+                      await dl.saveAs(out);
+                      downloaded=out;
+                      console.log(target.key,'DOWNLOADED',out,fs.statSync(out).size);
+                      break;
+                    }catch(e){console.log(target.key,'DOWNLOAD_ERR',String(e));}
+                  }
+                }
+              }
+              if(downloaded) break;
+              if(/quota exceeded|runtime error|error\b/i.test(body) && !/no error/i.test(body)){
+                console.log(target.key,'ERROR_VISIBLE');
+              }
+            }
+            await page.screenshot({path:`${target.key}-final.png`,fullPage:true});
+            await page.close();
+            return {opened:true,upload:true,clicked,downloaded};
+          }
+
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const results={};
+            for(const t of targets) results[t.key]=await probe(browser,t);
+            console.log('RESULTS',JSON.stringify(results));
+            await browser.close();
+          })();
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alice-rigging-lab
+          path: |
+            *-before.png
+            *-loaded.png
+            *-progress.png
+            *-final.png
+            mia-*.glb
+            mia-*.fbx
+            skintokens-*.glb
+            skintokens-*.fbx
+          if-no-files-found: warn
