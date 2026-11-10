@@ -93,7 +93,7 @@ export default function DesktopGatewayPanel() {
       <p className="vrm-helper" aria-live="polite">
         <span className={'vrm-led ' + (authenticated && status?.client?.connected ? 'ok' : 'busy')} /> {statusError || gatewayStatusText(status)}
       </p>
-      <p className="vrm-helper">Alice schlägt nur vor. Ausgeführt wird erst nach „ja“ am gekoppelten Desktop-Client; der Server führt nichts aus.</p>
+      <p className="vrm-helper">Dieses Gerät schlägt nur vor. Ausgeführt wird erst nach „ja“ am gekoppelten Desktop-Client; Server und Browser führen nichts aus. Für Handy oder Tablet gibt es noch keinen eigenen Client.</p>
       {status?.enabled && !authenticated && (
         <form className="vrm-desktop-form" onSubmit={signIn}>
           <input type="password" autoComplete="off" value={tokenDraft} onChange={(event) => setTokenDraft(event.target.value)}
