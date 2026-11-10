@@ -1,3 +1,5 @@
+import { desktopGatewayConfig } from './desktopGateway.js';
+
 const CAPABILITY_DEFINITIONS = Object.freeze([
   {
     id: 'persona.core',
@@ -76,7 +78,7 @@ const CAPABILITY_DEFINITIONS = Object.freeze([
     layer: 'tools',
     authority: 'human-at-desktop-client',
     transport: 'http-poll',
-    status: (env) => (env.ALICE_DESKTOP_GATEWAY === '1' && String(env.ALICE_DESKTOP_CLIENT_TOKEN || '').length >= 16 ? 'configured' : 'unconfigured'),
+    status: (env) => (desktopGatewayConfig(env).enabled ? 'configured' : 'unconfigured'),
     evidence: 'server/desktopGateway.js + tools/alice-desktop-client.mjs',
   },
   {

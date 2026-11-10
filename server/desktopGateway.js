@@ -79,26 +79,41 @@ export function tokensMatch(expected, provided) {
 
 export function desktopGatewayConfig(env = process.env) {
   const enabled = env.ALICE_DESKTOP_GATEWAY === '1';
-  const tokenReady = typeof env.ALICE_DESKTOP_CLIENT_TOKEN === 'string' && env.ALICE_DESKTOP_CLIENT_TOKEN.length >= 16;
+  const clientToken = typeof env.ALICE_DESKTOP_CLIENT_TOKEN === 'string' ? env.ALICE_DESKTOP_CLIENT_TOKEN : '';
+  const proposerToken = typeof env.ALICE_DESKTOP_PROPOSER_TOKEN === 'string' ? env.ALICE_DESKTOP_PROPOSER_TOKEN : '';
+  // Fail closed: both credentials must exist, be long enough and differ, so a
+  // proposer can never act as the executing desktop client (or vice versa).
+  const reason = !enabled ? 'gateway-disabled'
+    : clientToken.length < 16 ? 'client-token-missing-or-short'
+      : proposerToken.length < 16 ? 'proposer-token-missing-or-short'
+        : clientToken === proposerToken ? 'tokens-must-differ'
+          : null;
   return Object.freeze({
-    enabled: enabled && tokenReady,
-    reason: !enabled ? 'gateway-disabled' : !tokenReady ? 'client-token-missing-or-short' : null,
+    enabled: reason === null,
+    reason,
     ttlMs: Math.max(30_000, Number(env.ALICE_DESKTOP_PROPOSAL_TTL_MS || 10 * 60_000)),
   });
 }
 
-export function createDesktopGateway({ now = () => Date.now(), ttlMs = 10 * 60_000, maxOpen = 20, idFactory = randomUUID } = {}) {
+export function createDesktopGateway({
+  now = () => Date.now(), ttlMs = 10 * 60_000, maxOpen = 20, idFactory = randomUUID,
+  maxFinal = 50, maxJournal = 500,
+} = {}) {
   const proposals = new Map();
+  // In-memory only, bounded. Pruned entries leave an anchor (the hash the
+  // oldest kept entry points to) so the kept suffix stays verifiable.
   const journal = [];
+  let journalAnchor = null;
+  let seqCounter = 0;
   let clientSeenAt = null;
   let clientLabel = null;
 
   const iso = (ms) => new Date(ms).toISOString();
 
   function append(proposal, event, actor, evidence, detail = {}) {
-    const prev = journal.length ? journal[journal.length - 1].hash : null;
+    const prev = journal.length ? journal[journal.length - 1].hash : journalAnchor;
     const entry = {
-      seq: journal.length + 1,
+      seq: ++seqCounter,
       at: iso(now()),
       proposal_id: proposal.id,
       event,
@@ -110,8 +125,14 @@ export function createDesktopGateway({ now = () => Date.now(), ttlMs = 10 * 60_0
     };
     entry.hash = sha256({ ...entry });
     journal.push(Object.freeze(entry));
-    proposal.journal.push(entry.seq);
+    proposal.journal.push(entry);
+    while (journal.length > maxJournal) journalAnchor = journal.shift().hash;
     return entry;
+  }
+
+  function prune() {
+    const finals = [...proposals.values()].filter((item) => !OPEN_STATES.has(item.state));
+    for (const item of finals.slice(0, Math.max(0, finals.length - maxFinal))) proposals.delete(item.id);
   }
 
   function expire() {
@@ -122,6 +143,7 @@ export function createDesktopGateway({ now = () => Date.now(), ttlMs = 10 * 60_0
         append(proposal, 'expired', 'server', 'observed', { ttl_ms: ttlMs });
       }
     }
+    prune();
   }
 
   function view(proposal) {
@@ -139,7 +161,7 @@ export function createDesktopGateway({ now = () => Date.now(), ttlMs = 10 * 60_0
       expires_at: iso(proposal.created_ms + ttlMs),
       decision: proposal.decision,
       result: proposal.result,
-      journal: proposal.journal.map((seq) => journal[seq - 1]),
+      journal: proposal.journal.slice(),
     });
   }
 
@@ -159,7 +181,7 @@ export function createDesktopGateway({ now = () => Date.now(), ttlMs = 10 * 60_0
       const reason = cleanText(input.reason, 280);
       if (SECRET_TEXT.test(stableJson(params)) || SECRET_TEXT.test(reason)) throw new Error('desktop-secret-like-content-forbidden');
       const sourceKind = SOURCE_KINDS.has(input.source?.kind) ? input.source.kind : 'alice-ui';
-      const source = Object.freeze({ kind: sourceKind, ref: cleanText(input.source?.ref, 200) || null });
+      const source = Object.freeze({ kind: sourceKind, ref: cleanText(input.source?.ref, 200) || null, verified: false });
       const open = [...proposals.values()].filter((item) => OPEN_STATES.has(item.state)).length;
       if (open >= maxOpen) throw new Error('desktop-queue-full');
       const proposal = {
@@ -244,19 +266,21 @@ export function createDesktopGateway({ now = () => Date.now(), ttlMs = 10 * 60_0
           label: clientLabel,
         }),
         counts: Object.freeze(counts),
-        journal_head: journal.length ? journal[journal.length - 1].hash : null,
+        journal_head: journal.length ? journal[journal.length - 1].hash : journalAnchor,
         journal_length: journal.length,
+        journal_anchor: journalAnchor,
+        retention: Object.freeze({ max_final_proposals: maxFinal, max_journal_entries: maxJournal, durable: false }),
       });
     },
 
     journal() {
-      return journal.slice();
+      return { anchor: journalAnchor, entries: journal.slice() };
     },
   };
 }
 
-export function verifyJournal(entries) {
-  let prev = null;
+export function verifyJournal(entries, anchor = null) {
+  let prev = anchor;
   for (const entry of entries) {
     const { hash, ...rest } = entry;
     if (rest.prev_hash !== prev || sha256({ ...rest }) !== hash) return { ok: false, broken_at: entry.seq };

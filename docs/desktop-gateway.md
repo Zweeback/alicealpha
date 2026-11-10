@@ -31,21 +31,41 @@ Jeder Schritt wird hash-verkettet (`prev_hash` → `hash`, SHA-256) mit UTC-Zeit
 
 Freigabe und Ergebnis müssen den `payload_sha256` des Vorschlags wiederholen. Nicht zugestellte Vorschläge verfallen nach 10 Minuten (`ALICE_DESKTOP_PROPOSAL_TTL_MS`). Das Journal liegt in v1 **nur im Arbeitsspeicher** und ist nach einem Server-Neustart weg.
 
+## Zugänge (zwei getrennte Bearer-Tokens)
+
+| Variable | Wer nutzt sie | Darf |
+|---|---|---|
+| `ALICE_DESKTOP_PROPOSER_TOKEN` | wer Alice Vorschläge machen lässt (UI-Sitzung) | Vorschläge einreichen, eigene Vorschläge/Journal lesen, vollständigen Status lesen |
+| `ALICE_DESKTOP_CLIENT_TOKEN` | nur der lokale Desktop-Client | Vorschläge abholen, Entscheidung und Ergebnis melden |
+
+Beide müssen gesetzt, mindestens 16 Zeichen lang und **verschieden** sein, sonst bleibt das Gateway aus (`reason` im Status). Ohne gültigen Vorschlags-Zugang gibt `/api/desktop/status` nur `enabled`, `reason`, die Aktionsliste und `client.connected` zurück – keinen Client-Namen, keine Zähler, keinen Journal-Hash. Vorschläge und deren Inhalte (z. B. Zwischenablage-Text) sind nur mit dem Vorschlags-Zugang lesbar.
+
+Im VRM-Viewer wird der Vorschlags-Zugang in ein Passwortfeld eingegeben und **nur im Arbeitsspeicher der Seite** gehalten (kein localStorage, keine URL, kein Log); nach Neuladen ist er weg. Der Client-Token gehört nie in den Browser. Mutierende Routen verlangen `application/json`; Cross-Site-Anfragen aus fremden Browser-Seiten scheitern am fehlenden Token bzw. an fehlenden CORS-Headern.
+
 ## Einschalten (lokal)
 
 ```bash
-# Server (Token nur lokal erzeugen, nie committen)
+# Server – Tokens nur lokal erzeugen, nie committen, nie in Chats kopieren
 export ALICE_DESKTOP_GATEWAY=1
 export ALICE_DESKTOP_CLIENT_TOKEN="$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")"
+export ALICE_DESKTOP_PROPOSER_TOKEN="$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")"
 npm run build && npm run server
 
-# Desktop-Client auf dem Rechner, der handeln soll (gleiches Token)
+# Desktop-Client auf dem Rechner, der handeln soll (nur der Client-Token)
 ALICE_DESKTOP_CLIENT_TOKEN=... node tools/alice-desktop-client.mjs --server http://127.0.0.1:8787 --human benjamin
 # --dry-run: nur anzeigen, Ergebnis wird als "failed (dry-run)" gemeldet
 ```
 
-Ohne beide Variablen meldet `/api/desktop/status` ehrlich `enabled: false` und alle anderen Gateway-Routen antworten mit `503`. Auf einem öffentlich erreichbaren Server kann jeder Besucher Vorschläge einreichen; ausgeführt wird trotzdem nur nach lokaler Freigabe.
+Begründung und Quelle eines Vorschlags sind **Angaben des Absenders** (`source.verified: false`), keine verifizierte Identität.
+
+## Speicher und Aufbewahrung
+
+Alles liegt nur im Arbeitsspeicher und ist nach einem Neustart weg. Abgeschlossene Vorschläge: höchstens 50; Journal: höchstens 500 Einträge. Beim Kürzen bleibt `journal_anchor` (Hash vor dem ältesten behaltenen Eintrag), damit der verbleibende Teil prüfbar bleibt. Das ist **kein** dauerhaftes oder projektübergreifendes Provenienz-Register.
 
 ## Bewusst nicht enthalten
 
 OpenClaw-Anbindung, Modell-/Tool-Calls, die selbst Vorschläge erzeugen, persistente Journale, Mehrbenutzer-Freigaben, Dateizugriff. Diese bauen auf demselben Vertrag auf und brauchen eigene Prüfung.
+
+## Reifegrad
+
+Getestet mit Unit- und HTTP-Tests sowie einem lokalen Smoke-Test. Nicht für den öffentlichen Produktivbetrieb geprüft: keine Token-Rotation, kein Audit-Export, keine Mehrbenutzer-Rollen, keine Ratenbegrenzung pro Token (nur pro IP), nicht auf Windows/macOS ausgeführt.

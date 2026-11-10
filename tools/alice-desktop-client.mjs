@@ -71,7 +71,7 @@ export function describeProposal(proposal) {
     `Alice möchte: ${proposal.label} (${proposal.action}, Risiko ${proposal.risk})`,
     `  Parameter: ${JSON.stringify(proposal.params)}`,
     `  Begründung (Angabe des Vorschlagenden, ungeprüft): ${proposal.reason || '–'}`,
-    `  Quelle (Angabe, ungeprüft): ${proposal.source?.kind || '–'}${proposal.source?.ref ? ' · ' + proposal.source.ref : ''}`,
+    `  Quelle (Angabe des Absenders, ungeprüft – keine verifizierte Identität): ${proposal.source?.kind || '–'}${proposal.source?.ref ? ' · ' + proposal.source.ref : ''}`,
     `  Payload-SHA-256: ${proposal.payload_sha256}`,
     `  Läuft ab: ${proposal.expires_at}`,
   ];

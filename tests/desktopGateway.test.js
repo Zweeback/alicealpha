@@ -6,8 +6,11 @@ import { createDesktopGatewayRouter } from '../server/desktopGatewayRoutes.js';
 import { buildCapabilityRegistry } from '../server/capabilityRegistry.js';
 import { createClient, createExecutor, processOnce } from '../tools/alice-desktop-client.mjs';
 
-const TOKEN = 'test-only-pairing-token-0123456789';
-const ENV = { ALICE_DESKTOP_GATEWAY: '1', ALICE_DESKTOP_CLIENT_TOKEN: TOKEN };
+// Clearly fake fixture credentials, used only inside these tests.
+const TOKEN = 'test-only-client-token-0123456789';
+const PROPOSER = 'test-only-proposer-token-987654321';
+const ENV = { ALICE_DESKTOP_GATEWAY: '1', ALICE_DESKTOP_CLIENT_TOKEN: TOKEN, ALICE_DESKTOP_PROPOSER_TOKEN: PROPOSER };
+const PJSON = { 'content-type': 'application/json', authorization: `Bearer ${PROPOSER}` };
 
 function clock(start = Date.parse('2026-11-10T22:00:00.000Z')) {
   let t = start;
@@ -38,14 +41,15 @@ describe('desktop gateway core', () => {
     ]);
     expect(done.journal[2].actor).toBe('human:benjamin');
     expect(done.journal[0].at).toBe('2026-11-10T22:00:00.000Z');
-    expect(verifyJournal(gw.journal())).toMatchObject({ ok: true, length: 4 });
+    const { anchor, entries } = gw.journal();
+    expect(verifyJournal(entries, anchor)).toMatchObject({ ok: true, length: 4 });
   });
 
   it('detects journal tampering', () => {
     const gw = createDesktopGateway();
     gw.propose({ action: 'note.show', params: { text: 'Hallo' } });
     gw.next();
-    const entries = gw.journal().map((entry) => ({ ...entry }));
+    const entries = gw.journal().entries.map((entry) => ({ ...entry }));
     entries[0].actor = 'human:forged';
     expect(verifyJournal(entries)).toEqual({ ok: false, broken_at: 1 });
   });
@@ -82,9 +86,37 @@ describe('desktop gateway core', () => {
     expect(gw.read('old').state).toBe('expired');
   });
 
+  it('bounds finished proposals and journal entries in memory and keeps the kept suffix verifiable', () => {
+    let n = 0;
+    const gw = createDesktopGateway({ idFactory: () => `r${++n}`, maxFinal: 3, maxJournal: 10 });
+    for (let i = 0; i < 8; i++) {
+      const p = gw.propose({ action: 'note.show', params: { text: `n${i}` } });
+      gw.next();
+      gw.decide(p.id, { decision: 'rejected', actor: 'human:b', payload_sha256: p.payload_sha256 });
+    }
+    gw.list();
+    expect(gw.list().length).toBeLessThanOrEqual(3);
+    const { anchor, entries } = gw.journal();
+    expect(entries).toHaveLength(10);
+    expect(anchor).toMatch(/^[a-f0-9]{64}$/);
+    expect(verifyJournal(entries, anchor).ok).toBe(true);
+    expect(verifyJournal(entries).ok).toBe(false);
+    expect(gw.status().retention).toMatchObject({ durable: false, max_journal_entries: 10 });
+    expect(() => gw.read('r1')).toThrow('desktop-proposal-not-found');
+  });
+
+  it('marks the stated source as an unverified sender claim', () => {
+    const gw = createDesktopGateway();
+    const p = gw.propose({ action: 'note.show', params: { text: 'x' }, source: { kind: 'user', ref: 'Benjamin' } });
+    expect(p.source).toEqual({ kind: 'user', ref: 'Benjamin', verified: false });
+    expect(p.journal[0].evidence).toBe('asserted');
+  });
+
   it('is disabled unless explicitly enabled with a long pairing token', () => {
     expect(desktopGatewayConfig({}).enabled).toBe(false);
     expect(desktopGatewayConfig({ ALICE_DESKTOP_GATEWAY: '1', ALICE_DESKTOP_CLIENT_TOKEN: 'short' })).toMatchObject({ enabled: false, reason: 'client-token-missing-or-short' });
+    expect(desktopGatewayConfig({ ...ENV, ALICE_DESKTOP_PROPOSER_TOKEN: '' })).toMatchObject({ enabled: false, reason: 'proposer-token-missing-or-short' });
+    expect(desktopGatewayConfig({ ...ENV, ALICE_DESKTOP_PROPOSER_TOKEN: TOKEN })).toMatchObject({ enabled: false, reason: 'tokens-must-differ' });
     expect(desktopGatewayConfig(ENV).enabled).toBe(true);
     const byId = Object.fromEntries(buildCapabilityRegistry({}).capabilities.map((cap) => [cap.id, cap]));
     expect(byId['operator.desktop'].status).toBe('unconfigured');
@@ -109,8 +141,9 @@ describe('desktop gateway HTTP + local client contract', () => {
     const status = await (await fetch(base + '/api/desktop/status')).json();
     expect(status).toMatchObject({ enabled: false, reason: 'gateway-disabled', executes_on_server: false });
     expect(status.client.connected).toBe(false);
-    const proposed = await fetch(base + '/api/desktop/proposals', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'note.show', params: { text: 'x' } }) });
+    const proposed = await fetch(base + '/api/desktop/proposals', { method: 'POST', headers: PJSON, body: JSON.stringify({ action: 'note.show', params: { text: 'x' } }) });
     expect(proposed.status).toBe(503);
+    expect(status.authenticated).toBe(false);
   });
 
   it('requires the pairing token for client endpoints', async () => {
@@ -122,7 +155,7 @@ describe('desktop gateway HTTP + local client contract', () => {
   it('end-to-end: UI proposal, local human approval, mocked executor, reported result', async () => {
     const base = await start(ENV);
     const created = await fetch(base + '/api/desktop/proposals', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: PJSON,
       body: JSON.stringify({ action: 'url.open', params: { url: 'https://github.com/Zweeback/alicealpha' }, reason: 'Repo zeigen' }),
     });
     expect(created.status).toBe(201);
@@ -134,17 +167,42 @@ describe('desktop gateway HTTP + local client contract', () => {
     expect(outcome).toMatchObject({ handled: true, decision: 'approved' });
     expect(execute).toHaveBeenCalledOnce();
 
-    const final = await (await fetch(`${base}/api/desktop/proposals/${proposal.id}`)).json();
+    const final = await (await fetch(`${base}/api/desktop/proposals/${proposal.id}`, { headers: PJSON })).json();
     expect(final.state).toBe('succeeded');
     expect(final.result.reported_by).toBe('desktop-client:vitest');
     expect(final.journal.map((e) => e.event)).toEqual(['proposed', 'delivered', 'approved', 'succeeded']);
-    const status = await (await fetch(base + '/api/desktop/status')).json();
+    const status = await (await fetch(base + '/api/desktop/status', { headers: PJSON })).json();
     expect(status.client).toMatchObject({ connected: true, label: 'desktop-client:vitest' });
+    const publicStatus = await (await fetch(base + '/api/desktop/status')).json();
+    expect(publicStatus).toMatchObject({ authenticated: false, client: { connected: true } });
+    expect(JSON.stringify(publicStatus)).not.toContain('vitest');
+    expect(publicStatus.counts).toBeUndefined();
+    expect(publicStatus.journal_head).toBeUndefined();
+  });
+
+  it('refuses proposals and reads without the proposer credential (missing, wrong, client token, cross-site)', async () => {
+    const base = await start(ENV);
+    const body = JSON.stringify({ action: 'note.show', params: { text: 'unauth' } });
+    const post = (headers) => fetch(base + '/api/desktop/proposals', { method: 'POST', headers, body });
+    expect((await post({ 'content-type': 'application/json' })).status).toBe(401);
+    expect((await post({ 'content-type': 'application/json', authorization: 'Bearer wrong-wrong-wrong-wrong' })).status).toBe(401);
+    expect((await post({ 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` })).status).toBe(401);
+    expect((await post({ 'content-type': 'application/json', origin: 'https://evil.example' })).status).toBe(401);
+    expect((await post({ 'content-type': 'text/plain', origin: 'https://evil.example' })).status).toBe(401);
+    expect((await post({ 'content-type': 'text/plain', authorization: `Bearer ${PROPOSER}` })).status).toBe(415);
+    const preflight = await fetch(base + '/api/desktop/proposals', { method: 'OPTIONS', headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization,content-type' } });
+    expect(preflight.headers.get('access-control-allow-origin')).toBeNull();
+
+    const created = await (await post(PJSON)).json();
+    expect((await fetch(`${base}/api/desktop/proposals/${created.id}`)).status).toBe(401);
+    expect((await fetch(`${base}/api/desktop/proposals/${created.id}`, { headers: { authorization: `Bearer ${TOKEN}` } })).status).toBe(401);
+    // The proposer credential cannot act as the executing desktop client.
+    expect((await fetch(base + '/api/desktop/client/next', { method: 'POST', headers: { authorization: `Bearer ${PROPOSER}` } })).status).toBe(401);
   });
 
   it('a local "nein" rejects without executing', async () => {
     const base = await start(ENV);
-    await fetch(base + '/api/desktop/proposals', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'clipboard.write', params: { text: 'Hallo Welt' } }) });
+    await fetch(base + '/api/desktop/proposals', { method: 'POST', headers: PJSON, body: JSON.stringify({ action: 'clipboard.write', params: { text: 'Hallo Welt' } }) });
     const execute = vi.fn();
     const outcome = await processOnce({ client: createClient({ server: base, token: TOKEN }), ask: async () => '', execute, actor: 'human:b', print: () => undefined });
     expect(outcome.decision).toBe('rejected');
@@ -192,11 +250,29 @@ describe('desktop gateway browser labels', async () => {
   const { gatewayStatusText, createDesktopGatewayApi } = await import('../src/core/desktopGateway.js');
   it('never shows a disabled or unpaired gateway as connected', () => {
     expect(gatewayStatusText({ enabled: false, reason: 'gateway-disabled' })).toContain('nicht aktiviert');
-    expect(gatewayStatusText({ enabled: true, client: { connected: false, last_seen_at: null } })).toBe('Desktop-Client nicht verbunden');
-    expect(gatewayStatusText({ enabled: true, client: { connected: true, label: 'desktop-client:surface' } })).toContain('verbunden: desktop-client:surface');
+    expect(gatewayStatusText({ enabled: true, authenticated: false, client: { connected: false } })).toBe('Desktop-Client nicht verbunden · nicht angemeldet');
+    expect(gatewayStatusText({ enabled: true, authenticated: true, client: { connected: true, label: 'desktop-client:surface' } })).toContain('verbunden: desktop-client:surface');
+    expect(gatewayStatusText({ unavailable: true })).toBe('Desktop-Gateway auf diesem Host nicht verfügbar');
   });
   it('surfaces server error codes', async () => {
     const api = createDesktopGatewayApi('', async () => new Response(JSON.stringify({ error: 'desktop-gateway-not-configured' }), { status: 503 }));
-    await expect(api.propose({})).rejects.toThrow('desktop-gateway-not-configured');
+    await expect(api.propose('', {})).rejects.toThrow('desktop-gateway-not-configured');
+  });
+  it('treats a static host without gateway backend as unavailable, not as an error or connected', async () => {
+    const html = createDesktopGatewayApi('', async () => new Response('<!doctype html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+    expect(await html.status()).toMatchObject({ unavailable: true, enabled: false });
+    const missing = createDesktopGatewayApi('', async () => new Response('nope', { status: 404 }));
+    expect(await missing.status()).toMatchObject({ unavailable: true });
+  });
+  it('sends the proposer credential only as a header, never in the URL', async () => {
+    const calls = [];
+    const api = createDesktopGatewayApi('', async (url, init) => { calls.push([url, init]); return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }); });
+    await api.status('fixture-proposer-credential');
+    await api.read('fixture-proposer-credential', 'abc');
+    for (const [url, init] of calls) {
+      expect(url).not.toContain('fixture-proposer-credential');
+      expect(init.headers.authorization).toBe('Bearer fixture-proposer-credential');
+      expect(init.credentials).toBe('omit');
+    }
   });
 });
