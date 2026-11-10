@@ -14,17 +14,24 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { pathToFileURL } from 'node:url';
 
-export const OPEN_COMMANDS = Object.freeze({
-  win32: (url) => ['rundll32.exe', ['url.dll,FileProtocolHandler', url]],
-  darwin: (url) => ['open', [url]],
-  linux: (url) => ['xdg-open', [url]],
-});
+// Fixed program per platform; no lookup by caller-supplied keys.
+export function openCommand(platform, url) {
+  switch (platform) {
+    case 'win32': return ['rundll32.exe', ['url.dll,FileProtocolHandler', url]];
+    case 'darwin': return ['open', [url]];
+    case 'linux': return ['xdg-open', [url]];
+    default: return null;
+  }
+}
 
-export const CLIPBOARD_COMMANDS = Object.freeze({
-  win32: ['clip.exe', []],
-  darwin: ['pbcopy', []],
-  linux: ['xclip', ['-selection', 'clipboard']],
-});
+export function clipboardCommand(platform) {
+  switch (platform) {
+    case 'win32': return ['clip.exe', []];
+    case 'darwin': return ['pbcopy', []];
+    case 'linux': return ['xclip', ['-selection', 'clipboard']];
+    default: return null;
+  }
+}
 
 function run(spawnImpl, command, args, input) {
   return new Promise((resolve, reject) => {
@@ -49,14 +56,14 @@ export function createExecutor({ platform = process.platform, spawnImpl = spawn,
     if (action === 'url.open') {
       const url = new URL(params.url);
       if (url.protocol !== 'https:') throw new Error('desktop-url-https-only');
-      const build = OPEN_COMMANDS[platform];
-      if (!build) throw new Error(`Plattform ${platform} nicht unterstützt`);
-      const [command, args] = build(url.href);
+      const entry = openCommand(platform, url.href);
+      if (!entry) throw new Error(`Plattform ${platform} nicht unterstützt`);
+      const [command, args] = entry;
       await run(spawnImpl, command, args);
       return { status: 'succeeded', observation: `${command} gestartet (Exit 0); ob die Seite lädt, prüft der Client nicht` };
     }
     if (action === 'clipboard.write') {
-      const entry = CLIPBOARD_COMMANDS[platform];
+      const entry = clipboardCommand(platform);
       if (!entry) throw new Error(`Plattform ${platform} nicht unterstützt`);
       await run(spawnImpl, entry[0], entry[1], params.text);
       return { status: 'succeeded', observation: `${entry[0]} beendet (Exit 0)` };
@@ -120,6 +127,25 @@ export async function processOnce({ client, ask, execute, actor, print = console
   return { handled: true, id: proposal.id, decision: 'approved', result };
 }
 
+// Buffered line reader: piped answers are not lost, and end of input
+// (closed terminal/pipe) answers '' which counts as "nein".
+export function createLineReader(emitter, write = () => undefined) {
+  const buffered = [];
+  const waiting = [];
+  let closed = false;
+  emitter.on('line', (line) => (waiting.length ? waiting.shift()(line) : buffered.push(line)));
+  emitter.on('close', () => {
+    closed = true;
+    while (waiting.length) waiting.shift()('');
+  });
+  return (question) => {
+    write(question);
+    if (buffered.length) return Promise.resolve(buffered.shift());
+    if (closed) return Promise.resolve('');
+    return new Promise((resolve) => waiting.push(resolve));
+  };
+}
+
 function argValue(argv, flag, fallback) {
   const index = argv.indexOf(flag);
   return index >= 0 && argv[index + 1] ? argv[index + 1] : fallback;
@@ -132,13 +158,7 @@ async function main(argv = process.argv.slice(2)) {
   const client = createClient({ server, token: process.env.ALICE_DESKTOP_CLIENT_TOKEN, name });
   const execute = createExecutor({ dryRun: argv.includes('--dry-run') });
   const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: Boolean(process.stdin.isTTY) });
-  const lines = rl[Symbol.asyncIterator]();
-  // End of input (closed terminal/pipe) counts as "nein": nothing runs without an explicit yes.
-  const ask = async (question) => {
-    process.stdout.write(question);
-    const { value, done } = await lines.next();
-    return done ? '' : value;
-  };
+  const ask = createLineReader(rl, (text) => process.stdout.write(text));
   console.log(`Alice Desktop-Client verbunden mit ${server} als ${name}; Freigaben als ${actor}. Strg+C beendet.`);
   try {
     do {

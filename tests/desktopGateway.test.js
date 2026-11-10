@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDesktopGateway, desktopGatewayConfig, desktopPayloadHash, verifyJournal } from '../server/desktopGateway.js';
 import { createDesktopGatewayRouter } from '../server/desktopGatewayRoutes.js';
 import { buildCapabilityRegistry } from '../server/capabilityRegistry.js';
-import { createClient, createExecutor, processOnce } from '../tools/alice-desktop-client.mjs';
+import { createClient, createExecutor, createLineReader, processOnce } from '../tools/alice-desktop-client.mjs';
 
 // Clearly fake fixture credentials, used only inside these tests.
 const TOKEN = 'test-only-client-token-0123456789';
@@ -238,6 +238,17 @@ describe('desktop client executor', () => {
     expect(calls[0]).toMatchObject({ command: 'xclip', input: 'Hallo' });
     await expect(execute({ action: 'url.open', params: { url: 'file:///etc/passwd' } })).rejects.toThrow('desktop-url-https-only');
     await expect(execute({ action: 'shell.run', params: {} })).rejects.toThrow('nicht freigegeben');
+  });
+
+  it('line reader keeps piped answers and treats end of input as "nein"', async () => {
+    const input = new EventEmitter();
+    const ask = createLineReader(input);
+    input.emit('line', 'ja');
+    expect(await ask('?')).toBe('ja');
+    const pending = ask('?');
+    input.emit('close');
+    expect(await pending).toBe('');
+    expect(await ask('?')).toBe('');
   });
 
   it('dry-run never reports success', async () => {

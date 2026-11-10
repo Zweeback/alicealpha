@@ -70,6 +70,12 @@ function cleanText(value, max) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
+// Constant-time comparison for hex digests (payload hashes echoed by the client).
+export function hashesMatch(expected, provided) {
+  if (typeof expected !== 'string' || typeof provided !== 'string' || expected.length !== provided.length) return false;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+}
+
 export function tokensMatch(expected, provided) {
   if (typeof expected !== 'string' || expected.length < 16 || typeof provided !== 'string') return false;
   const a = Buffer.from(sha256(expected));
@@ -227,7 +233,7 @@ export function createDesktopGateway({
       const proposal = get(id);
       clientSeenAt = now();
       if (proposal.state !== 'delivered') throw new Error('desktop-proposal-not-awaiting-decision');
-      if (hash !== proposal.payload_sha256) {
+      if (!hashesMatch(proposal.payload_sha256, hash)) {
         append(proposal, 'hash-mismatch', 'server', 'observed', { stage: 'decision', client });
         throw new Error('desktop-payload-hash-mismatch');
       }
@@ -243,7 +249,7 @@ export function createDesktopGateway({
       const proposal = get(id);
       clientSeenAt = now();
       if (proposal.state !== 'approved') throw new Error('desktop-proposal-not-approved');
-      if (hash !== proposal.payload_sha256) {
+      if (!hashesMatch(proposal.payload_sha256, hash)) {
         append(proposal, 'hash-mismatch', 'server', 'observed', { stage: 'result', client });
         throw new Error('desktop-payload-hash-mismatch');
       }
