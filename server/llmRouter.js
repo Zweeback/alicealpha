@@ -25,6 +25,17 @@ const PROVIDERS = Object.freeze({
     key: 'OPENAI_API_KEY',
     defaultModel: 'gpt-4o-mini',
   },
+  // Optional: neither paid consumer subscription grants API entitlements.
+  xai: {
+    endpoint: 'https://api.x.ai/v1/chat/completions',
+    key: 'XAI_API_KEY',
+    defaultModel: null, // choose and verify the model in ALICE_LLM_CHAIN
+  },
+  anthropic: {
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    key: 'ANTHROPIC_API_KEY',
+    defaultModel: null, // require an explicit model; no assumed paid route
+  },
 });
 
 export function parseLlmChain(value = process.env.ALICE_LLM_CHAIN || DEFAULT_CHAIN) {
@@ -38,10 +49,8 @@ export function parseLlmChain(value = process.env.ALICE_LLM_CHAIN || DEFAULT_CHA
       const provider = providerName.toLowerCase();
       const config = PROVIDERS[provider];
       if (!config) return null;
-      return {
-        provider,
-        model: modelParts.join(':') || config.defaultModel,
-      };
+      const model = modelParts.join(':') || config.defaultModel;
+      return model ? { provider, model } : null;
     })
     .filter(Boolean);
 }
@@ -112,7 +121,9 @@ export function buildChatSystemPrompt({
 
 function providerHeaders(provider, apiKey) {
   return {
-    Authorization: `Bearer ${apiKey}`,
+    ...(provider === 'anthropic'
+      ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+      : { Authorization: `Bearer ${apiKey}` }),
     'Content-Type': 'application/json',
     ...(provider === 'openrouter'
       ? {
@@ -123,7 +134,13 @@ function providerHeaders(provider, apiKey) {
   };
 }
 
-function extractReply(payload) {
+function extractReply(payload, provider) {
+  if (provider === 'anthropic') {
+    return Array.isArray(payload?.content)
+      ? payload.content.filter((block) => block?.type === 'text')
+        .map((block) => block.text || '').join('').trim()
+      : '';
+  }
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content === 'string') return content.trim();
   if (Array.isArray(content)) {
@@ -153,13 +170,22 @@ async function callProvider({
     const response = await fetchFn(config.endpoint, {
       method: 'POST',
       headers: providerHeaders(provider, apiKey),
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.65,
-        max_tokens: 240,
-        stream: false,
-      }),
+      body: JSON.stringify(provider === 'anthropic'
+        ? {
+            model,
+            max_tokens: 240,
+            system: messages.filter(({ role }) => role === 'system')
+              .map(({ content }) => content).join('\n'),
+            messages: messages.filter(({ role }) => role !== 'system'),
+            stream: false,
+          }
+        : {
+            model,
+            messages,
+            temperature: 0.65,
+            max_tokens: 240,
+            stream: false,
+          }),
       signal: controller.signal,
     });
 
@@ -170,7 +196,7 @@ async function callProvider({
     }
 
     const payload = await response.json();
-    const reply = extractReply(payload);
+    const reply = extractReply(payload, provider);
     if (!reply) throw new Error(`llm-provider-empty:${provider}`);
     return reply;
   } finally {
