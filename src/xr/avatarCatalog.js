@@ -19,6 +19,10 @@ export const AVATAR_CATALOG = Object.freeze({
     label: 'VRM candidate',
     url: '/alice.vrm',
   }),
+  v04: Object.freeze({ id: 'v04', kind: 'vrm', status: 'candidate', label: 'Alice VRM v0.4', url: '/avatars/Alice_v0.4.vrm' }),
+  v05: Object.freeze({ id: 'v05', kind: 'vrm', status: 'candidate', label: 'Alice VRM v0.5', url: '/avatars/Alice_v0.5.vrm' }),
+  v05mobile: Object.freeze({ id: 'v05mobile', kind: 'vrm', status: 'candidate', label: 'Alice VRM v0.5 mobile', url: '/avatars/Alice_v0.5_pc70k.vrm' }),
+  v06: Object.freeze({ id: 'v06', kind: 'vrm', status: 'candidate', label: 'Alice VRM v0.6', url: '/avatars/alice_v0.6.vrm' }),
   fbxsource: Object.freeze({
     id: 'fbxsource',
     kind: 'glb',
