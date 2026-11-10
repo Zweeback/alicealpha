@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ALICE · 3D Chat View</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b0b16;color:#e9e8ff;font:14px system-ui,-apple-system,Segoe UI,sans-serif}main{max-width:1080px;margin:auto;padding:12px}.head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px}.head h1{margin:0;font-size:20px;letter-spacing:.13em}.head small{color:#b5a9d2}.viewer{position:relative;width:100%;height:min(74vh,670px);min-height:365px;border:1px solid #393151;border-radius:14px;overflow:hidden;background:radial-gradient(ellipse at 50% 28%,#312444,#131322 55%,#090c17)}canvas{display:block;width:100%;height:100%;touch-action:none}.head .chip{background:#252239;border:1px solid #54406a;padding:5px 9px;border-radius:20px;font-size:12px;color:#cfc6f5}.hud{position:absolute;left:12px;top:12px;right:12px;pointer-events:none}.status{display:inline-block;background:#0a0c18cf;border-radius:8px;padding:8px 10px;max-width:100%;font-size:12px}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}button,.pick{font:inherit;padding:8px 11px;border:1px solid #655182;border-radius:9px;background:#292139;color:#f0e9ff;cursor:pointer}button:focus-visible,.pick:focus-visible{outline:2px solid #62dae9}button:hover,.pick:hover{background:#44325e}.pick input{display:none}.metrics{display:flex;gap:8px;flex-wrap:wrap;color:#bac6d9;font-size:12px}.metrics span{padding:6px 9px;background:#181b2d;border-radius:7px}.hint{color:#a89fba;font-size:12px;margin:7px 0}a{color:#83d3f5}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/"}}</script>
+</head>
+<body>
+<main>
+<header class="head"><div><h1>ALICE <small>3D CHAT VIEW</small></h1><small>Rigged source candidate · not approved</small></div><span class="chip">Three.js / glTF</span></header>
+<section class="viewer" id="stage"><canvas id="canvas" aria-label="3D ALICE avatar: rotate and zoom"></canvas><div class="hud"><div id="status" class="status" role="status">3D Engine startet …</div></div></section>
+<div class="controls">
+<button data-view="front">Vorne</button><button data-view="side">Seite</button><button data-view="back">Hinten</button>
+<button id="spin">Drehen: aus</button><label class="pick">Eigene GLB/VRM<input id="upload" type="file" accept=".glb,.vrm,model/gltf-binary"></label>
+</div>
+<div id="metrics" class="metrics"><span>Mesh: –</span><span>Bones: –</span><span>Dreiecke: –</span><span>Morphs: –</span></div>
+<p class="hint">Maus/Touch ziehen: drehen · Mausrad/Zweifinger-Geste: zoomen. Dateiquelle: <a href="https://github.com/Zweeback/alicealpha/blob/main/public/avatars/alice-fbx-source.json">ALICE FBX → GLB</a>. Kein Live-Datenkanal zum ChatGPT-Backend.</p>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const canvas=document.getElementById('canvas'),stage=document.getElementById('stage'),status=document.getElementById('status'),metrics=document.getElementById('metrics');
+const scene=new THREE.Scene();scene.background=new THREE.Color('#10101b');
+const camera=new THREE.PerspectiveCamera(35,1,.01,500);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;
+const orbit=new OrbitControls(camera,canvas);orbit.enableDamping=true;orbit.dampingFactor=.07;orbit.minDistance=.25;orbit.maxDistance=80;
+scene.add(new THREE.HemisphereLight('#d9e5ff','#362447',2.6));
+function light(color,power,x,y,z){const l=new THREE.DirectionalLight(color,power);l.position.set(x,y,z);scene.add(l)}
+light('#fff2e6',2.8,-3,5,6);light('#78cbff',1.8,4,3,-4);light('#bf83ff',1.6,0,4,4);
+const grid=new THREE.GridHelper(12,24,0x52466a,0x201d30);scene.add(grid);
+let active=null,bounds=null,autoSpin=false;
+function resize(){const w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+new ResizeObserver(resize).observe(stage);resize();
+function showView(mode='front'){if(!bounds)return;const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());const h=Math.max(.2,size.y),d=Math.max(2,(h*.5)/Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*1.45);const dir=mode==='side'?[1,0,0]:mode==='back'?[0,0,-1]:[0,0,1];camera.position.set(center.x+dir[0]*d,center.y+dir[1]*d,center.z+dir[2]*d);orbit.target.copy(center);orbit.update();grid.position.y=bounds.min.y-.005;camera.near=Math.max(.005,d/1000);camera.far=Math.max(100,d*50);camera.updateProjectionMatrix()}
+function diagnose(gltf,name){let meshes=0,bones=0,triangles=0,morphs=new Set();gltf.scene.traverse(o=>{if(o.isBone)bones++;if(o.isMesh){meshes++;const g=o.geometry;triangles+=g.index?g.index.count/3:(g.attributes.position?.count||0)/3;Object.keys(o.morphTargetDictionary||{}).forEach(x=>morphs.add(x))}});metrics.replaceChildren(...[['Mesh',meshes],['Bones',bones],['Dreiecke',Math.round(triangles).toLocaleString('de-DE')],['Morphs',morphs.size]].map(([label,value])=>{const s=document.createElement('span');s.textContent=label+': '+value;return s}));status.textContent=name+' · geladen · Kandidat (nicht freigegeben)'}
+function accept(gltf,name){if(!gltf.scene)throw Error('3D-Szene fehlt');const box=new THREE.Box3().setFromObject(gltf.scene);if(box.isEmpty())throw Error('Keine Geometrie');if(active){scene.remove(active);active.traverse(o=>{if(o.isMesh){o.geometry?.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])m?.dispose()}})}active=gltf.scene;scene.add(active);bounds=box;showView('front');diagnose(gltf,name)}
+const loader=new GLTFLoader();
+function loadURL(url,name){status.textContent='Lade '+name+' …';loader.load(url,g=>{try{accept(g,name)}catch(e){status.textContent='Modellfehler: '+e.message}},undefined,e=>{status.textContent='Laden nicht möglich ('+(e?.message||'Netzwerk/CORS')+'). Eigene GLB/VRM-Datei auswählen.'})}
+const path=new URL('./avatars/alice-fbx-source.glb',location.href).href;
+loadURL(path,'alice-fbx-source.glb');
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+document.getElementById('spin').addEventListener('click',e=>{autoSpin=!autoSpin;orbit.autoRotate=autoSpin;e.currentTarget.textContent='Drehen: '+(autoSpin?'an':'aus')});
+document.getElementById('upload').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;if(!/\.(glb|vrm)$/i.test(file.name)){status.textContent='Nur .glb oder .vrm';return}try{status.textContent='Lese '+file.name;const buffer=await file.arrayBuffer();const gltf=await loader.parseAsync(buffer,'');accept(gltf,file.name)}catch(err){status.textContent='Dateifehler: '+(err?.message||err)}});
+function animate(){requestAnimationFrame(animate);orbit.update();renderer.render(scene,camera)}animate();
+</script>
+</body></html>
