@@ -5,6 +5,7 @@ import { resolveAvatarSelection } from './avatarCatalog.js';
 import { sampleMicroMotion } from './microMotion.js';
 import { resolveMorphWeight } from './rigExpressions.js';
 import { validateCandidateFile, validateGlbHeader, inspectCandidateScene } from './candidateImport.js';
+import { cleanVisemes } from '../core/lipSync.js';
 import { AliceRuntime } from './aliceRuntime.js';
 
 const cyan = new THREE.Color('#8eced0');
@@ -436,6 +437,12 @@ export class AliceWorld {
     this.performanceStartedAt = 0;
     this.gesture = 'attentive';
     this.speechEnergy = 0;
+    this.liveVisemes = null; // echte Vokalgewichte aus dem Audiosignal (LipSync)
+    this.liveVisemeAt = 0;
+    this.liveVolume = 0;
+    this.frame = null;
+    this.parallax = { x: 0, y: 0 };
+    this.aura = 0;
     this.mode = 'desktop';
     this.arPlaced = false;
     this.hitTestSource = null;
@@ -544,26 +551,80 @@ export class AliceWorld {
   }
 
   #addLights() {
-    this.scene.add(new THREE.HemisphereLight('#e8efec', '#17110f', 0.82));
+    // Rig 1: Labor-Licht für den prozeduralen Körper und GLaDOS (unverändert).
+    const lab = new THREE.Group();
+    lab.name = 'lab-lights';
+    lab.add(new THREE.HemisphereLight('#e8efec', '#17110f', 0.82));
 
     const key = new THREE.DirectionalLight('#ffe9dc', 3.35);
     key.position.set(-2.8, 3.7, 4.1);
     key.castShadow = true;
     key.shadow.mapSize.set(1536, 1536);
     key.shadow.bias = -0.0004;
-    this.scene.add(key);
+    lab.add(key);
 
     const fill = new THREE.PointLight('#cfd9d7', 1.8, 7, 2);
     fill.position.set(2.5, 0.8, 3.2);
-    this.scene.add(fill);
+    lab.add(fill);
 
     const rim = new THREE.PointLight(cyan, 6.8, 7, 2);
     rim.position.set(2.4, 1.8, -1.7);
-    this.scene.add(rim);
+    lab.add(rim);
 
     const warm = new THREE.PointLight(amber, 2.2, 5.5, 2);
     warm.position.set(-2.4, -0.1, 1.4);
-    this.scene.add(warm);
+    lab.add(warm);
+    this.scene.add(lab);
+
+    // Rig 2: Studio-Licht für das Brustbild des gerigten VRM. Die Farben stammen aus der Figur:
+    // warmes Hauptlicht, Lavendel (Jacke) als Kante von rechts, Kupfer (Haar) als schwache Gegenkante.
+    const studio = new THREE.Group();
+    studio.name = 'studio-lights';
+    studio.add(new THREE.HemisphereLight('#e7e1f5', '#1b1322', 0.9));
+
+    const studioKey = new THREE.DirectionalLight('#fff1e6', 2.5);
+    studioKey.position.set(-1.4, 2.6, 3.4);
+    studio.add(studioKey);
+
+    const studioFill = new THREE.DirectionalLight('#cfc8ff', 0.75);
+    studioFill.position.set(2.8, 0.4, 2.6);
+    studio.add(studioFill);
+
+    const studioRim = new THREE.DirectionalLight('#b9a3ff', 2.4);
+    studioRim.position.set(2.4, 2.2, -2.8);
+    studio.add(studioRim);
+
+    const kicker = new THREE.DirectionalLight('#ff9a62', 1.3);
+    kicker.position.set(-2.6, 1.4, -2.2);
+    studio.add(kicker);
+    studio.visible = false;
+    this.scene.add(studio);
+
+    this.lights = { lab, studio, key };
+  }
+
+  /**
+   * Brustbild-Modus: nur für gerigte VRM-Avatare in der Desktop-Ansicht. Der Körper-Raum (Boden, Wand, Sockel)
+   * wird ausgeblendet, der Canvas ist transparent; die Seite liefert Hintergrund und Voice-Aura per CSS.
+   * XR und GLaDOS behalten die bisherige Bühne.
+   */
+  #bustActive() {
+    return Boolean(this.alice?.vrm) && this.mode === 'desktop' && this.representation !== 'glados';
+  }
+
+  #applyStage() {
+    const bust = this.#bustActive();
+    const inAr = this.mode === 'ar';
+    this.lab.visible = !bust && !inAr;
+    this.scene.background = bust || inAr ? null : new THREE.Color('#050607');
+    this.scene.fog = bust || inAr ? null : new THREE.FogExp2('#050607', 0.085);
+    this.renderer.toneMappingExposure = bust ? 1.0 : 0.9;
+    if (this.lights) {
+      this.lights.lab.visible = !bust;
+      this.lights.studio.visible = bust;
+      this.lights.key.castShadow = !bust;
+    }
+    this.canvas.dataset.stage = bust ? 'bust' : 'room';
   }
 
   #wireInput() {
@@ -609,6 +670,7 @@ export class AliceWorld {
     };
     const session = await navigator.xr.requestSession(sessionMode, options);
     this.mode = mode;
+    this.#applyStage();
     this.lab.visible = mode !== 'ar';
     this.scene.background = mode === 'ar' ? null : new THREE.Color('#050607');
     this.scene.fog = mode === 'ar' ? null : new THREE.FogExp2('#050607', 0.085);
@@ -625,10 +687,8 @@ export class AliceWorld {
 
     session.addEventListener('end', () => {
       this.mode = 'desktop';
-      this.lab.visible = true;
       this.lab.position.y = 0;
-      this.scene.background = new THREE.Color('#050607');
-      this.scene.fog = new THREE.FogExp2('#050607', 0.085);
+      this.#applyStage();
       this.alice.root.position.set(0, 0, 0);
       this.alice.root.scale.setScalar(1);
       this.placementRing.visible = false;
@@ -664,6 +724,13 @@ export class AliceWorld {
 
   setSpeechEnergy(value) {
     this.speechEnergy = THREE.MathUtils.clamp(Number(value) || 0, 0, 1);
+  }
+
+  /** Vokalgewichte aus echtem Audio (LipSync). Veralten nach 250 ms; dann greift die Energie-Näherung. */
+  setVisemes(visemes, volume = 0) {
+    this.liveVisemes = cleanVisemes(visemes);
+    this.liveVolume = THREE.MathUtils.clamp(Number(volume) || 0, 0, 1);
+    this.liveVisemeAt = performance.now();
   }
 
   setRepresentation(mode = 'french') {
@@ -705,10 +772,12 @@ export class AliceWorld {
   resize = () => {
     const width = this.canvas.clientWidth || globalThis.innerWidth || 1;
     const height = this.canvas.clientHeight || globalThis.innerHeight || 1;
+    this.#applyStage();
+    const bust = this.#bustFrame(width, height);
     const size = this.desktopBounds ? this.desktopBounds.getSize(new THREE.Vector3()) : new THREE.Vector3(1.5, 1.8, 1);
     const center = this.desktopBounds ? this.desktopBounds.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0.9, 0);
     const desktopPortrait = this.mode === 'desktop';
-    const frame = calculatePerspectiveFrame({
+    const frame = bust || calculatePerspectiveFrame({
       viewportWidth: width,
       viewportHeight: height,
       verticalFovDegrees: this.camera.fov,
@@ -722,12 +791,45 @@ export class AliceWorld {
     this.camera.aspect = frame.aspect;
     this.camera.updateProjectionMatrix();
     if (this.mode === 'desktop') {
-      const targetY = center.y + size.y * 0.24;
-      this.camera.position.set(center.x, targetY, center.z + frame.distance);
-      this.camera.lookAt(center.x, targetY, center.z);
+      const targetY = bust ? bust.targetY : center.y + size.y * 0.24;
+      const x = bust ? bust.x : center.x;
+      const z = bust ? bust.z : center.z;
+      this.frame = { x, y: targetY, z: z + frame.distance, targetY, lookZ: z };
+      this.#applyFrame();
     }
     this.renderer.setSize(width, height, false);
   };
+
+  /** Brustbild: Kopf und Schultern füllen den Bildschirm, bis zur Brust sichtbar. Maße relativ zur Kopfhöhe. */
+  #bustFrame(width, height) {
+    if (!this.#bustActive() || !this.desktopBounds) return null;
+    const head = this.alice.vrm.humanoid?.getNormalizedBoneNode?.('head');
+    if (!head) return null;
+    this.alice.root.updateMatrixWorld(true);
+    head.getWorldPosition(this.#headWorld);
+    const top = this.desktopBounds.max.y;
+    // Abstand Kopfgelenk bis Scheitel ≈ eine Kopfhöhe; begrenzt gegen fehlerhafte Bounds.
+    const h = THREE.MathUtils.clamp(top - this.#headWorld.y, 0.12, 0.45);
+    const aspect = width / height;
+    const narrow = aspect < 0.8;
+    const span = h * (narrow ? 5.0 : 3.9);
+    const frameTop = top + h * (narrow ? 0.85 : 0.65);
+    const distance = span / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+    return {
+      aspect,
+      distance,
+      targetY: frameTop - span / 2,
+      x: this.#headWorld.x,
+      z: this.#headWorld.z,
+    };
+  }
+
+  #applyFrame() {
+    const f = this.frame;
+    if (!f || this.mode !== 'desktop') return;
+    this.camera.position.set(f.x + this.parallax.x, f.y + this.parallax.y, f.z);
+    this.camera.lookAt(f.x, f.targetY, f.lookZ);
+  }
 
   #render = (time, frame) => {
     const delta = Math.min(0.05, this.clock.getDelta());
@@ -749,11 +851,30 @@ export class AliceWorld {
     this.placementRing.visible = true;
   }
 
+  /** Kamera-Parallaxe zum Zeiger und Voice-Aura (CSS-Variable --voice) – beides ohne React-State. */
+  #updateStage(delta, timedPerformance) {
+    if (this.mode === 'desktop' && this.frame) {
+      this.parallax.x = damp(this.parallax.x, this.pointer.x * 0.06, 3, delta);
+      this.parallax.y = damp(this.parallax.y, this.pointer.y * 0.03, 3, delta);
+      this.#applyFrame();
+    }
+    const live = this.liveVisemes && performance.now() - this.liveVisemeAt < 250 ? this.liveVolume : 0;
+    const target = Math.max(this.speechEnergy, live, timedPerformance ? 0.18 : 0);
+    this.aura = damp(this.aura, Math.min(1, target), target > this.aura ? 9 : 4, delta);
+    const host = this.overlayRoot || this.canvas.parentElement;
+    const shown = Math.round(this.aura * 100) / 100;
+    if (host && shown !== this.auraShown) {
+      host.style.setProperty('--voice', String(shown));
+      this.auraShown = shown;
+    }
+  }
+
   #animate(time, delta) {
     if (!this.alice) return;
     const seconds = time / 1000;
     const elapsed = this.performance ? time - this.performanceStartedAt : 0;
     const timedPerformance = Boolean(this.performance && elapsed < this.performance.duration_ms);
+    this.#updateStage(delta, timedPerformance);
 
     if (this.representation === 'glados') {
       const speaking = timedPerformance || this.speechEnergy > 0.035;
@@ -871,24 +992,32 @@ export class AliceWorld {
     if (timedPerformance && elapsed >= this.performance.duration_ms - 40) this.stopPlan();
   }
 
+  #headWorld = new THREE.Vector3();
   #gazeTarget = new THREE.Vector3();
   #armAngle = 1.2;
 
   /**
    * Per-frame drive for ARKit-rigged VRM 1.0 avatars. Order matters: runtime.update() writes
    * expressions and normalized head/spine bones, then the arm pose, then vrm.update().
-   * Vowel weights are an energy-based approximation, not phoneme recognition.
+   * Vowel weights come from real audio formants (LipSync) when fresh, else from an energy-based
+   * approximation. Neither is phoneme recognition.
    */
   #driveRuntime(runtime, { delta, seconds, speaking, speechEnergy, camera }) {
     const { vrm } = this.alice;
-    const phase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
-    runtime.setVisemes({
-      aa: speaking ? speechEnergy * (0.6 + phase * 0.25) : 0,
-      ih: speaking ? speechEnergy * (1 - phase) * 0.2 : 0,
-      ou: speaking ? speechEnergy * phase * 0.16 : 0,
-      ee: speaking ? speechEnergy * (1 - phase) * 0.1 : 0,
-      oh: speaking ? speechEnergy * phase * 0.2 : 0,
-    });
+    const liveFresh = this.liveVisemes && performance.now() - this.liveVisemeAt < 250;
+    if (liveFresh) {
+      runtime.setVisemes(this.liveVisemes);
+    } else {
+      // Rückfall ohne PCM-Zugriff (z. B. Browser-Sprachausgabe): Näherung aus Lautstärke und Takt.
+      const phase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
+      runtime.setVisemes({
+        aa: speaking ? speechEnergy * (0.6 + phase * 0.25) : 0,
+        ih: speaking ? speechEnergy * (1 - phase) * 0.2 : 0,
+        ou: speaking ? speechEnergy * phase * 0.16 : 0,
+        ee: speaking ? speechEnergy * (1 - phase) * 0.1 : 0,
+        oh: speaking ? speechEnergy * phase * 0.2 : 0,
+      });
+    }
     runtime.setSpeechEnergy(speaking ? speechEnergy : 0);
 
     const [emotion, amount] = this.presence.expression === 'smile'

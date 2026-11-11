@@ -1,3 +1,5 @@
+import { LipSync } from './lipSync.js';
+
 function safeJson(value, fallback = {}) {
   try {
     return typeof value === 'string' ? JSON.parse(value) : value || fallback;
@@ -14,6 +16,7 @@ export class RealtimeChannel {
     onTranscript = () => {},
     onUserTranscript = () => {},
     onSpeechEnergy = () => {},
+    onVisemes = () => {},
     onTool = async () => ({ ok: true }),
     onError = () => {},
   } = {}) {
@@ -23,6 +26,7 @@ export class RealtimeChannel {
     this.onTranscript = onTranscript;
     this.onUserTranscript = onUserTranscript;
     this.onSpeechEnergy = onSpeechEnergy;
+    this.onVisemes = onVisemes;
     this.onTool = onTool;
     this.onError = onError;
     this.peer = null;
@@ -280,10 +284,31 @@ export class RealtimeChannel {
       analyser.smoothingTimeConstant = 0.72;
       source.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
+
+      // Zweiter Analyser im Zeitbereich: echte PCM-Frames für die Vokal-Lippensynchronisation.
+      const timeAnalyser = this.audioContext.createAnalyser();
+      timeAnalyser.fftSize = 1024;
+      source.connect(timeAnalyser);
+      const pcm = new Float32Array(timeAnalyser.fftSize);
+      const lipSync = new LipSync();
+      const sampleRate = this.audioContext.sampleRate;
+      let last = performance.now();
+
       const frame = () => {
         analyser.getByteFrequencyData(data);
         const mean = data.reduce((sum, value) => sum + value, 0) / Math.max(1, data.length);
         this.onSpeechEnergy(Math.min(1, mean / 92));
+
+        const now = performance.now();
+        const dt = Math.min(0.1, Math.max(0.001, (now - last) / 1000));
+        last = now;
+        try {
+          timeAnalyser.getFloatTimeDomainData(pcm);
+          lipSync.update(pcm, sampleRate, dt);
+          this.onVisemes({ ...lipSync.out }, lipSync.volume);
+        } catch {
+          // Energiebasierte Mundbewegung bleibt als Rückfall aktiv.
+        }
         this.energyFrame = requestAnimationFrame(frame);
       };
       frame();

@@ -7,7 +7,7 @@ import { createPerformancePlan } from './core/performance.js';
 import { RealtimeChannel } from './core/realtime.js';
 import { CameraPresence } from './core/vision.js';
 import { VoiceChannel } from './core/voice.js';
-import { AliceWorld } from './xr/AliceWorld.js';
+import { createLazyWorld } from './xr/lazyWorld.js';
 import { shouldShowPortrait } from './xr/avatarCatalog.js';
 import { ALICE_VISUAL_DEMO, visualDemoEnabled } from './xr/demoDirector.js';
 import { callModeEnabled } from './core/callMode.js';
@@ -20,9 +20,9 @@ const labels = {
   listening: 'Ich höre zu',
   thinking: 'Ich denke nach',
   speaking: 'Alice spricht',
-  offline: 'Offline · keine KI-Verbindung',
-  local: 'Lokale KI · auf diesem Gerät',
-  error: 'Fehler · nicht bereit',
+  offline: 'Offline, keine KI-Verbindung',
+  local: 'Lokale KI auf diesem Gerät',
+  error: 'Fehler, nicht bereit',
 };
 
 export default function App() {
@@ -282,35 +282,20 @@ export default function App() {
     hardwareRef.current = hardware;
     voiceRef.current = voice;
 
-    let world;
-    try {
-      world = new AliceWorld(canvasRef.current, {
-        overlayRoot: overlayRef.current,
-        onInteract: () => interactRef.current?.(),
-        onSessionChange: setMode,
-      });
-      world.init().then(() => {
-        world.setRepresentation(voiceModeRef.current);
-      }).catch((error) => {
-        console.warn('Alice 3D initialization failed; using portrait fallback:', error);
+    // Die 3D-Welt lädt nach dem ersten Render nach; bis dahin zeigt die Seite Porträt und Bedienung.
+    const world = createLazyWorld(canvasRef.current, {
+      overlayRoot: overlayRef.current,
+      onInteract: () => interactRef.current?.(),
+      onSessionChange: setMode,
+    });
+    world.ready
+      .then((loaded) => loaded?.setRepresentation(voiceModeRef.current))
+      .catch((error) => {
+        console.warn('Alice 3D unavailable; using portrait/text fallback:', error);
         setRenderFallback(true);
+        setXrSupport({ ar: false, vr: false });
       });
-      world.support().then(setXrSupport).catch(() => undefined);
-    } catch (error) {
-      console.warn('WebGL unavailable; using Alice portrait/text fallback:', error);
-      setRenderFallback(true);
-      setXrSupport({ ar: false, vr: false });
-      world = {
-        setPresence() {},
-        stopPlan() {},
-        setSpeechEnergy() {},
-        playPlan() {},
-        playCue() {},
-        dispose() {},
-        async support() { return { ar: false, vr: false }; },
-        async startXR() { throw new Error('webgl-unavailable'); },
-      };
-    }
+    world.support().then(setXrSupport).catch(() => undefined);
     worldRef.current = world;
 
     let demoTimer = null;
@@ -370,6 +355,7 @@ export default function App() {
         }
       },
       onSpeechEnergy: (energy) => world.setSpeechEnergy(energy),
+      onVisemes: (visemes, volume) => world.setVisemes(visemes, volume),
       onTool: async (name, args) => {
         if (name === 'get_companion_state') {
           const state = companion.snapshot();
@@ -509,16 +495,17 @@ export default function App() {
       const report = await viewer.loadCandidateFile(file);
       setLocalCandidateLoaded(true);
       setRenderFallback(false);
-      setCandidateStatus(
-        'Vorschau · NICHT freigegeben · ' + report.meshes + ' Meshes · ' +
-        report.triangles.toLocaleString('de-DE') + ' Dreiecke · ' +
-        report.bones + ' Bones · ' + report.morphs + ' Morphs · ' +
-        (report.rigReady
-          ? report.boundSkinMeshes + ' korrekt gebundene Skin-Meshes'
-          : 'Skelett-Bindung NICHT nachgewiesen') +
-        ' · Gesichtssteuerungen: ' +
-        Object.values(report.facialControls).filter(Boolean).length + '/7',
-      );
+      setCandidateStatus([
+        'Vorschau, NICHT freigegeben',
+        `${report.meshes} Meshes`,
+        `${report.triangles.toLocaleString('de-DE')} Dreiecke`,
+        `${report.bones} Bones`,
+        `${report.morphs} Morphs`,
+        report.rigReady
+          ? `${report.boundSkinMeshes} korrekt gebundene Skin-Meshes`
+          : 'Skelett-Bindung NICHT nachgewiesen',
+        `Gesichtssteuerungen: ${Object.values(report.facialControls).filter(Boolean).length}/7`,
+      ].join(', '));
     } catch (error) {
       setCandidateStatus('Importfehler: ' + (error?.message || 'Unbekannt'));
     } finally {
@@ -533,6 +520,7 @@ export default function App() {
 
   return (
     <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
+      <div className="stage-arch" aria-hidden="true" />
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
       {portraitVisual && (
@@ -564,7 +552,26 @@ export default function App() {
       <header className="presence-header">
         <div className="identity">
           <span className="identity-mark" aria-hidden="true" />
-          <div><strong>Alice</strong><small>{demoMode ? 'Visual-Demo' : live3DVisual ? '3D-Ansicht' : 'Porträt-Ansicht'}</small></div>
+          <div>
+            <strong>Alice</strong>
+            <details className="view-menu">
+              <summary>{demoMode ? 'Visual-Demo' : live3DVisual ? '3D-Ansicht' : 'Porträt-Ansicht'}</summary>
+              <div className="view-menu-panel">
+                <a href="?visual=portrait" aria-current={portraitVisual ? 'true' : undefined}>Porträt</a>
+                <a href="?avatar=vrm" aria-current={live3DVisual ? 'true' : undefined}>3D-Avatar testen</a>
+                <label className="view-menu-file">
+                  Eigenes Modell laden (.glb oder .vrm)
+                  <input
+                    aria-label="Unveröffentlichtes Alice-Kandidatenmodell öffnen"
+                    type="file" accept=".glb,.vrm,model/gltf-binary"
+                    onChange={importLocalCandidate}
+                  />
+                </label>
+                <small>Der 3D-Avatar ist ein Kandidat und noch nicht freigegeben.</small>
+                {candidateStatus && <small role="status" className="candidate-status">{candidateStatus}</small>}
+              </div>
+            </details>
+          </div>
         </div>
         <div className="live-state" role="status">
           <span className="state-pulse" aria-hidden="true" />
@@ -572,38 +579,6 @@ export default function App() {
         </div>
       </header>
 
-      <div className="candidate-tools">
-        <label
-          style={{
-            background: '#171923ee', color: '#fff4ef', border: '1px solid #9f798e',
-            borderRadius: 12, padding: '9px 13px', cursor: 'pointer', fontSize: 12,
-          }}
-        >
-          3D-Modell laden (.glb/.vrm)
-          <input
-            aria-label="Unveröffentlichtes Alice-Kandidatenmodell öffnen"
-            type="file" accept=".glb,.vrm,model/gltf-binary"
-            onChange={importLocalCandidate}
-            style={{ display: 'none' }}
-          />
-        </label>
-        <a
-          href="?avatar=vrm"
-          style={{
-            background: '#e8d9ca', color: '#121116', border: '1px solid #e8d9ca',
-            borderRadius: 12, padding: '9px 13px', fontSize: 12,
-            fontWeight: 700, textDecoration: 'none',
-          }}
-        >
-          Echten geriggten 3D-Avatar testen
-        </a>
-        {candidateStatus && (
-          <small role="status" style={{ background: '#171923dd', color: '#eadbe3',
-            fontSize: 10, borderRadius: 8, padding: '7px 9px', lineHeight: 1.4 }}>
-            {candidateStatus}
-          </small>
-        )}
-      </div>
       <nav className="voice-mode-switch" aria-label="Alice Sprachmodus">
         {[
           ['french', 'French'],
@@ -630,16 +605,13 @@ export default function App() {
 
       {hintVisible && (
         <div className={`first-contact ${callMode ? 'call-contact' : ''}`}>
-          {callMode ? (
-            <button className="call-primary" type="button" onClick={ensureLive}>
-              <span className="call-icon" aria-hidden="true">●</span>
-              Alice anrufen
-            </button>
-          ) : (
-            <p>Alice ist da. Sag ihr, woran wir jetzt arbeiten.</p>
-          )}
+          <p>Alice ist da. Sag ihr, woran wir jetzt arbeiten.</p>
+          <button className="call-primary" type="button" onClick={ensureLive}>
+            <span className="call-icon" aria-hidden="true" />
+            {callMode ? 'Alice anrufen' : 'Mit Alice sprechen'}
+          </button>
           <small>{chatAvailable
-            ? 'Standardpfad: Browser-Sprache → Alice-Chatrouter → Stimme + Avatar. Keine Kamera nötig.'
+            ? 'Du sprichst, Alice antwortet mit Stimme. Eine Kamera brauchst du nicht.'
             : realtimeAvailable
             ? callMode
               ? 'Das Mikrofon startet erst nach deinem Tippen.'
@@ -655,7 +627,7 @@ export default function App() {
               disabled={localAIStatus === 'loading' || localAISupported === false}
             >
               {localAIStatus === 'loading'
-                ? `Lokale KI laden · ${localAIProgress}%`
+                ? `Lokale KI laden (${localAIProgress} %)`
                 : localAISupported === false
                   ? 'Lokale KI braucht WebGPU'
                   : 'Lokale KI kostenlos laden'}
@@ -680,7 +652,7 @@ export default function App() {
             disabled={localAIStatus === 'loading' || localAISupported === false}
           >
             {localAIStatus === 'loading'
-              ? `Lokale KI laden · ${localAIProgress}%`
+              ? `Lokale KI laden (${localAIProgress} %)`
               : localAISupported === false
                 ? 'Lokale KI braucht WebGPU'
                 : 'Lokale KI kostenlos laden'}
@@ -698,7 +670,7 @@ export default function App() {
           <div className="live-chat-head">
             <div>
               <strong>Alice</strong>
-              <span>Girl Companion · Livechat</span>
+              <span>Livechat</span>
             </div>
             <button type="button" className="live-chat-close" onClick={() => setTextOpen(false)} aria-label="Livechat schließen">×</button>
           </div>
