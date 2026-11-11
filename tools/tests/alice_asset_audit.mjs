@@ -46,3 +46,45 @@ test('truncated, forged-size and non-GLB input are rejected',()=>{
   c.writeUInt32LE(0,0);
   assert.throws(()=>parseGlb(c),/invalid glTF magic/);
 });
+
+test('studio import refuses to overwrite an approved canonical asset', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join, resolve } = await import('node:path');
+  const { spawnSync } = await import('node:child_process');
+  const dir = mkdtempSync(join(tmpdir(), 'alice-import-guard-'));
+  try {
+    mkdirSync(join(dir, 'public'));
+    const existing = Buffer.from('canonical-asset-must-remain-untouched');
+    writeFileSync(join(dir, 'public', 'alice.glb'), existing);
+    writeFileSync(join(dir, 'candidate.glb'), glb(minimal));
+    const manifest = {
+      canonicalAssetStatus: 'approved',
+      approvedAsset: { path: '/alice.glb' },
+      candidateAssets: [],
+      notes: [],
+    };
+    const manifestPath = join(dir, 'public', 'ALICE_CHARACTER_MANIFEST.json');
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    const before = readFileSync(manifestPath);
+    const result = spawnSync(process.execPath, [
+      resolve('tools/import_studio_asset.mjs'), '--source', join(dir, 'candidate.glb')
+    ], { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 3, result.stderr);
+    assert.match(result.stderr, /Import refused/);
+    assert.deepEqual(readFileSync(join(dir, 'public', 'alice.glb')), existing);
+    assert.deepEqual(readFileSync(manifestPath), before);
+    // An unknown state must not silently downgrade to a writable candidate.
+    const invalid = { ...manifest, canonicalAssetStatus: 'reviewed', approvedAsset: null };
+    writeFileSync(manifestPath, JSON.stringify(invalid));
+    const invalidBefore = readFileSync(manifestPath);
+    const rejected = spawnSync(process.execPath, [
+      resolve('tools/import_studio_asset.mjs'), '--source', join(dir, 'candidate.glb')
+    ], { cwd: dir, encoding: 'utf8' });
+    assert.equal(rejected.status, 3, rejected.stderr);
+    assert.deepEqual(readFileSync(join(dir, 'public', 'alice.glb')), existing);
+    assert.deepEqual(readFileSync(manifestPath), invalidBefore);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

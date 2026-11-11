@@ -15,6 +15,15 @@ describe('Alice character manifest gate', () => {
     expect(manifest.fallbackPolicy.defaultMayUseCandidateWithoutApproval).toBe(false);
   });
 
+  it('rejects unknown canonical status rather than treating it as pending', () => {
+    for (const status of ['reviewed', 'APPROVED', 'disabled', null]) {
+      const result = validateAliceCharacterManifest({ ...manifest, canonicalAssetStatus: status });
+      expect(result.pass).toBe(false);
+      expect(result.canPromote).toBe(false);
+      expect(result.failures).toContain('invalid-canonical-asset-status');
+    }
+  });
+
   it('fails closed when fallback or approval gates are removed', () => {
     const result = validateAliceCharacterManifest({
       ...manifest,

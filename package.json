@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest",
-    "test:run": "vitest run && npm run test:asset",
+    "test:run": "vitest run && npm run test:asset && node tools/verify_alice_canonical.mjs",
     "asset:import": "node tools/import_studio_asset.mjs",
     "test:asset": "node --test tools/tests/alice_asset_audit.mjs",
     "test:unreal-scaffold": "node unreal/tools/validate-scaffold.mjs"

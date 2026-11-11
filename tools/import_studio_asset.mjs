@@ -48,6 +48,15 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const webPath = '/' + targetName;
 const kind = ext.slice(1);
 
+// Import is a candidate-only operation. Never overwrite the bytes of an
+// approved canonical asset, even when the caller requests --dry-run.
+if (!['pending', 'approved'].includes(manifest.canonicalAssetStatus) ||
+    manifest.canonicalAssetStatus === 'approved' ||
+    manifest.approvedAsset?.path === webPath) {
+  console.error('Import refused: canonical Alice asset is approved or target is protected.');
+  process.exit(3);
+}
+
 const candidate = {
   path: webPath,
   kind,
