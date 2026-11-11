@@ -806,3 +806,24 @@ canvas {
     font-size: 8px;
   }
 }
+
+/* Candidate avatar tools (model import / rigged avatar test). */
+.candidate-tools {
+  position: absolute;
+  right: 14px;
+  top: 95px;
+  z-index: 40;
+  max-width: min(270px, 62vw);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+/* On phones the centred voice-mode pill sits at the same height; start below it. */
+@media (max-width: 720px) {
+  .candidate-tools {
+    top: calc(max(14px, env(safe-area-inset-top)) + 96px);
+  }
+}

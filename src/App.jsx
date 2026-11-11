@@ -572,13 +572,7 @@ export default function App() {
         </div>
       </header>
 
-      <div
-        style={{
-          position: 'absolute', right: 14, top: 95, zIndex: 40,
-          maxWidth: 'min(270px, 62vw)', display: 'flex', flexDirection: 'column',
-          gap: 5, alignItems: 'flex-end', pointerEvents: 'auto',
-        }}
-      >
+      <div className="candidate-tools">
         <label
           style={{
             background: '#171923ee', color: '#fff4ef', border: '1px solid #9f798e',
@@ -594,7 +588,7 @@ export default function App() {
           />
         </label>
         <a
-          href="?avatar=fbxsource"
+          href="?avatar=vrm"
           style={{
             background: '#e8d9ca', color: '#121116', border: '1px solid #e8d9ca',
             borderRadius: 12, padding: '9px 13px', fontSize: 12,

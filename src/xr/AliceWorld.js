@@ -5,6 +5,7 @@ import { resolveAvatarSelection } from './avatarCatalog.js';
 import { sampleMicroMotion } from './microMotion.js';
 import { resolveMorphWeight } from './rigExpressions.js';
 import { validateCandidateFile, validateGlbHeader, inspectCandidateScene } from './candidateImport.js';
+import { AliceRuntime } from './aliceRuntime.js';
 
 const cyan = new THREE.Color('#8eced0');
 const amber = new THREE.Color('#c18767');
@@ -12,6 +13,30 @@ const amber = new THREE.Color('#c18767');
 function damp(current, target, lambda, delta) {
   return THREE.MathUtils.damp(current, target, lambda, delta);
 }
+
+// VRM 1.0 avatars that ship the ARKit-52 expression set (checked via `jawOpen`) are driven by
+// AliceRuntime: blink, gaze, saccades, breathing, emotion and visemes. Any other VRM/GLB keeps
+// the legacy expression path. The runtime only moves expressions and a few spine/head bones.
+function createArkitRuntime(vrm) {
+  if (!vrm?.expressionManager?.getExpression('jawOpen')) return null;
+  vrm.update(0);
+  return new AliceRuntime(vrm);
+}
+
+// Model emotion vocabulary (server/alicePrompt.js) -> AliceRuntime emotion + weight.
+const RUNTIME_EMOTIONS = Object.freeze({
+  warm: ['happy', 0.55],
+  playful: ['happy', 0.8],
+  calm: ['relaxed', 0.7],
+  concerned: ['sad', 0.45],
+  curious: ['surprised', 0.18],
+  focused: ['relaxed', 0.25],
+});
+
+// Upper-arm abduction (rad) per gesture for the VRM T-pose rest. Larger = arms further down.
+const RUNTIME_ARM_ANGLE = Object.freeze({
+  attentive: 1.2, settle: 1.2, hand_to_core: 1.2, consider: 1.2, welcome: 0.95, open_hands: 0.85,
+});
 
 function capsule(material, radius, length, radialSegments = 20) {
   return new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 8, radialSegments), material);
@@ -328,6 +353,7 @@ async function createAlice() {
       right: { shoulder: new THREE.Group(), elbow: new THREE.Group() }
     },
     vrm: null,
+    runtime: null,
     gltf: null,
     morphMeshes: [],
     mixer: null,
@@ -351,6 +377,7 @@ async function createAlice() {
         state.vrm = gltf.userData.vrm;
         const vrm = state.vrm;
         model.traverse((obj) => { if (obj.isMesh) obj.frustumCulled = false; });
+        state.runtime = createArkitRuntime(vrm);
         if (vrm.humanoid) {
           const getBone = (name) => vrm.humanoid.getRawBoneNode(name) || new THREE.Group();
           state.headPivot = getBone('head');
@@ -483,6 +510,7 @@ export class AliceWorld {
     const get = (name) => model.getObjectByName(name) || new THREE.Group();
     const state = {
       root, isProcedural: false, vrm: gltf.userData?.vrm || null, gltf,
+      runtime: createArkitRuntime(gltf.userData?.vrm),
       headPivot: get('head'),
       eyeRigs: [], browLeft: new THREE.Group(), browRight: new THREE.Group(),
       mouth: new THREE.Group(), chestCore: get('spine'),
@@ -795,7 +823,10 @@ export class AliceWorld {
         }
       }
     }
-    if (vrm) {
+    const runtime = this.alice.runtime;
+    if (vrm && runtime) {
+      this.#driveRuntime(runtime, { delta, seconds, speaking, speechEnergy, camera: xrCamera });
+    } else if (vrm) {
       const expressionManager = vrm.expressionManager;
       if (expressionManager) {
         const visemePhase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
@@ -820,7 +851,8 @@ export class AliceWorld {
       browRight.position.y = damp(browRight.position.y, curious ? 0.025 : 0, 7, delta);
     }
 
-    this.#animateGesture(arms, delta, speaking);
+    // Raw-bone gestures were authored for the procedural body; ARKit-rigged VRMs pose via #driveRuntime.
+    if (!runtime) this.#animateGesture(arms, delta, speaking);
     root.rotation.z = micro.sway;
     if (isProcedural) {
       const breathLift = micro.breath * (speaking ? 0.0025 : 0.004);
@@ -837,6 +869,46 @@ export class AliceWorld {
     }
 
     if (timedPerformance && elapsed >= this.performance.duration_ms - 40) this.stopPlan();
+  }
+
+  #gazeTarget = new THREE.Vector3();
+  #armAngle = 1.2;
+
+  /**
+   * Per-frame drive for ARKit-rigged VRM 1.0 avatars. Order matters: runtime.update() writes
+   * expressions and normalized head/spine bones, then the arm pose, then vrm.update().
+   * Vowel weights are an energy-based approximation, not phoneme recognition.
+   */
+  #driveRuntime(runtime, { delta, seconds, speaking, speechEnergy, camera }) {
+    const { vrm } = this.alice;
+    const phase = speaking ? (Math.sin(seconds * 11.2) + 1) * 0.5 : 0;
+    runtime.setVisemes({
+      aa: speaking ? speechEnergy * (0.6 + phase * 0.25) : 0,
+      ih: speaking ? speechEnergy * (1 - phase) * 0.2 : 0,
+      ou: speaking ? speechEnergy * phase * 0.16 : 0,
+      ee: speaking ? speechEnergy * (1 - phase) * 0.1 : 0,
+      oh: speaking ? speechEnergy * phase * 0.2 : 0,
+    });
+    runtime.setSpeechEnergy(speaking ? speechEnergy : 0);
+
+    const [emotion, amount] = this.presence.expression === 'smile'
+      ? ['happy', 0.7]
+      : (RUNTIME_EMOTIONS[this.performance?.emotion] || [null, 0]);
+    runtime.setEmotion(emotion, amount);
+
+    // Eye contact with the viewer; the pointer nudges the gaze a little.
+    camera.getWorldPosition(this.#gazeTarget);
+    this.#gazeTarget.x += this.pointer.x * 0.35;
+    this.#gazeTarget.y += this.pointer.y * 0.2;
+    runtime.setLookTarget(this.#gazeTarget);
+    runtime.update(delta);
+
+    this.#armAngle = damp(this.#armAngle, RUNTIME_ARM_ANGLE[this.gesture] ?? 1.2, 6, delta);
+    const left = vrm.humanoid?.getNormalizedBoneNode('leftUpperArm');
+    const right = vrm.humanoid?.getNormalizedBoneNode('rightUpperArm');
+    if (left) left.rotation.z = -this.#armAngle;
+    if (right) right.rotation.z = this.#armAngle;
+    vrm.update(delta);
   }
 
   #animateGesture(arms, delta, speaking) {

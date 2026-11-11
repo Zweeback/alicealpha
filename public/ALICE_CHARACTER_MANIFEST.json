@@ -7,6 +7,25 @@
   "approvedAsset": null,
   "candidateAssets": [
     {
+      "path": "/alice.vrm",
+      "kind": "vrm",
+      "status": "candidate",
+      "provenance": "Alice v0.5 (pc70k, 69.5k tris, VRM 1.0, ARKit-52 + 9 spring chains) von Bentropie; Draft-Mesh via Hunyuan3D-2; Kandidat bis zur Freigabe",
+      "sha256": "dd909fd12e8df64b9dea72fc71ebbc8908dacc9dbd1eb363e4694b95be20bba9",
+      "label": "Alice_v0.5_pc70k.vrm",
+      "importedAt": "2026-11-11T00:48:23.482Z",
+      "assetAudit": {
+        "status": "unapproved_candidate",
+        "readyForAnimationReview": true,
+        "triangleCount": 69499,
+        "skinCount": 1,
+        "morphTargetCount": 364,
+        "warnings": [
+          "No embedded animation clips"
+        ]
+      }
+    },
+    {
       "path": "/avatars/alice-fbx-source.glb",
       "kind": "glb",
       "status": "candidate",
@@ -27,13 +46,6 @@
       "kind": "glb",
       "status": "candidate",
       "provenance": "existing runtime candidate; not canonical until gate approval",
-      "sha256": null
-    },
-    {
-      "path": "/alice.vrm",
-      "kind": "vrm",
-      "status": "optional_candidate",
-      "provenance": "loader-supported fallback slot",
       "sha256": null
     },
     {
@@ -105,6 +117,7 @@
   "notes": [
     "Generated derivatives must not silently replace source references.",
     "A candidate asset is never canonical until this manifest is promoted deliberately.",
-    "Runtime fallback remains observable and mandatory."
+    "Runtime fallback remains observable and mandatory.",
+    "Studio imports remain candidates and never auto-promote to canonical."
   ]
 }
