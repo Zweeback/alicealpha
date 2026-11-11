@@ -74,6 +74,16 @@ test('studio import refuses to overwrite an approved canonical asset', async () 
     assert.match(result.stderr, /Import refused/);
     assert.deepEqual(readFileSync(join(dir, 'public', 'alice.glb')), existing);
     assert.deepEqual(readFileSync(manifestPath), before);
+    // An unknown state must not silently downgrade to a writable candidate.
+    const invalid = { ...manifest, canonicalAssetStatus: 'reviewed', approvedAsset: null };
+    writeFileSync(manifestPath, JSON.stringify(invalid));
+    const invalidBefore = readFileSync(manifestPath);
+    const rejected = spawnSync(process.execPath, [
+      resolve('tools/import_studio_asset.mjs'), '--source', join(dir, 'candidate.glb')
+    ], { cwd: dir, encoding: 'utf8' });
+    assert.equal(rejected.status, 3, rejected.stderr);
+    assert.deepEqual(readFileSync(join(dir, 'public', 'alice.glb')), existing);
+    assert.deepEqual(readFileSync(manifestPath), invalidBefore);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
