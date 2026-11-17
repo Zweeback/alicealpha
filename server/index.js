@@ -10,6 +10,7 @@ import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
 import { createAgentObservabilityReporter, isAgentObservabilityConfigured } from './agentObservability.js';
+import { createLocalObservabilityStore, canReadLocalObservability } from './localObservability.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -21,6 +22,7 @@ const app = express();
 const port = Number(process.env.PORT || 8787);
 const dist = resolve('dist');
 const reportAgentGeneration = createAgentObservabilityReporter();
+const localObservability = createLocalObservabilityStore();
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -161,6 +163,16 @@ app.use((error, request, response, next) => {
   next(error);
 });
 
+// Private operational metadata: localhost is keyless; remote reads require an explicit secret.
+app.get('/api/observability', (request, response) => {
+  response.set({ 'Cache-Control': 'private, no-store', Vary: 'Authorization' });
+  if (!canReadLocalObservability(request)) {
+    response.status(403).json({ error: 'observability-access-denied' });
+    return;
+  }
+  response.json(localObservability.snapshot());
+});
+
 app.get('/api/health', (_request, response) => {
   const kernel = buildAliceKernelSnapshot(process.env);
   const realtimeConfigured = Boolean(process.env.OPENAI_API_KEY);
@@ -272,6 +284,7 @@ app.post('/api/chat', chatRateLimiter, express.json({ limit: '128kb' }), async (
     }, {
       env: process.env,
       onAttempt: (attempt) => {
+        localObservability.record(attempt);
         void reportAgentGeneration({ ...attempt, conversationId });
       },
     });
