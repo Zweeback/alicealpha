@@ -8,15 +8,28 @@ This is a small REST interface with an in-memory, bounded buffer. There is **no 
 
 Run Alice normally with `npm run server`. Make a legitimate chat request via the existing `POST /api/chat` route (an available LLM provider must be configured).
 
-On the **same machine** as the backend:
+Token-free local reads are **disabled by default**. To use them on the **same machine** as the
+backend, start the server with the opt-in flag (developer machines only, never on Render/production):
 
 ```sh
+ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH=1 npm run server
 curl --fail --silent --show-error http://127.0.0.1:8787/api/observability | python3 -m json.tool
 ```
 
 This returns JSON with `count`, `success`, `error`, `totalDurationMs`, `reportedTokens`, `attemptsWithReportedUsage`, and recent sanitized `events`.
 
-The endpoint is **not** intended as a public dashboard. Socket loopback addresses (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`) are allowed to read without a token. Requests arriving through a reverse proxy or from another machine are denied with HTTP 403 by default. Forwarded headers never grant access.
+The endpoint is **not** intended as a public dashboard. Access rules:
+
+| Request | `ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH` unset/`0` | `=1` |
+| --- | --- | --- |
+| Direct loopback socket (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`), no proxy headers | 403 | allowed |
+| Loopback socket **with** `X-Forwarded-For`, `Forwarded`, `X-Real-IP` or `CF-Connecting-IP` (any value, even empty) | 403 | 403 |
+| Non-loopback socket | 403 | 403 |
+| Any of the above with valid `Authorization: Bearer <ALICE_OBSERVABILITY_READ_TOKEN>` | allowed | allowed |
+
+Only the exact value `1` enables the flag (`true`, `yes` etc. do not). A local reverse proxy or
+tunnel (nginx, cloudflared, ngrok) connects from loopback but adds proxy headers, so it never
+inherits token-free access. Forwarded headers never grant access.
 
 ## Optional protected remote REST access
 
@@ -28,7 +41,7 @@ curl --fail --silent --show-error \
   https://YOUR-BACKEND-HOST/api/observability
 ```
 
-Only use HTTPS for remote access. This is a **self-managed read credential**, unrelated to `AGENTO11Y_AUTH_TOKEN`; it is optional for localhost operation.
+Only use HTTPS for remote access. This is a **self-managed read credential**, unrelated to `AGENTO11Y_AUTH_TOKEN`; it is the only way to read when `ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH` is not `1`.
 
 ## Boundaries
 
@@ -43,6 +56,6 @@ Only use HTTPS for remote access. This is a **self-managed read credential**, un
 
 1. Unit tests: `npm run test:run`.
 2. With Alice backend running locally, make one accepted provider attempt.
-3. Query `http://127.0.0.1:8787/api/observability`; confirm `count > 0` with correct outcome.
+3. With `ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH=1`, query `http://127.0.0.1:8787/api/observability`; confirm `count > 0` with correct outcome. Without the flag the same request must return HTTP 403.
 4. Query the same endpoint from a non-loopback address without secret; confirm HTTP 403.
 5. Only then label it **locally observed**; merged code and passing CI alone do not prove live operation.

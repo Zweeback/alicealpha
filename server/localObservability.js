@@ -82,14 +82,37 @@ export function createLocalObservabilityStore({ maxEvents = DEFAULT_MAX_EVENTS }
   };
 }
 
+// Any of these headers means the request passed through a proxy/tunnel, so the
+// socket peer (often 127.0.0.1 for a local reverse proxy) is NOT the real client.
+const PROXY_HEADERS = ['x-forwarded-for', 'forwarded', 'x-real-ip', 'cf-connecting-ip'];
+
+function header(request, name) {
+  if (typeof request?.get === 'function') return request.get(name);
+  const headers = request?.headers;
+  return headers && typeof headers === 'object' ? headers[name] : undefined;
+}
+
+export function isLocalUnauthEnabled(env = process.env) {
+  return String(env.ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH ?? '').trim() === '1';
+}
+
+export function isDirectLoopback(request) {
+  // Use the actual socket address, never spoofable client-provided headers.
+  if (!LOOPBACK.has(request?.socket?.remoteAddress)) return false;
+  return PROXY_HEADERS.every((name) => {
+    const value = header(request, name);
+    return value === undefined || value === null;
+  });
+}
+
 export function canReadLocalObservability(request, env = process.env) {
-  // Use the actual socket address, never spoofable forwarded/client-provided headers.
-  if (LOOPBACK.has(request?.socket?.remoteAddress)) return true;
+  // Token-free loopback access is OFF by default and must be enabled explicitly.
+  if (isLocalUnauthEnabled(env) && isDirectLoopback(request)) return true;
   const expected = env.ALICE_OBSERVABILITY_READ_TOKEN;
   if (typeof expected !== 'string' || expected.length < 24) return false;
-  const header = typeof request?.get === 'function' ? request.get('authorization') : undefined;
-  if (typeof header !== 'string' || !header.startsWith('Bearer ')) return false;
-  const supplied = header.slice(7);
+  const authorization = header(request, 'authorization');
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) return false;
+  const supplied = authorization.slice(7);
   const a = Buffer.from(expected, 'utf8');
   const b = Buffer.from(supplied, 'utf8');
   return a.length === b.length && timingSafeEqual(a, b);

@@ -56,15 +56,45 @@ describe('Alice in-memory observability without Grafana', () => {
     expect(store.snapshot().count).toBe(0);
   });
 
-  it('permits only direct loopback clients without a configured read secret', () => {
-    expect(canReadLocalObservability({ socket: { remoteAddress: '127.0.0.1' }, get: () => undefined }, {})).toBe(true);
-    expect(canReadLocalObservability({ socket: { remoteAddress: '::1' }, get: () => undefined }, {})).toBe(true);
-    expect(canReadLocalObservability({ socket: { remoteAddress: '192.168.1.8' }, get: () => undefined }, {})).toBe(false);
+  const req = (remoteAddress, headers = {}) => ({
+    socket: { remoteAddress },
+    get: (name) => headers[name.toLowerCase()],
+  });
+  const LOCAL_ON = { ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH: '1' };
+
+  it('denies token-free loopback access by default', () => {
+    expect(canReadLocalObservability(req('127.0.0.1'), {})).toBe(false);
+    expect(canReadLocalObservability(req('::1'), {})).toBe(false);
+    expect(canReadLocalObservability(req('127.0.0.1'), { ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH: '0' })).toBe(false);
+    expect(canReadLocalObservability(req('127.0.0.1'), { ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH: 'true' })).toBe(false);
+    expect(canReadLocalObservability(req('127.0.0.1'), { ALICE_OBSERVABILITY_ALLOW_LOCAL_UNAUTH: '' })).toBe(false);
+  });
+
+  it('permits direct loopback clients only when explicitly enabled', () => {
+    expect(canReadLocalObservability(req('127.0.0.1'), LOCAL_ON)).toBe(true);
+    expect(canReadLocalObservability(req('::1'), LOCAL_ON)).toBe(true);
+    expect(canReadLocalObservability(req('::ffff:127.0.0.1'), LOCAL_ON)).toBe(true);
+    expect(canReadLocalObservability(req('192.168.1.8'), LOCAL_ON)).toBe(false);
     // Proxy headers must NOT make a public request appear local.
-    expect(canReadLocalObservability({
-      socket: { remoteAddress: '10.0.0.1' },
-      get: (key) => key === 'x-forwarded-for' ? '127.0.0.1' : undefined,
-    }, {})).toBe(false);
+    expect(canReadLocalObservability(req('10.0.0.1', { 'x-forwarded-for': '127.0.0.1' }), LOCAL_ON)).toBe(false);
+  });
+
+  it.each([
+    ['x-forwarded-for', '203.0.113.7'],
+    ['x-forwarded-for', '127.0.0.1'],
+    ['forwarded', 'for=127.0.0.1'],
+    ['x-real-ip', '127.0.0.1'],
+    ['cf-connecting-ip', '127.0.0.1'],
+    ['x-forwarded-for', ''],
+  ])('never treats loopback with %s header as local, even when enabled', (name, value) => {
+    expect(canReadLocalObservability(req('127.0.0.1', { [name]: value }), LOCAL_ON)).toBe(false);
+    expect(canReadLocalObservability(req('::1', { [name]: value }), LOCAL_ON)).toBe(false);
+  });
+
+  it('still allows a valid bearer token through a proxy', () => {
+    const secret = 'example-test-secret-32-characters-00002';
+    const request = req('127.0.0.1', { 'x-forwarded-for': '203.0.113.7', authorization: 'Bearer ' + secret });
+    expect(canReadLocalObservability(request, { ALICE_OBSERVABILITY_READ_TOKEN: secret })).toBe(true);
   });
 
   it('permits remote read with an explicitly configured strong secret only', () => {
