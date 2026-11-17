@@ -1,0 +1,6 @@
+{
+  "demo/sample": {
+    "input_per_million_eur": 1,
+    "output_per_million_eur": 2
+  }
+}
