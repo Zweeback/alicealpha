@@ -19,9 +19,11 @@ const AO_ENV = {
   AGENTO11Y_AUTH_TENANT_ID: '111111',
   AGENTO11Y_AUTH_TOKEN: 'dummy-ao-secret-not-real',
 };
+// Test-only placeholder built at runtime; not a credential.
+const FAKE_BASIC = Buffer.from(['otlp-test-user', 'otlp-test-pass'].join(':')).toString('base64');
 const OTLP_ENV = {
   OTEL_EXPORTER_OTLP_ENDPOINT: 'https://otlp-gateway-prod-eu-west-2.grafana.net/otlp',
-  OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Basic%20ZHVtbXk6ZHVtbXk=',
+  OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Basic%20${FAKE_BASIC}`,
 };
 
 describe('Alice fallback chain telemetry', () => {
@@ -146,7 +148,7 @@ describe('OTLP trace channel (separate from Agent Observability)', () => {
     expect(isOtlpTracesConfigured({ ...OTLP_ENV, ALICE_OTLP_TRACES: 'off' })).toBe(false);
     expect(isOtlpTracesConfigured(OTLP_ENV)).toBe(true);
     expect(otlpTracesUrl(OTLP_ENV)).toBe('https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/traces');
-    expect(parseOtlpHeaders(OTLP_ENV.OTEL_EXPORTER_OTLP_HEADERS)).toEqual({ Authorization: 'Basic ZHVtbXk6ZHVtbXk=' });
+    expect(parseOtlpHeaders(OTLP_ENV.OTEL_EXPORTER_OTLP_HEADERS)).toEqual({ Authorization: `Basic ${FAKE_BASIC}` });
   });
 
   it('posts OTLP JSON with GenAI attributes and tracks ingest status', async () => {
@@ -164,7 +166,7 @@ describe('OTLP trace channel (separate from Agent Observability)', () => {
     expect(ok).toBe(true);
     const [url, options] = fetchFn.mock.calls[0];
     expect(url).toBe('https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/traces');
-    expect(options.headers.Authorization).toBe('Basic ZHVtbXk6ZHVtbXk=');
+    expect(options.headers.Authorization).toBe(`Basic ${FAKE_BASIC}`);
     const body = JSON.parse(options.body);
     const child = body.resourceSpans[0].scopeSpans[0].spans[1];
     const attrs = Object.fromEntries(child.attributes.map((a) => [a.key, Object.values(a.value)[0]]));
