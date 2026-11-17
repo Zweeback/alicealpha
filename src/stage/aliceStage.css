@@ -1,0 +1,7 @@
+html, body, #root { margin: 0; height: 100%; background: #0b0c10; overflow: hidden; }
+.alice-stage { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 40%, #171724 0%, #0b0c10 70%); }
+.alice-stage-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.alice-stage-hint {
+  position: absolute; left: 0; right: 0; bottom: max(24px, env(safe-area-inset-bottom));
+  text-align: center; color: #9c9ab0; font: 500 14px/1.4 system-ui, sans-serif; letter-spacing: .04em;
+}

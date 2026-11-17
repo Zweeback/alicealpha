@@ -1,21 +1,28 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.jsx';
-import NewsStudio from './news/NewsStudio.jsx';
-import VRMViewer from './viewer/VRMViewer.jsx';
-import VRMComponentsApp from './viewer/VRMComponentsApp.jsx';
-import './styles.css';
+import AliceStage from './stage/AliceStage.jsx';
+
+// Start page is Alice only. The older screens stay reachable for development
+// via query parameters and are code-split so they do not slow down the start.
+const App = lazy(() => import('./App.jsx'));
+const NewsStudio = lazy(() => import('./news/NewsStudio.jsx'));
+const VRMViewer = lazy(() => import('./viewer/VRMViewer.jsx'));
+const VRMComponentsApp = lazy(() => import('./viewer/VRMComponentsApp.jsx'));
+const LegacyStyles = lazy(() => import('./styles.css').then(() => ({ default: () => null })));
 
 const params = new URLSearchParams(globalThis.location?.search || '');
-const Root = params.get('studio') === 'vrm-components'
+const Legacy = params.get('studio') === 'vrm-components'
   ? VRMComponentsApp
   : params.get('viewer') === 'vrm'
     ? VRMViewer
-    : params.get('studio') === 'news' ? NewsStudio : App;
+    : params.get('studio') === 'news' ? NewsStudio
+      : params.get('app') === 'full' ? App : null;
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <Root />
+    {Legacy
+      ? <Suspense fallback={null}><LegacyStyles /><Legacy /></Suspense>
+      : <AliceStage />}
   </React.StrictMode>,
 );
 

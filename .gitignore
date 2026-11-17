@@ -5,3 +5,8 @@ dist/
 .env.local
 meshy_output/
 *.log
+
+# Private Alice model: never commit, only local / protected previews
+public/private/
+*.private.vrm
+*_private.vrm
