@@ -34,3 +34,8 @@ test('rejects untrusted free-form model names and negative counts', () => {
 test('reports malformed JSONL without echoing private payload', () => {
   assert.throws(() => analyzeTraces('secret: {password:abcd}'), err => /line 1/.test(err.message) && !err.message.includes('abcd'));
 });
+
+test('rejects missing required provider and model fields', () => {
+  assert.throws(() => analyzeTraces(JSON.stringify({model:'demo',input_tokens:1,output_tokens:1,latency_ms:1,ok:true})), /line 1/);
+  assert.throws(() => analyzeTraces(JSON.stringify({provider:'demo',input_tokens:1,output_tokens:1,latency_ms:1,ok:true})), /line 1/);
+});
