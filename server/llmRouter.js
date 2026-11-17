@@ -135,6 +135,37 @@ function extractReply(payload) {
   return '';
 }
 
+function reportedUsage(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const input = Number(value.prompt_tokens);
+  const output = Number(value.completion_tokens);
+  const total = Number(value.total_tokens);
+  const valid = (n) => Number.isSafeInteger(n) && n >= 0;
+  if (!valid(input) && !valid(output) && !valid(total)) return undefined;
+  return {
+    input_tokens: valid(input) ? input : 0,
+    output_tokens: valid(output) ? output : 0,
+    total_tokens: valid(total) ? total : (valid(input) ? input : 0) + (valid(output) ? output : 0),
+  };
+}
+
+function emitAttempt(onAttempt, metadata) {
+  if (typeof onAttempt !== 'function') return;
+  try {
+    Promise.resolve(onAttempt(metadata)).catch(() => {});
+  } catch {
+    // Telemetry callbacks cannot interrupt the provider failover chain.
+  }
+}
+
+function classifyAttemptError(error) {
+  const status = Number(error?.status || 0);
+  if (status >= 100 && status <= 599) return 'http_' + status;
+  if (error?.name === 'AbortError') return 'timeout';
+  if (String(error?.message || '').startsWith('llm-provider-empty:')) return 'empty_response';
+  return 'transport';
+}
+
 async function callProvider({
   provider,
   model,
@@ -172,7 +203,7 @@ async function callProvider({
     const payload = await response.json();
     const reply = extractReply(payload);
     if (!reply) throw new Error(`llm-provider-empty:${provider}`);
-    return reply;
+    return { reply, usage: reportedUsage(payload?.usage) };
   } finally {
     clearTimeout(timer);
   }
@@ -188,6 +219,7 @@ export async function completeLlmChat({
   env = process.env,
   fetchFn = globalThis.fetch,
   timeoutMs = Number(env.ALICE_LLM_TIMEOUT_MS || 8_000),
+  onAttempt = null,
 } = {}) {
   const clean = typeof text === 'string' ? text.trim() : '';
   const conversation = Array.isArray(messages) && messages.length
@@ -210,13 +242,22 @@ export async function completeLlmChat({
     const config = PROVIDERS[candidate.provider];
     if (!config || !env[config.key] || isCircuitOpen(candidate.provider, candidate.model)) continue;
 
+    const startedAt = new Date().toISOString();
     try {
-      const reply = await callProvider({
+      const { reply, usage } = await callProvider({
         ...candidate,
         messages: fullMessages,
         env,
         fetchFn,
         timeoutMs,
+      });
+      emitAttempt(onAttempt, {
+        provider: candidate.provider,
+        model: candidate.model,
+        outcome: 'success',
+        startedAt,
+        completedAt: new Date().toISOString(),
+        usage,
       });
       return {
         reply,
@@ -226,6 +267,14 @@ export async function completeLlmChat({
       };
     } catch (error) {
       lastError = error;
+      emitAttempt(onAttempt, {
+        provider: candidate.provider,
+        model: candidate.model,
+        outcome: 'error',
+        errorType: classifyAttemptError(error),
+        startedAt,
+        completedAt: new Date().toISOString(),
+      });
       const status = Number(error?.status || 0);
       if (error?.name === 'AbortError' || status === 429 || status >= 500) {
         tripCircuit(candidate.provider, candidate.model);
