@@ -1,4 +1,5 @@
 import express from 'express';
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { handleAliceMcpHttp } from './aliceMcp.js';
@@ -8,6 +9,7 @@ import { callOllama } from './ollama.js';
 import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
+import { createAgentObservabilityReporter, isAgentObservabilityConfigured } from './agentObservability.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -18,6 +20,7 @@ try {
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const dist = resolve('dist');
+const reportAgentGeneration = createAgentObservabilityReporter();
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -199,6 +202,11 @@ app.get('/api/health', (_request, response) => {
       })),
     },
     revision: kernel.revision,
+    agentObservability: {
+      configured: isAgentObservabilityConfigured(),
+      contentCapture: 'none',
+      delivery: 'unverified',
+    },
     reliability: {
       schema: getCompanionFailureMetadata().schema,
       degradedModeSupported: true,
@@ -253,13 +261,20 @@ app.post('/api/chat', chatRateLimiter, express.json({ limit: '128kb' }), async (
   }
 
   try {
+    // Ephemeral correlation only. Do not export request/response contents.
+    const conversationId = randomUUID();
     const result = await completeLlmChat({
       text,
       messages,
       confirmed_memory: request.body?.confirmed_memory,
       persona_state: request.body?.persona_state,
       companion_state: request.body?.companion_state,
-    }, { env: process.env });
+    }, {
+      env: process.env,
+      onAttempt: (attempt) => {
+        void reportAgentGeneration({ ...attempt, conversationId });
+      },
+    });
 
     response.set('Cache-Control', 'no-store');
     response.json(result);
