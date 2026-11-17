@@ -149,6 +149,19 @@ function reportedUsage(value) {
   };
 }
 
+const STOP_REASONS = new Set(['stop', 'length', 'content_filter', 'tool_calls', 'function_call', 'end_turn', 'max_tokens']);
+
+// Provider-reported routing metadata only. Never free text: a strict charset and
+// length bound keep accidental content or identifiers out of telemetry.
+function reportedModel(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9._:/@-]{1,128}$/.test(value) ? value : undefined;
+}
+
+function reportedStopReason(payload) {
+  const value = String(payload?.choices?.[0]?.finish_reason || '').toLowerCase();
+  return STOP_REASONS.has(value) ? value : undefined;
+}
+
 function emitAttempt(onAttempt, metadata) {
   if (typeof onAttempt !== 'function') return;
   try {
@@ -203,7 +216,12 @@ async function callProvider({
     const payload = await response.json();
     const reply = extractReply(payload);
     if (!reply) throw new Error(`llm-provider-empty:${provider}`);
-    return { reply, usage: reportedUsage(payload?.usage) };
+    return {
+      reply,
+      usage: reportedUsage(payload?.usage),
+      responseModel: reportedModel(payload?.model),
+      stopReason: reportedStopReason(payload),
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -237,14 +255,16 @@ export async function completeLlmChat({
   const system = buildChatSystemPrompt({ confirmed_memory, persona_state, companion_state });
   const fullMessages = [{ role: 'system', content: system }, ...conversation];
   let lastError = null;
+  let attempt = 0;
 
   for (const candidate of parseLlmChain(env.ALICE_LLM_CHAIN)) {
     const config = PROVIDERS[candidate.provider];
     if (!config || !env[config.key] || isCircuitOpen(candidate.provider, candidate.model)) continue;
 
+    attempt += 1;
     const startedAt = new Date().toISOString();
     try {
-      const { reply, usage } = await callProvider({
+      const { reply, usage, responseModel, stopReason } = await callProvider({
         ...candidate,
         messages: fullMessages,
         env,
@@ -255,9 +275,12 @@ export async function completeLlmChat({
         provider: candidate.provider,
         model: candidate.model,
         outcome: 'success',
+        attempt,
         startedAt,
         completedAt: new Date().toISOString(),
         usage,
+        responseModel,
+        stopReason,
       });
       return {
         reply,
@@ -271,6 +294,7 @@ export async function completeLlmChat({
         provider: candidate.provider,
         model: candidate.model,
         outcome: 'error',
+        attempt,
         errorType: classifyAttemptError(error),
         startedAt,
         completedAt: new Date().toISOString(),

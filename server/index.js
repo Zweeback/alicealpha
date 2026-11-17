@@ -1,5 +1,4 @@
 import express from 'express';
-import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { handleAliceMcpHttp } from './aliceMcp.js';
@@ -10,6 +9,8 @@ import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
 import { createAgentObservabilityReporter, isAgentObservabilityConfigured } from './agentObservability.js';
+import { createOtlpTraceExporter } from './otlpTraces.js';
+import { createChatTelemetry } from './chatTelemetry.js';
 
 try {
   if (existsSync('.env.local')) process.loadEnvFile('.env.local');
@@ -21,6 +22,7 @@ const app = express();
 const port = Number(process.env.PORT || 8787);
 const dist = resolve('dist');
 const reportAgentGeneration = createAgentObservabilityReporter();
+const exportChatTrace = createOtlpTraceExporter();
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -205,7 +207,9 @@ app.get('/api/health', (_request, response) => {
     agentObservability: {
       configured: isAgentObservabilityConfigured(),
       contentCapture: 'none',
-      delivery: 'unverified',
+      // Ingest API answers only. Grafana visibility must be confirmed in Grafana itself.
+      ...reportAgentGeneration.status,
+      otlpTraces: { ...exportChatTrace.status },
     },
     reliability: {
       schema: getCompanionFailureMetadata().schema,
@@ -260,9 +264,12 @@ app.post('/api/chat', chatRateLimiter, express.json({ limit: '128kb' }), async (
     return;
   }
 
+  // Ephemeral correlation only. Do not export request/response contents.
+  const telemetry = createChatTelemetry({
+    reportGeneration: reportAgentGeneration,
+    exportTrace: exportChatTrace,
+  });
   try {
-    // Ephemeral correlation only. Do not export request/response contents.
-    const conversationId = randomUUID();
     const result = await completeLlmChat({
       text,
       messages,
@@ -271,16 +278,16 @@ app.post('/api/chat', chatRateLimiter, express.json({ limit: '128kb' }), async (
       companion_state: request.body?.companion_state,
     }, {
       env: process.env,
-      onAttempt: (attempt) => {
-        void reportAgentGeneration({ ...attempt, conversationId });
-      },
+      onAttempt: telemetry.onAttempt,
     });
 
+    telemetry.finish('success');
     response.set('Cache-Control', 'no-store');
     response.json(result);
   } catch (error) {
     const code = error instanceof Error ? error.message : 'chat-request-failed';
     const noProvider = code === 'llm-router-no-provider';
+    telemetry.finish('error', noProvider ? 'no_provider' : (telemetry.attempts.at(-1)?.errorType || 'provider_error'));
     console.error('Alice chat router failed:', code);
     response.status(noProvider ? 503 : 502).json({
       error: noProvider ? 'chat-no-provider' : 'chat-provider-failed',

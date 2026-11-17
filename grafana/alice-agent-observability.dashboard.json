@@ -1,0 +1,362 @@
+{
+  "uid": "alice-agent-o11y",
+  "title": "Alice Alpha – Agent Observability",
+  "tags": [
+    "alice",
+    "agent-observability",
+    "genai"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "tempo",
+        "label": "Tempo (Traces)",
+        "type": "datasource",
+        "query": "tempo",
+        "current": {}
+      },
+      {
+        "name": "health",
+        "label": "Infinity (Health-JSON)",
+        "type": "datasource",
+        "query": "yesoreyeram-infinity-datasource",
+        "current": {}
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Lesehinweis",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Alice Alpha – LLM-Aufrufe über POST /api/chat** (nur Metadaten, keine Inhalte).\n\nDieses Dashboard liest **OTLP-Traces** (Tempo) und den öffentlichen Health-Endpunkt. Die Agent-Observability-**Generations** (Conversations, Agent-Katalog `alice-alpha-chat`) stehen in der App *Agent Observability*, nicht hier. Kosten werden bewusst **nicht** berechnet: keine belegte Preisquelle im Repo. Leeres Dashboard = keine Daten angekommen, nicht \"0 Aufrufe\"."
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Modellaufrufe pro Modell",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "queryType": "traceql",
+          "metricsQueryType": "range",
+          "query": "{resource.service.name=\"alice-alpha\" && span.gen_ai.operation.name=\"chat\"} | count_over_time() by (span.gen_ai.request.model)",
+          "limit": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Fehlgeschlagene Aufrufe nach error.type",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "queryType": "traceql",
+          "metricsQueryType": "range",
+          "query": "{resource.service.name=\"alice-alpha\" && span.gen_ai.operation.name=\"chat\" && status=error} | count_over_time() by (span.error.type)",
+          "limit": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Fallback-Versuche (alice.attempt > 1)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "queryType": "traceql",
+          "metricsQueryType": "range",
+          "query": "{resource.service.name=\"alice-alpha\" && span.gen_ai.operation.name=\"chat\" && span.alice.fallback=true} | count_over_time() by (span.gen_ai.provider.name)",
+          "limit": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Laufzeit p95 je Anbieter",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "queryType": "traceql",
+          "metricsQueryType": "range",
+          "query": "{resource.service.name=\"alice-alpha\" && span.gen_ai.operation.name=\"chat\"} | quantile_over_time(duration, .95) by (span.gen_ai.provider.name)",
+          "limit": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Input-Tokens (vom Anbieter gemeldet)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 12,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "queryType": "traceql",
+          "metricsQueryType": "range",
+          "query": "{resource.service.name=\"alice-alpha\" && span.gen_ai.operation.name=\"chat\"} | sum_over_time(span.gen_ai.usage.input_tokens) by (span.gen_ai.request.model)",
+          "limit": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Output-Tokens (vom Anbieter gemeldet)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "queryType": "traceql",
+          "metricsQueryType": "range",
+          "query": "{resource.service.name=\"alice-alpha\" && span.gen_ai.operation.name=\"chat\"} | sum_over_time(span.gen_ai.usage.output_tokens) by (span.gen_ai.request.model)",
+          "limit": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Letzte /api/chat-Anfragen (Aufrufketten)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 16,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo}"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"alice-alpha\" && span.gen_ai.operation.name=\"invoke_agent\"}",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Dienststatus /api/health (öffentlich, ohne Secrets)",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${health}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 20,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${health}"
+          },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "parser": "backend",
+          "url": "https://alicealpha.onrender.com/api/health",
+          "url_options": {
+            "method": "GET"
+          },
+          "columns": [
+            {
+              "selector": "revision",
+              "text": "Revision",
+              "type": "string"
+            },
+            {
+              "selector": "chat.operational",
+              "text": "Chat betriebsbereit",
+              "type": "string"
+            },
+            {
+              "selector": "chat.defaultProvider",
+              "text": "Erster Anbieter",
+              "type": "string"
+            },
+            {
+              "selector": "agentObservability.configured",
+              "text": "AO konfiguriert",
+              "type": "string"
+            },
+            {
+              "selector": "agentObservability.delivery",
+              "text": "AO Ingest",
+              "type": "string"
+            },
+            {
+              "selector": "agentObservability.exportsAccepted",
+              "text": "AO akzeptiert",
+              "type": "number"
+            },
+            {
+              "selector": "agentObservability.otlpTraces.delivery",
+              "text": "OTLP Ingest",
+              "type": "string"
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}
