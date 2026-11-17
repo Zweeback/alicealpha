@@ -1,6 +1,6 @@
 # Agent Observability — Alice Alpha and LSAP evidence gate
 
-Status: **Alice Alpha implementation proposed on the feature branch; live ingestion not verified**.
+Status: **Alice Alpha instrumentation merged into main via PR #150 (2026-11-17); CI tests and browser smoke tests passed; live Grafana ingestion not verified**.
 As of 2026-11-17, **LSAP is an unverified project name**, not a confirmed running agent.
 
 ## What is instrumented
