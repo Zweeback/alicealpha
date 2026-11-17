@@ -30,6 +30,7 @@ export function analyzeTraces(jsonl, rates = {}) {
     let row;
     try { row = JSON.parse(line); } catch { throw new Error(location); }
     if (!row || typeof row !== 'object' || Array.isArray(row)
+      || typeof row.provider !== 'string' || typeof row.model !== 'string'
       || !SAFE_NAME.test(row.provider) || !SAFE_NAME.test(row.model)
       || !isCount(row.input_tokens) || !isCount(row.output_tokens)
       || !isAmount(row.latency_ms) || typeof row.ok !== 'boolean') throw new Error(location);
