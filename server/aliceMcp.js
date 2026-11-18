@@ -88,6 +88,22 @@ const TOOLS = Object.freeze([
     },
     _meta: TOOL_META,
   },
+  {
+    name: 'continue_alice',
+    title: 'Alice weiterführen',
+    description: 'Führt genau einen vorbereiteten Alice-Schritt aus und verifiziert ihn. Der aktuelle Runtime-Pfad persistiert nur lokalen Run-State; Repository-Schreibzugriff wird dadurch nicht behauptet.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    _meta: TOOL_META,
+  },
 ]);
 
 function rpcResult(id, result) {
@@ -123,7 +139,7 @@ function toolPayload(name) {
   };
 }
 
-export function dispatchAliceMcp(message) {
+export function dispatchAliceMcp(message, { continueHandler } = {}) {
   if (!message || message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(message?.id, -32600, 'Invalid Request');
   }
@@ -159,6 +175,30 @@ export function dispatchAliceMcp(message) {
     const name = params?.name;
     if (name === 'open_alice' || name === 'alice_status') {
       return rpcResult(id, toolPayload(name));
+    }
+    if (name === 'continue_alice') {
+      if (typeof continueHandler !== 'function') {
+        return rpcError(id, -32000, 'Alice continue runtime is not configured.');
+      }
+      return Promise.resolve(continueHandler(params?.arguments || {}))
+        .then((result) => rpcResult(id, {
+          content: [{
+            type: 'text',
+            text: result?.executed
+              ? 'Alice hat genau einen vorbereiteten Schritt ausgeführt und geprüft.'
+              : `Alice hat keinen neuen Schritt ausgeführt (Status: ${result?.status || 'unknown'}).`,
+          }],
+          structuredContent: {
+            status: result?.status ?? null,
+            executed: result?.executed === true,
+            recovered: result?.recovered === true,
+            currentStepId: result?.state?.current_step_id ?? null,
+            nextStep: result?.state?.next_step ?? null,
+            verifiedEvidence: result?.state?.verified_evidence ?? [],
+          },
+          _meta: TOOL_META,
+        }))
+        .catch((error) => rpcError(id, -32001, error instanceof Error ? error.message : String(error)));
     }
     return rpcError(id, -32602, `Unknown tool: ${String(name || '')}`);
   }
@@ -196,7 +236,7 @@ export function dispatchAliceMcp(message) {
   return rpcError(id, -32601, `Method not found: ${method}`);
 }
 
-export function handleAliceMcpHttp(request, response) {
+export async function handleAliceMcpHttp(request, response, options = {}) {
   response.set({
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'content-type, mcp-protocol-version',
@@ -206,7 +246,7 @@ export function handleAliceMcpHttp(request, response) {
   });
 
   const messages = Array.isArray(request.body) ? request.body : [request.body];
-  const replies = messages.map(dispatchAliceMcp).filter(Boolean);
+  const replies = (await Promise.all(messages.map((message) => dispatchAliceMcp(message, options)))).filter(Boolean);
 
   if (replies.length === 0) {
     response.status(202).end();
