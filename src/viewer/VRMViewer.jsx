@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getGLTFLoader } from '../xr/loader.js';
+import DesktopGatewayPanel from './DesktopGatewayPanel.jsx';
 import './vrmViewer.css';
 
 export const BUILT_IN_GLB = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
@@ -436,6 +437,7 @@ export default function VRMViewer() {
               ))}
             </div>
           </section>
+          <DesktopGatewayPanel />
           <section className="vrm-panel">
             <h2>Audit · tatsächliche Modelldaten</h2>
             <dl className="vrm-audit">
