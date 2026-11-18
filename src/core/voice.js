@@ -32,8 +32,8 @@ const voiceModes = Object.freeze({
   }),
   glados: Object.freeze({
     provider: 'glados',
-    language: 'en-US',
-    accent: 'en-US',
+    language: 'de-DE',
+    accent: 'de-DE',
     delivery: 'synthetic',
     rate: 0.9,
     pitch: 1,
