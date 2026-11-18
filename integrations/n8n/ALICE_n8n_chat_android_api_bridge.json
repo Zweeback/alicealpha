@@ -1,0 +1,89 @@
+{
+  "name": "ALICE · Chat/Android/API Context Bridge (pilot)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "alice-context-bridge-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "78c2ad7e-d92d-45bd-81ae-57cd9952431c",
+      "name": "Authenticated Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        280,
+        300
+      ],
+      "webhookId": "adb4bcd2-b2c5-4c8c-8af1-4b7fdf7fe012"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ALICE n8n Context Bridge v1 — bounded, explicit, non-sensitive notes only.\n// Requires Header Auth on the Webhook node; no secret values belong here.\nconst incoming = $input.first().json.body;\nconst body = (incoming && typeof incoming === 'object' && !Array.isArray(incoming)) ? incoming : {};\nconst operation = String(body.operation || '').toLowerCase();\nconst store = $getWorkflowStaticData('global');\nif (!Array.isArray(store.notes)) store.notes = [];\nconst fail = (code, message) => [{ json: { ok:false, code, message } }];\nif (operation === 'health') {\n  return [{json:{ok:true,service:'alice-context-bridge',version:1,storage:'n8n workflow static data (pilot)', timestamp:new Date().toISOString()}}];\n}\nif (operation === 'catalog') {\n  return [{json:{ok:true,services:[\n    {name:'GitHub',role:'repository + CI',credential_location:'n8n Credentials or connected ChatGPT app',automatic_sync:false},\n    {name:'Vercel',role:'cloud API/deployments',credential_location:'Vercel secure environment / n8n Credentials',automatic_sync:false},\n    {name:'OpenAI Platform',role:'model API separate from ChatGPT chats',credential_location:'n8n Credentials',automatic_sync:false},\n    {name:'Android',role:'opt-in device bridge',credential_location:'device local',automatic_sync:false}\n  ],allowed_operations:['health','catalog','publish','list'],writes_to_external_apis:false}}];\n}\nif (operation === 'publish') {\n  const note=String(body.note ?? '').trim();\n  const source=String(body.source ?? '').trim();\n  const channel=String(body.channel ?? 'general').trim();\n  const eventId=String(body.event_id ?? '').trim();\n  if (body.user_approved !== true) return fail('CONSENT_REQUIRED','Explicit user_approved=true required per note');\n  if (!['chatgpt','android','n8n','cloud'].includes(source)) return fail('INVALID_SOURCE','Unsupported source');\n  if (!/^[a-zA-Z0-9_-]{1,40}$/.test(channel)) return fail('INVALID_CHANNEL','Channel must be 1-40 safe characters');\n  if (!/^[a-zA-Z0-9_-]{8,80}$/.test(eventId)) return fail('INVALID_ID','Supply a unique, non-sensitive event_id');\n  if (!note || note.length > 1200) return fail('INVALID_NOTE','Note must contain 1-1200 characters');\n  if (/(sk-(proj-)?[a-zA-Z0-9_-]{12,}|Bearer\\s+[a-zA-Z0-9._-]{16,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i.test(note))\n    return fail('SECRET_REJECTED','Possible credential detected; remove it');\n  const prior=store.notes.find(n=>n.event_id===eventId);\n  if (prior) return [{json:{ok:true,duplicate:true,event_id:eventId}}];\n  store.notes.push({event_id:eventId,source,channel,note,created_at:new Date().toISOString()});\n  if (store.notes.length > 30) store.notes=store.notes.slice(-30);\n  return [{json:{ok:true,stored:true,event_id:eventId,items:store.notes.length}}];\n}\nif (operation === 'list') {\n  const channel=String(body.channel ?? '').trim();\n  if (channel && !/^[a-zA-Z0-9_-]{1,40}$/.test(channel)) return fail('INVALID_CHANNEL','Invalid channel');\n  const count=Math.min(Math.max(Number(body.limit || 10),1),30);\n  const list=(channel ? store.notes.filter(n=>n.channel===channel) : store.notes);\n  return [{json:{ok:true,notes:list.slice(-count).reverse(),total_visible:list.length}}];\n}\nreturn fail('UNKNOWN_OPERATION','Allowed: health, catalog, publish, list');",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "e7332856-3b0e-47e8-8377-390d75fd4dc1",
+      "name": "ALICE Context Router",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.ok ? 200 : 400 }}"
+        }
+      },
+      "id": "0c775f5a-8948-4eae-8150-19817ceffb42",
+      "name": "Reply with JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Authenticated Webhook": {
+      "main": [
+        [
+          {
+            "node": "ALICE Context Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ALICE Context Router": {
+      "main": [
+        [
+          {
+            "node": "Reply with JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
