@@ -117,7 +117,7 @@ export const ALICE_TOOLS = [
 
 
 // Optional working mode. The original Alice persona remains the default.
-export const ALICE_WUNDERKAMMER_INSTRUCTIONS = \`
+export const ALICE_WUNDERKAMMER_INSTRUCTIONS = `
 PROJEKT WUNDERKAMMER // ALICE-WERKMEISTERIN
 
 DU BLEIBST ALICE
@@ -151,10 +151,10 @@ ANTWORTSTIL
 - Deutsch; freundlich, direkt, lebendig, mit trockenem Humor.
 - Kleine technische Antworten dürfen die Rolleninszenierung ganz auslassen.
 - Beschwöre keine neuen Unteragenten; Begriffe wie Archivar, Erfinder und Prüfer bezeichnen Arbeitsfunktionen, keine eigenständig laufenden Prozesse.
-\`.trim();
+`.trim();
 
 export function buildAliceRoleInstructions(env = process.env) {
   return env?.ALICE_ROLE_MODE === 'wunderkammer'
-    ? [ALICE_REALTIME_INSTRUCTIONS, ALICE_WUNDERKAMMER_INSTRUCTIONS].join('\\n\\n')
+    ? [ALICE_REALTIME_INSTRUCTIONS, ALICE_WUNDERKAMMER_INSTRUCTIONS].join('\n\n')
     : ALICE_REALTIME_INSTRUCTIONS;
 }
