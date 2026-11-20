@@ -4,14 +4,17 @@ import App from './App.jsx';
 import NewsStudio from './news/NewsStudio.jsx';
 import VRMViewer from './viewer/VRMViewer.jsx';
 import VRMComponentsApp from './viewer/VRMComponentsApp.jsx';
+import AliceStudio from './studio/AliceStudio.jsx';
 import './styles.css';
 
 const params = new URLSearchParams(globalThis.location?.search || '');
-const Root = params.get('studio') === 'vrm-components'
-  ? VRMComponentsApp
-  : params.get('viewer') === 'vrm'
-    ? VRMViewer
-    : params.get('studio') === 'news' ? NewsStudio : App;
+const Root = params.get('studio') === 'alice'
+  ? AliceStudio
+  : params.get('studio') === 'vrm-components'
+    ? VRMComponentsApp
+    : params.get('viewer') === 'vrm'
+      ? VRMViewer
+      : params.get('studio') === 'news' ? NewsStudio : App;
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
