@@ -10,6 +10,7 @@ import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
 import { runDualTurn } from './dualAgents.js';
+import { discoverAlicePublicSources } from './dualDiscovery.js';
 import { createAgentObservabilityReporter, isAgentObservabilityConfigured } from './agentObservability.js';
 
 try {
@@ -316,6 +317,25 @@ app.post('/api/dual', chatRateLimiter, express.json({ limit: '16kb' }), async (r
   } catch (error) {
     console.error('Alice dual routing failed:', error instanceof Error ? error.message : 'unknown');
     response.status(502).json({ error: 'dual-provider-failed' });
+  }
+});
+
+app.post('/api/dual/discover', chatRateLimiter, express.json({ limit: '4kb' }), async (request, response) => {
+  if (!originAllowed(request)) {
+    response.status(403).json({ error: 'dual-origin-denied' });
+    return;
+  }
+  const query = typeof request.body?.query === 'string' ? request.body.query.trim() : '';
+  if (query.length > 256) {
+    response.status(400).json({ error: 'discovery-query-too-long' });
+    return;
+  }
+  response.set('Cache-Control', 'no-store');
+  try {
+    response.json(await discoverAlicePublicSources({ query }));
+  } catch (error) {
+    console.error('Alice public discovery failed:', error instanceof Error ? error.message : 'unknown');
+    response.status(502).json({ error: 'public-source-unavailable' });
   }
 });
 
