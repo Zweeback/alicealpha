@@ -9,6 +9,7 @@ import { callOllama } from './ollama.js';
 import { buildScenePlan } from '../src/news/newsPipeline.js';
 import { diagnosePipeline, getCompanionFailureMetadata, verifyKnownGoodVerticalSlice } from './companionReliability.js';
 import { completeLlmChat, getAvailableProviders, parseLlmChain } from './llmRouter.js';
+import { runDualTurn } from './dualAgents.js';
 import { createAgentObservabilityReporter, isAgentObservabilityConfigured } from './agentObservability.js';
 
 try {
@@ -285,6 +286,36 @@ app.post('/api/chat', chatRateLimiter, express.json({ limit: '128kb' }), async (
     response.status(noProvider ? 503 : 502).json({
       error: noProvider ? 'chat-no-provider' : 'chat-provider-failed',
     });
+  }
+});
+
+app.post('/api/dual', chatRateLimiter, express.json({ limit: '16kb' }), async (request, response) => {
+  if (!originAllowed(request)) {
+    response.status(403).json({ error: 'dual-origin-denied' });
+    return;
+  }
+  response.set('Cache-Control', 'no-store');
+  const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+  if (!text || text.length > 4096) {
+    response.status(400).json({ error: 'dual-input-invalid' });
+    return;
+  }
+  try {
+    const conversationId = randomUUID();
+    const result = await runDualTurn({
+      text,
+      complete: (input, options) => completeLlmChat(input, {
+        ...options,
+        env: process.env,
+        onAttempt: (attempt) => {
+          void reportAgentGeneration({ ...attempt, conversationId });
+        },
+      }),
+    });
+    response.status(result.status === 'unavailable' ? 503 : 200).json(result);
+  } catch (error) {
+    console.error('Alice dual routing failed:', error instanceof Error ? error.message : 'unknown');
+    response.status(502).json({ error: 'dual-provider-failed' });
   }
 });
 
