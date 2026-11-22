@@ -220,6 +220,7 @@ export async function completeLlmChat({
   fetchFn = globalThis.fetch,
   timeoutMs = Number(env.ALICE_LLM_TIMEOUT_MS || 8_000),
   onAttempt = null,
+  systemInstructions = null,
 } = {}) {
   const clean = typeof text === 'string' ? text.trim() : '';
   const conversation = Array.isArray(messages) && messages.length
@@ -234,7 +235,11 @@ export async function completeLlmChat({
   if (!conversation.length) throw new Error('llm-chat-input-required');
   if (typeof fetchFn !== 'function') throw new Error('llm-fetch-unavailable');
 
-  const system = buildChatSystemPrompt({ confirmed_memory, persona_state, companion_state });
+  // Only server-side callers may supply distinct agent instructions.
+  // Never accept systemInstructions from raw client JSON.
+  const system = typeof systemInstructions === 'string' && systemInstructions.trim()
+    ? systemInstructions.trim()
+    : buildChatSystemPrompt({ confirmed_memory, persona_state, companion_state });
   const fullMessages = [{ role: 'system', content: system }, ...conversation];
   let lastError = null;
 
