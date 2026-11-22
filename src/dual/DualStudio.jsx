@@ -135,6 +135,8 @@ export default function DualStudio(){
   const [voiceState,setVoiceState]=useState('Noch kein Audiotest');
   const [modelStatus,setModelStatus]=useState(['3D-Prozedural','3D-Prozedural']);
   const [listening,setListening]=useState(false);
+  const [sources,setSources]=useState(null);
+  const [sourceStatus,setSourceStatus]=useState('Noch keine überprüften öffentlichen Quellen');
   const controllerRef=useRef(null);
   const submit=async(value)=>{
     const prompt=String(value||'').trim();
@@ -148,6 +150,23 @@ export default function DualStudio(){
       if(!response.ok)throw Error(data.error||'HTTP '+response.status);
       setResult(data);setStatus(data.status==='ok'?'Zwei Agentenantworten angekommen':data.status==='partial'?'Eine Antwort fehlgeschlagen':'Keine Modelle verfügbar');
     }catch(error){if(error.name!=='AbortError'){setStatus('Nicht einsatzbereit: '+error.message);setResult(null);}}
+  };
+  const discover=async()=>{
+    setSourceStatus('Prüfe öffentliche Repository-Pfade …');
+    setSources(null);
+    try {
+      const response=await fetch('/api/dual/discover',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({query:text.slice(0,256)})
+      });
+      const data=await response.json();
+      if(!response.ok)throw Error(data.error||'HTTP '+response.status);
+      setSources(data);
+      setSourceStatus('Öffentliche Repository-Pfade gelesen · '+data.matches.length+' Treffer');
+    }catch(error){
+      setSourceStatus('Kein belastbarer Quellenabruf: '+error.message);
+    }
   };
   const listen=()=>{
     const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -176,6 +195,7 @@ export default function DualStudio(){
     <form onSubmit={e=>{e.preventDefault();void submit(text);}} style={{maxWidth:950,margin:'18px auto',display:'flex',gap:8,flexWrap:'wrap'}}>
       <input aria-label="Nachricht an beide Agentinnen" value={text} onChange={e=>setText(e.target.value)} placeholder="Frage an Sami und Elisa ..." style={{flex:'1 1 260px',padding:14,borderRadius:10,border:'1px solid #555d75',background:'#171923',color:'#fff',fontSize:15}}/>
       <button style={button} type="submit">Beide ansprechen</button>
+      <button style={button} type="button" onClick={()=>void discover()}>Spuren im Repo prüfen</button>
       <button style={button} type="button" onClick={listen} aria-label="Mikrofon starten">{listening?'Höre zu ...':'Mikrofon'}</button>
       <button style={button} type="button" onClick={()=>{window.speechSynthesis?.cancel();setActive(null);setVoiceState('Gestoppt');controllerRef.current?.abort();setStatus('Gestoppt');}}>Stopp</button>
     </form>
@@ -190,6 +210,21 @@ export default function DualStudio(){
           <button style={button} type="button" disabled={data?.status!=='ok'} onClick={()=>{setActive(id);speak(data.reply,id,setVoiceState);}}>Stimme abspielen</button>
         </article>;
       })}
+    </section>
+    <section style={{maxWidth:950,margin:'18px auto',border:'1px solid #363a53',borderRadius:16,padding:16}}>
+      <h2 style={{margin:'0 0 8px'}}>Quellenraum · öffentliche Spuren</h2>
+      <p role="status" style={{color:'#adb3ca'}}>{sourceStatus}</p>
+      {sources && <p style={{fontSize:13,color:'#a9b0c3'}}>
+        Quelle: <a href={sources.source_url} target="_blank" rel="noreferrer" style={{color:'#b2cafa'}}>GitHub-Dateibaum</a>.
+        {' '}Untersuchte Einträge: {sources.scanned_entries}. {sources.source_truncated?'GitHub hat die Liste gekürzt.':''}
+        {' '}Kein Nachweis für fremde Kopien, Urheberschaft oder verborgene Identitäten.
+      </p>}
+      {sources?.matches?.length>0 && <div style={{maxHeight:220,overflowY:'auto'}}>
+        {sources.matches.map(item=><p key={item.path} style={{fontSize:13,wordBreak:'break-word',margin:'5px 0'}}>
+          <a href={item.url} target="_blank" rel="noreferrer" style={{color:'#b2cafa'}}>{item.path}</a>
+        </p>)}
+      </div>}
+      {sources?.matches?.length===0 && <p>Keine passenden öffentlichen Dateipfade gefunden.</p>}
     </section>
     <footer style={{maxWidth:950,margin:'18px auto',color:'#9ba3bd',fontSize:12}}>Experimenteller Prototyp auf einem separaten Entwicklungsbranch. Reale VRM-Modellqualität, unabhängige TTS-Stimmen und Deployment müssen auf dem Zielgerät geprüft werden.</footer>
   </main>;
