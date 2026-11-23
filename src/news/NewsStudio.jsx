@@ -227,7 +227,10 @@ export default function NewsStudio() {
     const url = value === 'news-vrm' ? '/alice-news.vrm'
       : value === 'news-glb' ? '/alice-news.glb'
         : value === 'alice-vrm' ? '/alice.vrm'
-          : '/alice.glb';
+          : value === 'fbx-source' ? '/avatars/alice-fbx-source.glb'
+            : value === 'designsheet-vrm' ? '/avatars/alice-designsheet-candidate.vrm'
+              : value === 'trellis' ? '/avatars/alice-trellis.glb'
+                : '/alice.glb';
 
     setAssetStatus('LOADING');
     try {
@@ -385,7 +388,10 @@ export default function NewsStudio() {
         <section className="news-panel">
           <label>Avatar-Asset</label>
           <select value={asset} onChange={(event) => selectAsset(event.target.value)}>
-            <option value="alice-glb">/alice.glb · echter 3D-Kandidat</option>
+            <option value="alice-glb">/alice.glb · Legacy-Mesh ohne Rig</option>
+            <option value="fbx-source">Kandidat: FBX-Quelle, geriggt (nicht freigegeben)</option>
+            <option value="designsheet-vrm">Kandidat: Designsheet-VRM (nicht freigegeben)</option>
+            <option value="trellis">Kandidat: TRELLIS (nicht freigegeben)</option>
             <option value="procedural">Prozedurale Alice · Fallback</option>
             <option value="news-vrm">/alice-news.vrm</option>
             <option value="news-glb">/alice-news.glb</option>

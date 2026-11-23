@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { getGLTFLoader } from '../xr/loader.js';
+import { calculatePerspectiveFrame } from '../xr/framing.js';
+
+const STUDIO_FLOOR_Y = -1.12;
 
 function damp(current, target, lambda, dt) {
   return THREE.MathUtils.damp(current, target, lambda, dt);
@@ -286,9 +289,29 @@ export class NewsWorld {
     const center = bounds.getCenter(new THREE.Vector3());
     model.position.x -= center.x;
     model.position.z -= center.z;
-    model.position.y -= bounds.min.y + 1.12;
-    this.camera.position.set(0, Math.max(0.4, size.y * 0.48), Math.max(2.8, size.y * 1.55));
-    this.camera.lookAt(0, Math.max(0.35, size.y * 0.46), 0);
+    model.position.y -= bounds.min.y - STUDIO_FLOOR_Y;
+    this.frameTarget = { width: size.x, height: size.y, depth: size.z };
+    this.#applyFrame();
+  }
+
+  // The model stands on the studio floor (y = STUDIO_FLOOR_Y). The camera must aim at the
+  // model's own centre, not at a height measured from y = 0, and must re-fit on resize.
+  #applyFrame() {
+    const target = this.frameTarget;
+    if (!target) return;
+    const { distance } = calculatePerspectiveFrame({
+      viewportWidth: this.canvas.clientWidth || innerWidth || 1,
+      viewportHeight: this.canvas.clientHeight || innerHeight || 1,
+      verticalFovDegrees: this.camera.fov,
+      boundsWidth: target.width,
+      boundsHeight: target.height,
+      boundsDepth: target.depth,
+      padding: 1.3,
+      minimumDistance: 1.2,
+    });
+    const centerY = STUDIO_FLOOR_Y + target.height * 0.5;
+    this.camera.position.set(0, centerY + target.height * 0.06, distance);
+    this.camera.lookAt(0, centerY + target.height * 0.02, 0);
   }
 
   setAvatarStyle(style = 'anime') {
@@ -299,6 +322,7 @@ export class NewsWorld {
       this.loaded = null;
       this.vrm = null;
     }
+    this.frameTarget = null;
     if (this.anchor?.root) this.scene.remove(this.anchor.root);
     this.anchor = createAnchorAlice(style);
     this.scene.add(this.anchor.root);
@@ -366,6 +390,7 @@ export class NewsWorld {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
+    this.#applyFrame();
   };
 
   #render = (time) => {
