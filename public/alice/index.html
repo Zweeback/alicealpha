@@ -42,7 +42,7 @@ form{display:flex;gap:8px;width:min(520px,100%)}
     <input id="msg" type="text" placeholder="Schreib Alice etwas&hellip;" aria-label="Nachricht an Alice">
     <button id="send" type="submit">Senden</button>
   </form>
-  <div id="note">Ehrlich gesagt: Alice versteht deinen Text noch nicht. Sie antwortet mit vorbereiteten Sätzen (Stimme: Piper, lokal erzeugt).</div>
+  <div id="note">Ehrlich gesagt: Die KI ist noch nicht verbunden. Bis dahin antwortet Alice mit vorbereiteten Sätzen (Stimme: Piper).</div>
 </div>
 <script type="module">
 import * as THREE from 'three';
@@ -199,7 +199,13 @@ function analyzeFrame(x, sr) {
 // ---- end lip sync ----
 
 const $ = (id) => document.getElementById(id);
-const MOUTH = 0.9, MOUTH_MAX = 0.45;   // full-strength aa looks like a scream on this mesh
+const MOUTH = 0.9, MOUTH_MAX = 0.4;   // full-strength aa looks like a scream on this mesh
+// Rounder, softer mouth: half of 'aa' goes to 'oh' (shows less of the blocky teeth), 'ee' borrows a bit of 'ih'.
+function mixMouth(w) {
+  const o = { aa: w.aa * 0.5, oh: w.oh + w.aa * 0.45, ou: w.ou, ee: w.ee * 0.7, ih: w.ih + w.ee * 0.2 };
+  for (const k in o) o[k] = Math.min(MOUTH_MAX, o[k] * MOUTH);
+  return o;
+}
 const SHAPES = ['aa', 'ih', 'ou', 'ee', 'oh'];
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const LINES = {
@@ -247,7 +253,8 @@ const CAM = { cx: 0.10, vh: 0.37, ty: -0.06 };   // slight 3/4 from her left hid
 function frame() {
   if (!vrm) return;
   const Q = new URLSearchParams(location.search);
-  const cx = +(Q.get('cx') ?? CAM.cx), vh = +(Q.get('vh') ?? CAM.vh), ty = +(Q.get('ty') ?? CAM.ty);
+  const portrait = camera.aspect < 0.8;
+  const cx = +(Q.get('cx') ?? CAM.cx), vh = +(Q.get('vh') ?? CAM.vh), ty = +(Q.get('ty') ?? (portrait ? -0.11 : CAM.ty));
   const tgt = new THREE.Vector3(headX, headY + ty, headZ);
   const th = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   const viewH = Math.max(vh, (vh * 0.75) / Math.min(camera.aspect, 1.6)); // metres visible vertically
@@ -269,6 +276,61 @@ async function fetchWithProgress(url) {
   return out.buffer;
 }
 
+
+// ---- runtime look tuning (the VRM file itself stays untouched) ----
+const FX = new URLSearchParams(location.search).get('fx') !== '0';
+function tuneMaterials(neckY) {
+  if (!FX) return;
+  vrm.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+      if (!m || m.userData.__tuned) continue; m.userData.__tuned = true;
+      const n = m.name || '';
+      if (n === 'Mouth_Teeth') {
+        m.color.multiply(new THREE.Color(0.70, 0.66, 0.62)); m.roughness = 0.7;
+        // push the (blocky, gapped) teeth row a few millimetres back into the mouth so the lips cover more of it
+        const tz = +(new URLSearchParams(location.search).get('tz') ?? 0.004);
+        m.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <skinning_vertex>', '#include <skinning_vertex>\ntransformed.z -= ' + tz.toFixed(4) + ';'); };
+        m.customProgramCacheKey = () => 'teeth' + tz;
+        m.needsUpdate = true; continue;
+      }
+      if (n === 'Mouth_Cavity' || n === 'Mouth_Tongue') { m.color.multiplyScalar(0.8); continue; }   // less contrast in the tooth gaps
+      if (n !== 'Alice_Body' && n !== 'Alice_Face') continue;
+      const isBody = n === 'Alice_Body';
+      if (!isBody) { m.roughness = Math.max(m.roughness, 0.62); }
+      m.customProgramCacheKey = () => 'alice-skin-' + n;
+      m.onBeforeCompile = (sh) => {
+        sh.uniforms.uEdge = { value: 1.0 };   // fresnel darkening tested: outlines the stepped hair geometry, so off
+        sh.uniforms.uFadeLo = { value: neckY - (isBody ? 0.16 : 0.13) };            // shoulders sink into the dark
+        sh.uniforms.uFadeHi = { value: neckY - (isBody ? 0.05 : 0.06) };
+        sh.uniforms.uShoulder = { value: 0.18 };
+        sh.uniforms.uWarm = { value: isBody ? 0.0 : 1.0 };
+        sh.uniforms.uSide = { value: isBody ? 0.8 : 0.0 };
+        sh.uniforms.uHX = { value: headX };
+        sh.uniforms.uEyeY = { value: neckY + 0.075 };
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform float uEdge, uFadeLo, uFadeHi, uShoulder, uWarm, uSide, uHX, uEyeY;')
+          .replace('#include <dithering_fragment>', `
+            float ndv = abs(dot(normalize(normal), normalize(vViewPosition)));
+            float edge = smoothstep(0.45, 0.05, ndv);
+            gl_FragColor.rgb *= mix(1.0, uEdge, edge);
+            gl_FragColor.rgb *= mix(uShoulder, 1.0, smoothstep(uFadeLo, uFadeHi, vWP.y));
+            // lower outer hair (stretched, skin-coloured texels) falls into shadow
+            float side = smoothstep(0.075, 0.15, abs(vWP.x - uHX)) * smoothstep(uEyeY - 0.03, uEyeY - 0.13, vWP.y);
+            gl_FragColor.rgb *= 1.0 - uSide * side;
+            // cheap subsurface hint: warmer, slightly lifted shadows on skin
+            float lum = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(1.06, 0.97, 0.93) + vec3(0.018, 0.006, 0.004) * (1.0 - lum), uWarm * 0.5);
+            #include <dithering_fragment>`);
+      };
+      m.needsUpdate = true;
+    }
+  });
+}
+
 async function load() {
   try {
     const buf = await fetchWithProgress('./alice.vrm');
@@ -286,6 +348,8 @@ async function load() {
     const hp = new THREE.Vector3(); h.getRawBoneNode('head').getWorldPosition(hp);
     // the head bone sits at the skull base; eyes are ~7-9 cm higher
     headX = hp.x; headY = hp.y + 0.08; headZ = hp.z;
+    tuneMaterials(hp.y);
+    window.__neckY = hp.y;
     resize();
     $('loading').hidden = true; $('talk').disabled = false;
     window.__ready = true;
@@ -319,7 +383,7 @@ function applyPose(t, talk) {
 }
 
 // ---- audio ----
-const lip = new LipSync();
+const lip = new LipSync({ attack: 0.055, release: 0.13 });   // a little smoother than the viewer defaults
 let ac = null, analyser = null, tdBuf = null, active = null;
 const silent = new Float32Array(512);
 const cache = {};
@@ -337,22 +401,108 @@ async function getBuf(name) {
   return cache[name];
 }
 let sayToken = 0;
-async function say(name) {
-  ensureAudio();
-  const my = ++sayToken;                       // only the latest request may start playing
-  if (active) { try { active.stop(); } catch (e) {} active = null; }
-  let buf;
-  try { buf = await getBuf(name); } catch (e) { if (my === sayToken) $('line').textContent = 'Audio konnte nicht laden.'; return; }
+function playBuf(buf, label, my) {
   if (my !== sayToken) return;
   if (active) { try { active.stop(); } catch (e) {} active = null; }
   const src = ac.createBufferSource(); src.buffer = buf;
   src.connect(analyser); src.connect(ac.destination);
   const me = { stop() { try { src.stop(); } catch (e) {} src.disconnect(); } };
   src.onended = () => { if (active === me) { active = null; } };
-  active = me; window.__speaking = name;
-  $('line').textContent = LINES[name];
+  active = me; window.__speaking = label;
   src.start();
 }
+function stopTalk() { if (active) { try { active.stop(); } catch (e) {} active = null; } }
+async function say(name) {
+  ensureAudio();
+  const my = ++sayToken;                       // only the latest request may start playing
+  stopTalk();
+  let buf;
+  try { buf = await getBuf(name); } catch (e) { if (my === sayToken) $('line').textContent = 'Audio konnte nicht laden.'; return; }
+  if (my !== sayToken) return;
+  $('line').textContent = LINES[name];
+  playBuf(buf, name, my);
+}
+
+// ---- real conversation: /api/chat (server LLM router) -> Piper in the browser (same kerstin-low voice) ----
+const PIPER_URL = 'https://esm.sh/@mintplex-labs/piper-tts-web@1.0.5?deps=onnxruntime-web@1.18.0';
+const ORT_URL = 'https://esm.sh/onnxruntime-web@1.18.0/es2022/wasm.mjs';   // the exact module piper-tts-web uses
+const VOICE = 'de_DE-kerstin-low';
+let chatOk = false, piperP = null, piperProgress = null;
+const history = [];
+// eSpeak emits 'ç' as 'c' + U+0327; kerstin-low only knows 130 symbols, so the cedilla id (140) crashes ONNX.
+// Native piper simply drops unknown phonemes (that is how the prepared MP3s were made); do the same here.
+async function patchOrt() {
+  const ort = await import(ORT_URL);
+  const P = ort.InferenceSession.prototype;
+  if (P.__alicePatched) return; P.__alicePatched = true;
+  const run0 = P.run;
+  P.run = function (feeds, ...rest) {
+    if (feeds && feeds.input && feeds.input_lengths && feeds.input.type === 'int64') {
+      const d = feeds.input.data, keep = [];
+      for (let i = 0; i < d.length; i++) { if (d[i] >= 130n) { if (i + 1 < d.length && d[i + 1] === 0n) i++; continue; } keep.push(d[i]); }
+      if (keep.length !== d.length) {
+        const a = BigInt64Array.from(keep);
+        feeds = { ...feeds, input: new ort.Tensor('int64', a, [1, a.length]), input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(a.length)]), [1]) };
+      }
+    }
+    return run0.call(this, feeds, ...rest);
+  };
+}
+function piper() {
+  if (!piperP) piperP = (async () => {
+    await patchOrt();
+    const tts = await import(PIPER_URL);
+    return tts.TtsSession.create({ voiceId: VOICE, progress: (p) => piperProgress && piperProgress(p) });
+  })().catch((e) => { piperP = null; throw e; });
+  return piperP;
+}
+function speakable(t) {
+  return t.replace(/```[\s\S]*?```/g, ' ').replace(/[*_#>`~]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 600);
+}
+async function speakText(text, my) {
+  let shown = false;
+  piperProgress = (p) => {
+    if (my === sayToken && p && p.total && p.loaded < p.total) { shown = true; $('line').textContent = `Stimme wird einmalig geladen … ${Math.round(p.loaded / p.total * 100)} %`; }
+  };
+  const session = await piper();
+  const blob = await session.predict(text);
+  const buf = await ac.decodeAudioData(await blob.arrayBuffer());
+  if (my !== sayToken) return;
+  if (shown) $('line').textContent = text;
+  playBuf(buf, 'llm', my);
+}
+async function ask(userText) {
+  ensureAudio();
+  const my = ++sayToken; stopTalk();
+  $('line').textContent = '…';
+  history.push({ role: 'user', content: userText.slice(0, 2000) });
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history.slice(-12) }) });
+    if (!r.ok) throw new Error('chat ' + r.status);
+    const j = await r.json();
+    const reply = speakable(String(j.reply || ''));
+    if (!reply) throw new Error('empty');
+    history.push({ role: 'assistant', content: reply });
+    window.__lastReply = { reply, provider: j.provider || null };
+    if (my !== sayToken) return;
+    $('line').textContent = reply;
+    try { await speakText(reply, my); }
+    catch (e) { window.__ttsError = String(e && e.message || e); if (my === sayToken) $('line').textContent = reply + ' (Stimme konnte nicht geladen werden)'; }
+  } catch (e) {
+    history.pop();                                 // drop the unanswered user turn
+    window.__chatError = String(e && e.message || e);
+    if (my !== sayToken) return;
+    say(ANSWERS[answerIdx++ % ANSWERS.length]);   // honest fallback, labelled in the note
+  }
+}
+fetch('/api/health', { cache: 'no-store' }).then((r) => r.json()).then((h) => {
+  chatOk = !!(h && h.chat && h.chat.operational);
+  window.__chatOk = chatOk;
+  $('note').textContent = chatOk
+    ? `Alice antwortet über die KI des Servers (${h.chat.defaultProvider}). Stimme: Piper im Browser, beim ersten Mal ca. 63 MB.`
+    : 'Ehrlich gesagt: Die KI ist auf dem Server noch nicht verbunden (kein freier Schlüssel gesetzt). Bis dahin antwortet Alice mit vorbereiteten Sätzen (Stimme: Piper).';
+}).catch(() => {});
 $('talk').addEventListener('click', () => {
   if (!greeted) { greeted = true; say('gruss'); $('talk').textContent = 'Nochmal'; }
   else say(ANSWERS[answerIdx++ % ANSWERS.length]);
@@ -362,7 +512,7 @@ $('f').addEventListener('submit', (e) => {
   const v = $('msg').value.trim(); $('msg').value = '';
   if (!v || !vrm) return;
   greeted = true; $('talk').textContent = 'Nochmal';
-  say(ANSWERS[answerIdx++ % ANSWERS.length]);
+  if (chatOk || window.__forceChat) ask(v); else say(ANSWERS[answerIdx++ % ANSWERS.length]);
 });
 
 // ---- loop ----
@@ -382,18 +532,20 @@ function tick() {
   if (vrm) {
     const em = vrm.expressionManager;
     const fm = window.__forceMouth;
-    for (const k of SHAPES) em.setValue(k, fm ? clamp01(fm[k] || 0) : Math.min(MOUTH_MAX, w[k] * MOUTH));
-    const ht = active ? 0.3 : 0.12;
+    const mouth = fm ? fm : mixMouth(w);
+    for (const k of SHAPES) em.setValue(k, clamp01(mouth[k] || 0));
+    const ht = active ? 0.16 : 0.1;   // a wide smile while talking stretches the teeth row
     happy += (ht - happy) * (1 - Math.exp(-dt * 2));
     em.setValue('happy', happy);
     let blink = 0;
     if (blinkT < 0 && time > nextBlink) blinkT = 0;
     if (blinkT >= 0) {
-      blinkT += dt; const p = blinkT / 0.16;
+      blinkT += dt; const p = blinkT / 0.12;   // closed-eye state is a texture swap, keep it short
       blink = p < 0.4 ? p / 0.4 : Math.max(0, 1 - (p - 0.4) / 0.6);
-      if (p >= 1) { blinkT = -1; blink = 0; nextBlink = time + 2.2 + Math.random() * 4.5; if (Math.random() < 0.15) nextBlink = time + 0.25; }
+      if (p >= 1) { blinkT = -1; blink = 0; nextBlink = time + 2.8 + Math.random() * 4.5; if (Math.random() < 0.15) nextBlink = time + 0.25; }
     }
     if (window.__noBlink) blink = 0;
+    if (window.__forceBlink != null) blink = window.__forceBlink;
     em.setValue('blink', blink);
     applyPose(time, active ? vol : 0);
     vrm.update(dt);
@@ -401,7 +553,7 @@ function tick() {
   renderer.render(scene, camera);
 }
 tick();
-window.__alice = { get vrm() { return vrm; }, lip, say, frame, camera, renderer };
+window.__alice = { get vrm() { return vrm; }, lip, say, ask, speakText, frame, camera, renderer };
 </script>
 </body>
 </html>
