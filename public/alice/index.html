@@ -332,14 +332,19 @@ function ensureAudio() {
   if (ac.state === 'suspended') ac.resume();
 }
 async function getBuf(name) {
-  if (!cache[name]) cache[name] = fetch('./' + name + '.mp3').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }).then((a) => ac.decodeAudioData(a));
+  if (!cache[name]) cache[name] = fetch('./' + name + '.mp3').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }).then((a) => ac.decodeAudioData(a))
+    .catch((e) => { delete cache[name]; throw e; });   // allow a retry after a failed fetch
   return cache[name];
 }
+let sayToken = 0;
 async function say(name) {
   ensureAudio();
+  const my = ++sayToken;                       // only the latest request may start playing
   if (active) { try { active.stop(); } catch (e) {} active = null; }
   let buf;
-  try { buf = await getBuf(name); } catch (e) { $('line').textContent = 'Audio konnte nicht laden.'; return; }
+  try { buf = await getBuf(name); } catch (e) { if (my === sayToken) $('line').textContent = 'Audio konnte nicht laden.'; return; }
+  if (my !== sayToken) return;
+  if (active) { try { active.stop(); } catch (e) {} active = null; }
   const src = ac.createBufferSource(); src.buffer = buf;
   src.connect(analyser); src.connect(ac.destination);
   const me = { stop() { try { src.stop(); } catch (e) {} src.disconnect(); } };
