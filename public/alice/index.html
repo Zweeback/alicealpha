@@ -300,8 +300,7 @@ function tuneMaterials(neckY) {
       if (!isBody) { m.roughness = Math.max(m.roughness, 0.62); }
       m.customProgramCacheKey = () => 'alice-skin-' + n;
       m.onBeforeCompile = (sh) => {
-        sh.uniforms.uEdge = { value: 1.0 };   // fresnel darkening tested: outlines the stepped hair geometry, so off
-        sh.uniforms.uFadeLo = { value: neckY - (isBody ? 0.16 : 0.13) };            // shoulders sink into the dark
+                sh.uniforms.uFadeLo = { value: neckY - (isBody ? 0.16 : 0.13) };            // shoulders sink into the dark
         sh.uniforms.uFadeHi = { value: neckY - (isBody ? 0.05 : 0.06) };
         sh.uniforms.uShoulder = { value: 0.18 };
         sh.uniforms.uWarm = { value: isBody ? 0.0 : 1.0 };
@@ -312,14 +311,11 @@ function tuneMaterials(neckY) {
           .replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
           .replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
         sh.fragmentShader = sh.fragmentShader
-          .replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform float uEdge, uFadeLo, uFadeHi, uShoulder, uWarm, uSide, uHX, uEyeY;')
+          .replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform float uFadeLo, uFadeHi, uShoulder, uWarm, uSide, uHX, uEyeY;')
           .replace('#include <dithering_fragment>', `
-            float ndv = abs(dot(normalize(normal), normalize(vViewPosition)));
-            float edge = smoothstep(0.45, 0.05, ndv);
-            gl_FragColor.rgb *= mix(1.0, uEdge, edge);
             gl_FragColor.rgb *= mix(uShoulder, 1.0, smoothstep(uFadeLo, uFadeHi, vWP.y));
             // lower outer hair (stretched, skin-coloured texels) falls into shadow
-            float side = smoothstep(0.075, 0.15, abs(vWP.x - uHX)) * smoothstep(uEyeY - 0.03, uEyeY - 0.13, vWP.y);
+            float side = smoothstep(0.075, 0.15, abs(vWP.x - uHX)) * (1.0 - smoothstep(uEyeY - 0.13, uEyeY - 0.03, vWP.y));
             gl_FragColor.rgb *= 1.0 - uSide * side;
             // cheap subsurface hint: warmer, slightly lifted shadows on skin
             float lum = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
@@ -419,7 +415,7 @@ async function say(name) {
   let buf;
   try { buf = await getBuf(name); } catch (e) { if (my === sayToken) $('line').textContent = 'Audio konnte nicht laden.'; return; }
   if (my !== sayToken) return;
-  $('line').textContent = LINES[name];
+  $('line').textContent = LINES[name] + (name === 'gruss' ? '' : '  · vorbereiteter Satz, keine KI-Antwort');
   playBuf(buf, name, my);
 }
 
@@ -476,33 +472,36 @@ async function ask(userText) {
   ensureAudio();
   const my = ++sayToken; stopTalk();
   $('line').textContent = '…';
-  history.push({ role: 'user', content: userText.slice(0, 2000) });
+  const turn = { role: 'user', content: userText.slice(0, 2000) };
+  const msgs = [...history, turn].slice(-12);     // shared history only changes on a current, successful answer
   try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history.slice(-12) }) });
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: msgs }) });
     if (!r.ok) throw new Error('chat ' + r.status);
     const j = await r.json();
     const reply = speakable(String(j.reply || ''));
     if (!reply) throw new Error('empty');
-    history.push({ role: 'assistant', content: reply });
-    window.__lastReply = { reply, provider: j.provider || null };
     if (my !== sayToken) return;
+    history.push(turn, { role: 'assistant', content: reply });
+    while (history.length > 24) history.shift();
+    window.__lastReply = { reply, provider: j.provider || null };
+    setNote(true, j.provider);
     $('line').textContent = reply;
     try { await speakText(reply, my); }
     catch (e) { window.__ttsError = String(e && e.message || e); if (my === sayToken) $('line').textContent = reply + ' (Stimme konnte nicht geladen werden)'; }
   } catch (e) {
-    history.pop();                                 // drop the unanswered user turn
     window.__chatError = String(e && e.message || e);
     if (my !== sayToken) return;
-    say(ANSWERS[answerIdx++ % ANSWERS.length]);   // honest fallback, labelled in the note
+    setNote(false);
+    say(ANSWERS[answerIdx++ % ANSWERS.length]);   // honest fallback, labelled on screen
   }
 }
-fetch('/api/health', { cache: 'no-store' }).then((r) => r.json()).then((h) => {
-  chatOk = !!(h && h.chat && h.chat.operational);
-  window.__chatOk = chatOk;
-  $('note').textContent = chatOk
-    ? `Alice antwortet über die KI des Servers (${h.chat.defaultProvider}). Stimme: Piper im Browser, beim ersten Mal ca. 63 MB.`
-    : 'Ehrlich gesagt: Die KI ist auf dem Server noch nicht verbunden (kein freier Schlüssel gesetzt). Bis dahin antwortet Alice mit vorbereiteten Sätzen (Stimme: Piper).';
-}).catch(() => {});
+function setNote(ok, provider) {
+  chatOk = ok; window.__chatOk = ok;
+  $('note').textContent = ok
+    ? `Alice antwortet über die KI des Servers${provider ? ' (' + provider + ')' : ''}. Stimme: Piper im Browser, beim ersten Mal ca. 63 MB.`
+    : 'Ehrlich gesagt: Die KI ist auf dem Server gerade nicht erreichbar (kein freier Schlüssel gesetzt oder Störung). Bis dahin antwortet Alice mit vorbereiteten Sätzen (Stimme: Piper).';
+}
+fetch('/api/health', { cache: 'no-store' }).then((r) => r.json()).then((h) => setNote(!!(h && h.chat && h.chat.operational), h && h.chat && h.chat.defaultProvider)).catch(() => {});
 $('talk').addEventListener('click', () => {
   if (!greeted) { greeted = true; say('gruss'); $('talk').textContent = 'Nochmal'; }
   else say(ANSWERS[answerIdx++ % ANSWERS.length]);
@@ -512,7 +511,7 @@ $('f').addEventListener('submit', (e) => {
   const v = $('msg').value.trim(); $('msg').value = '';
   if (!v || !vrm) return;
   greeted = true; $('talk').textContent = 'Nochmal';
-  if (chatOk || window.__forceChat) ask(v); else say(ANSWERS[answerIdx++ % ANSWERS.length]);
+  ask(v);   // always probe /api/chat, so a recovered server is picked up without reload
 });
 
 // ---- loop ----
