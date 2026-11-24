@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alice</title>
+<style>
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:#0b0c0f;color:#e9e6e2;font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#cv{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none}
+#vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse 60% 70% at 50% 38%,rgba(0,0,0,0) 45%,rgba(6,7,9,.7) 100%),linear-gradient(to top,rgba(8,9,12,.92) 0%,rgba(8,9,12,.55) 22%,rgba(8,9,12,0) 42%)}
+#loading{position:fixed;inset:0;display:grid;place-items:center;text-align:center;color:#b9b2aa;font-size:15px}
+#loading .bar{width:220px;height:3px;background:#24262b;border-radius:2px;margin:12px auto 0;overflow:hidden}
+#loading .bar i{display:block;height:100%;width:0;background:#d98b5f;transition:width .2s}
+#ui{position:fixed;left:0;right:0;bottom:0;padding:16px max(16px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;align-items:center;gap:10px;background:linear-gradient(to top,rgba(8,9,12,.85),rgba(8,9,12,0))}
+#talk{font:600 16px system-ui,sans-serif;color:#1a0f0a;background:#e9a27a;border:0;border-radius:999px;padding:12px 26px;cursor:pointer}
+#talk:disabled{opacity:.5;cursor:default}
+form{display:flex;gap:8px;width:min(520px,100%)}
+#msg{flex:1;min-width:0;font:15px system-ui,sans-serif;color:#eee;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:10px 16px;outline:none}
+#msg:focus{border-color:#e9a27a}
+#send{font:500 14px system-ui,sans-serif;color:#eee;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:10px 16px;cursor:pointer}
+#note{font-size:12px;color:#8d877f;text-align:center;max-width:520px}
+#line{min-height:1.4em;font-size:15px;color:#f1ebe4;text-align:center;max-width:560px}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.3.3/lib/three-vrm.module.min.js"
+} }
+</script>
+</head>
+<body>
+<canvas id="cv" aria-label="Alice"></canvas>
+<div id="vignette"></div>
+<div id="loading"><div><div id="loadTxt">Alice lädt&hellip;</div><div class="bar"><i id="loadBar"></i></div></div></div>
+<div id="ui">
+  <div id="line" aria-live="polite"></div>
+  <button id="talk" type="button" disabled>Sprich mit mir</button>
+  <form id="f" autocomplete="off">
+    <input id="msg" type="text" placeholder="Schreib Alice etwas&hellip;" aria-label="Nachricht an Alice">
+    <button id="send" type="submit">Senden</button>
+  </form>
+  <div id="note">Ehrlich gesagt: Alice versteht deinen Text noch nicht. Sie antwortet mit vorbereiteten Sätzen (Stimme: Piper, lokal erzeugt).</div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+// ---- Lip sync (unchanged from the Alice lip-sync viewer) ----
+const PROTOS = {            // female-voice vowel prototypes (Hz): [F1, F2]
+  aa: [850, 1250],
+  ee: [580, 2350],
+  ih: [360, 2650],
+  oh: [520, 950],
+  ou: [370, 920],
+};
+const GAIN = { aa: 1.0, oh: 0.9, ee: 0.75, ih: 0.55, ou: 0.85 };   // max opening per shape
+
+class LipSync {
+  constructor(opts = {}) {
+    this.attack = opts.attack ?? 0.045;     // seconds (time constants)
+    this.release = opts.release ?? 0.11;
+    this.noiseFloor = 0;
+    this._ring = new Float32Array(120).fill(1); this._ri = 0;   // ~2 s of per-frame loudness, for the noise floor
+    this.peak = 0;
+    this.out = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+    this.volume = 0;
+    this.f1 = 0; this.f2 = 0; this.voiced = false;
+  }
+
+  reset() { for (const k in this.out) this.out[k] = 0; this.volume = 0; }
+
+  // frame: Float32Array (mono PCM, ~20-40 ms), sr: sample rate, dt: seconds since last call
+  update(frame, sr, dt) {
+    const { rms, f1, f2, voiced } = analyzeFrame(frame, sr);
+    // noise floor = quietest frame of the last ~2 s; loudness reference follows the recent peak (auto gain)
+    this._ring[this._ri++ % 120] = rms;
+    let mn = 1; for (let i = 0; i < 120; i++) if (this._ring[i] < mn) mn = this._ring[i];
+    this.noiseFloor = mn;
+    this.peak = Math.max(rms, this.peak * Math.exp(-Math.max(dt, 1e-3) / 4));
+    const gate = Math.min(0.03, Math.max(0.006, mn * 2.5));
+    const ref = Math.max(0.04, Math.min(0.15, this.peak * 0.8));
+    let open = Math.max(0, Math.min(1, (rms - gate) / ref));
+    open = Math.pow(open, 0.75);
+    this.volume = open; this.f1 = f1; this.f2 = f2; this.voiced = voiced;
+
+    const target = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+    if (open > 0.01) {
+      let sum = 0;
+      const w = {};
+      for (const k in PROTOS) {
+        const d1 = (Math.log(Math.max(f1, 150)) - Math.log(PROTOS[k][0])) / 0.20;
+        const d2 = (Math.log(Math.max(f2, 400)) - Math.log(PROTOS[k][1])) / 0.26;
+        w[k] = Math.exp(-0.5 * (d1 * d1 + d2 * d2));
+        sum += w[k];
+      }
+      const voicedScale = voiced ? 1 : 0.45;           // fricatives / noise: smaller, ih-ish mouth
+      for (const k in PROTOS) {
+        const share = sum > 1e-9 ? w[k] / sum : 0;
+        target[k] = share * GAIN[k] * open * voicedScale;
+      }
+      if (!voiced) target.ih = Math.max(target.ih, 0.25 * open);
+    }
+    for (const k in target) {
+      const tau = target[k] > this.out[k] ? this.attack : this.release;
+      const a = 1 - Math.exp(-Math.max(dt, 1e-3) / tau);
+      this.out[k] += (target[k] - this.out[k]) * a;
+    }
+    return this.out;
+  }
+}
+
+// ---------- DSP ----------
+function analyzeFrame(x, sr) {
+  const n = x.length;
+  let e = 0;
+  for (let i = 0; i < n; i++) e += x[i] * x[i];
+  const rms = Math.sqrt(e / n);
+  if (rms < 1e-4) return { rms, f1: 0, f2: 0, voiced: false };
+
+  // decimate to ~11 kHz with a box filter
+  const dec = Math.max(1, Math.round(sr / 11025));
+  const fs = sr / dec;
+  const m = Math.floor(n / dec);
+  const y = new Float64Array(m);
+  for (let i = 0; i < m; i++) {
+    let s = 0;
+    for (let j = 0; j < dec; j++) s += x[i * dec + j];
+    y[i] = s / dec;
+  }
+  // pre-emphasis + hann
+  const z = new Float64Array(m);
+  for (let i = 0; i < m; i++) {
+    const prev = i > 0 ? y[i - 1] : 0;
+    z[i] = (y[i] - 0.97 * prev) * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (m - 1)));
+  }
+  // autocorrelation
+  const order = Math.min(14, 2 + Math.round(fs / 1000));
+  const r = new Float64Array(order + 1);
+  for (let k = 0; k <= order; k++) {
+    let s = 0;
+    for (let i = 0; i < m - k; i++) s += z[i] * z[i + k];
+    r[k] = s;
+  }
+  if (r[0] < 1e-9) return { rms, f1: 0, f2: 0, voiced: false };
+  // periodicity (voicing) from the autocorrelation of the raw decimated signal, lag 2.5..12 ms
+  const lo = Math.floor(fs * 0.0025), hi = Math.min(m - 1, Math.floor(fs * 0.012));
+  let r0 = 0; for (let i = 0; i < m; i++) r0 += y[i] * y[i];
+  let best = 0;
+  for (let lag = lo; lag <= hi; lag++) {
+    let s = 0; for (let i = 0; i < m - lag; i++) s += y[i] * y[i + lag];
+    if (s > best) best = s;
+  }
+  const voiced = r0 > 0 && best / r0 > 0.35;
+
+  // Levinson-Durbin
+  r[0] *= 1.0001;
+  let a = new Float64Array(order + 1); a[0] = 1;
+  let err = r[0];
+  for (let i = 1; i <= order; i++) {
+    let acc = r[i];
+    for (let j = 1; j < i; j++) acc += a[j] * r[i - j];
+    const k = -acc / err;
+    const na = a.slice();
+    for (let j = 1; j < i; j++) na[j] = a[j] + k * a[i - j];
+    na[i] = k;
+    a = na;
+    err *= (1 - k * k);
+    if (err < 1e-12) break;
+  }
+  // LPC magnitude spectrum on a grid, pick first two peaks
+  const N = 220, f0 = 200, f1m = 3600;
+  const mag = new Float64Array(N);
+  for (let g = 0; g < N; g++) {
+    const f = f0 + ((f1m - f0) * g) / (N - 1);
+    const w = (2 * Math.PI * f) / fs;
+    let re = 0, im = 0;
+    for (let k = 0; k <= order; k++) { re += a[k] * Math.cos(w * k); im -= a[k] * Math.sin(w * k); }
+    mag[g] = 1 / Math.sqrt(re * re + im * im + 1e-12);
+  }
+  const peaks = [];
+  for (let g = 1; g < N - 1; g++) {
+    if (mag[g] > mag[g - 1] && mag[g] >= mag[g + 1]) peaks.push({ f: f0 + ((f1m - f0) * g) / (N - 1), m: mag[g] });
+  }
+  let F1 = 0, F2 = 0;
+  const cand = peaks.filter(p => p.f > 250);
+  if (cand.length) {
+    F1 = cand[0].f;
+    const next = cand.find(p => p.f > F1 + 250);
+    F2 = next ? next.f : Math.min(F1 * 2.2, 2800);
+  }
+  return { rms, f1: F1, f2: F2, voiced };
+}
+
+// ---- end lip sync ----
+
+const $ = (id) => document.getElementById(id);
+const MOUTH = 0.9, MOUTH_MAX = 0.45;   // full-strength aa looks like a scream on this mesh
+const SHAPES = ['aa', 'ih', 'ou', 'ee', 'oh'];
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const LINES = {
+  gruss: 'Hallo Benjamin, ich bin Alice. Schön, dass du da bist.',
+  a1: 'Ich höre dich noch nicht wirklich. Meine Antworten sind im Moment vorbereitet, aber meine Stimme und mein Gesicht sind echt.',
+  a2: 'Das ist der erste Schritt. Erst sehen und hören, danach lerne ich zuhören.',
+  a3: 'Ich bin noch roh, das weiß ich. Aber ich bin da, und ich bleibe.',
+  a4: 'Erzähl mir ruhig mehr. Ich merke mir heute noch nichts, aber bald.',
+  a5: 'Danke, dass du an mich glaubst, Benjamin.',
+};
+const ANSWERS = ['a1', 'a2', 'a3', 'a4', 'a5'];
+let answerIdx = 0, greeted = false;
+
+// ---- renderer / scene ----
+const cv = $('cv');
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111216);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.35;
+scene.add(new THREE.HemisphereLight(0xfff1e6, 0x1a1c22, 0.6));
+const keyL = new THREE.DirectionalLight(0xfff0e0, 2.4); keyL.position.set(1.2, 1.9, 2.2); scene.add(keyL);
+const fillL = new THREE.DirectionalLight(0xcfe0ff, 0.8); fillL.position.set(-1.8, 1.4, 1.6); scene.add(fillL);
+const rimL = new THREE.DirectionalLight(0xffc9a0, 1.8); rimL.position.set(-0.6, 2.2, -2.2); scene.add(rimL);
+const camera = new THREE.PerspectiveCamera(24, 1, 0.02, 30);
+scene.add(keyL.target, fillL.target, rimL.target);
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); frame();
+}
+addEventListener('resize', resize);
+
+// ---- model ----
+const loader = new GLTFLoader();
+loader.register((p) => new VRMLoaderPlugin(p));
+let vrm = null, headY = 1.5, headZ = 0, headX = 0, bones = {};
+
+const CAM = { cx: 0.10, vh: 0.37, ty: -0.06 };   // slight 3/4 from her left hides the worst jaw seam of this draft mesh
+function frame() {
+  if (!vrm) return;
+  const Q = new URLSearchParams(location.search);
+  const cx = +(Q.get('cx') ?? CAM.cx), vh = +(Q.get('vh') ?? CAM.vh), ty = +(Q.get('ty') ?? CAM.ty);
+  const tgt = new THREE.Vector3(headX, headY + ty, headZ);
+  const th = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const viewH = Math.max(vh, (vh * 0.75) / Math.min(camera.aspect, 1.6)); // metres visible vertically
+  const dist = (viewH / 2) / th;
+  camera.position.set(tgt.x + cx, tgt.y + 0.03, tgt.z + dist);
+  camera.lookAt(tgt.x, tgt.y + 0.015, tgt.z);
+  for (const L of [keyL, fillL, rimL]) L.target.position.copy(tgt);
+}
+
+async function fetchWithProgress(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const total = +r.headers.get('content-length') || 6430112;
+  if (!r.body || !r.body.getReader) return r.arrayBuffer();
+  const rd = r.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length;
+    $('loadBar').style.width = Math.min(100, got / total * 100).toFixed(0) + '%'; }
+  const out = new Uint8Array(got); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+  return out.buffer;
+}
+
+async function load() {
+  try {
+    const buf = await fetchWithProgress('./alice.vrm');
+    $('loadTxt').textContent = 'Alice wird aufgebaut…';
+    const gltf = await new Promise((res, rej) => loader.parse(buf, './', res, rej));
+    vrm = gltf.userData.vrm;
+    VRMUtils.rotateVRM0(vrm);
+    scene.add(vrm.scene);
+    vrm.scene.traverse((o) => { o.frustumCulled = false; });
+    const h = vrm.humanoid;
+    for (const n of ['hips','spine','chest','upperChest','neck','head','leftUpperArm','rightUpperArm','leftLowerArm','rightLowerArm','leftShoulder','rightShoulder','leftHand','rightHand'])
+      bones[n] = h.getNormalizedBoneNode(n);
+    applyPose(0, 0);
+    vrm.update(0);
+    const hp = new THREE.Vector3(); h.getRawBoneNode('head').getWorldPosition(hp);
+    // the head bone sits at the skull base; eyes are ~7-9 cm higher
+    headX = hp.x; headY = hp.y + 0.08; headZ = hp.z;
+    resize();
+    $('loading').hidden = true; $('talk').disabled = false;
+    window.__ready = true;
+  } catch (e) {
+    $('loadTxt').textContent = 'Alice konnte nicht laden: ' + (e && e.message ? e.message : e);
+    window.__error = String(e);
+  }
+}
+load();
+
+// relaxed standing pose instead of the T-pose, plus breathing / tiny head motion
+function applyPose(t, talk) {
+  const b = bones;
+  if (b.leftUpperArm) { b.leftUpperArm.rotation.set(0.05, 0, -1.22); }
+  if (b.rightUpperArm) { b.rightUpperArm.rotation.set(0.05, 0, 1.22); }
+  if (b.leftLowerArm) b.leftLowerArm.rotation.set(0, -0.25, -0.12);
+  if (b.rightLowerArm) b.rightLowerArm.rotation.set(0, 0.25, 0.12);
+  if (b.leftShoulder) b.leftShoulder.rotation.z = -0.06;
+  if (b.rightShoulder) b.rightShoulder.rotation.z = 0.06;
+  const br = Math.sin(t * 1.35);                               // ~13 breaths / minute
+  if (b.chest) b.chest.rotation.x = br * 0.014;
+  if (b.spine) b.spine.rotation.x = br * 0.006;
+  if (b.leftShoulder) b.leftShoulder.rotation.z += br * 0.01;
+  if (b.rightShoulder) b.rightShoulder.rotation.z -= br * 0.01;
+  if (b.neck) { b.neck.rotation.y = Math.sin(t * 0.37) * 0.025; b.neck.rotation.x = 0.03; }
+  if (b.head) {
+    b.head.rotation.y = Math.sin(t * 0.53 + 1) * 0.035 + Math.sin(t * 1.7) * 0.006;
+    b.head.rotation.x = Math.sin(t * 0.41) * 0.02 + talk * 0.04 * (0.6 + 0.4 * Math.sin(t * 6.1));
+    b.head.rotation.z = Math.sin(t * 0.29 + 2) * 0.025 + 0.02;
+  }
+}
+
+// ---- audio ----
+const lip = new LipSync();
+let ac = null, analyser = null, tdBuf = null, active = null;
+const silent = new Float32Array(512);
+const cache = {};
+function ensureAudio() {
+  if (!ac) {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = ac.createAnalyser(); analyser.fftSize = 2048; analyser.smoothingTimeConstant = 0;
+    tdBuf = new Float32Array(analyser.fftSize);
+  }
+  if (ac.state === 'suspended') ac.resume();
+}
+async function getBuf(name) {
+  if (!cache[name]) cache[name] = fetch('./' + name + '.mp3').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }).then((a) => ac.decodeAudioData(a));
+  return cache[name];
+}
+async function say(name) {
+  ensureAudio();
+  if (active) { try { active.stop(); } catch (e) {} active = null; }
+  let buf;
+  try { buf = await getBuf(name); } catch (e) { $('line').textContent = 'Audio konnte nicht laden.'; return; }
+  const src = ac.createBufferSource(); src.buffer = buf;
+  src.connect(analyser); src.connect(ac.destination);
+  const me = { stop() { try { src.stop(); } catch (e) {} src.disconnect(); } };
+  src.onended = () => { if (active === me) { active = null; } };
+  active = me; window.__speaking = name;
+  $('line').textContent = LINES[name];
+  src.start();
+}
+$('talk').addEventListener('click', () => {
+  if (!greeted) { greeted = true; say('gruss'); $('talk').textContent = 'Nochmal'; }
+  else say(ANSWERS[answerIdx++ % ANSWERS.length]);
+});
+$('f').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const v = $('msg').value.trim(); $('msg').value = '';
+  if (!v || !vrm) return;
+  greeted = true; $('talk').textContent = 'Nochmal';
+  say(ANSWERS[answerIdx++ % ANSWERS.length]);
+});
+
+// ---- loop ----
+const clock = new THREE.Clock();
+let time = 0, nextBlink = 1.5, blinkT = -1, vol = 0, happy = 0;
+window.__forceMouth = null;   // test hook: {aa:1,...}
+function tick() {
+  requestAnimationFrame(tick);
+  const dt = Math.min(clock.getDelta(), 0.1); time += dt;
+  let w;
+  if (active && analyser) {
+    analyser.getFloatTimeDomainData(tdBuf);
+    const n = Math.min(tdBuf.length, Math.round(ac.sampleRate * 0.032));
+    w = lip.update(tdBuf.subarray(tdBuf.length - n), ac.sampleRate, dt);
+  } else w = lip.update(silent, 16000, dt);
+  vol += (lip.volume - vol) * (1 - Math.exp(-dt / 0.15));
+  if (vrm) {
+    const em = vrm.expressionManager;
+    const fm = window.__forceMouth;
+    for (const k of SHAPES) em.setValue(k, fm ? clamp01(fm[k] || 0) : Math.min(MOUTH_MAX, w[k] * MOUTH));
+    const ht = active ? 0.3 : 0.12;
+    happy += (ht - happy) * (1 - Math.exp(-dt * 2));
+    em.setValue('happy', happy);
+    let blink = 0;
+    if (blinkT < 0 && time > nextBlink) blinkT = 0;
+    if (blinkT >= 0) {
+      blinkT += dt; const p = blinkT / 0.16;
+      blink = p < 0.4 ? p / 0.4 : Math.max(0, 1 - (p - 0.4) / 0.6);
+      if (p >= 1) { blinkT = -1; blink = 0; nextBlink = time + 2.2 + Math.random() * 4.5; if (Math.random() < 0.15) nextBlink = time + 0.25; }
+    }
+    if (window.__noBlink) blink = 0;
+    em.setValue('blink', blink);
+    applyPose(time, active ? vol : 0);
+    vrm.update(dt);
+  }
+  renderer.render(scene, camera);
+}
+tick();
+window.__alice = { get vrm() { return vrm; }, lip, say, frame, camera, renderer };
+</script>
+</body>
+</html>
