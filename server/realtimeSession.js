@@ -1,10 +1,10 @@
-import { ALICE_REALTIME_INSTRUCTIONS, ALICE_TOOLS } from './alicePrompt.js';
+import { buildAliceRoleInstructions, ALICE_TOOLS } from './alicePrompt.js';
 
 export function buildRealtimeSession(env = process.env) {
   return {
     type: 'realtime',
     model: env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
-    instructions: ALICE_REALTIME_INSTRUCTIONS,
+    instructions: buildAliceRoleInstructions(env),
     tools: ALICE_TOOLS,
     tool_choice: 'auto',
     audio: {

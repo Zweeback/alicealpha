@@ -1,4 +1,4 @@
-import { ALICE_REALTIME_INSTRUCTIONS } from './alicePrompt.js';
+import { buildAliceRoleInstructions } from './alicePrompt.js';
 
 const DEFAULT_CHAIN = 'gemini:gemini-2.5-flash,groq:llama-3.3-70b-versatile,openrouter:google/gemini-2.5-flash:free';
 const CIRCUIT_COOLDOWN_MS = 60_000;
@@ -90,7 +90,7 @@ export function buildChatSystemPrompt({
   confirmed_memory = [],
   persona_state = null,
   companion_state = null,
-} = {}) {
+} = {}, env = process.env) {
   const memory = compactMemory(confirmed_memory);
   const additions = [
     '',
@@ -107,7 +107,7 @@ export function buildChatSystemPrompt({
       : '',
   ].filter(Boolean);
 
-  return [ALICE_REALTIME_INSTRUCTIONS, ...additions].join('\n');
+  return [buildAliceRoleInstructions(env), ...additions].join('\n');
 }
 
 function providerHeaders(provider, apiKey) {
@@ -234,7 +234,7 @@ export async function completeLlmChat({
   if (!conversation.length) throw new Error('llm-chat-input-required');
   if (typeof fetchFn !== 'function') throw new Error('llm-fetch-unavailable');
 
-  const system = buildChatSystemPrompt({ confirmed_memory, persona_state, companion_state });
+  const system = buildChatSystemPrompt({ confirmed_memory, persona_state, companion_state }, env);
   const fullMessages = [{ role: 'system', content: system }, ...conversation];
   let lastError = null;
 
