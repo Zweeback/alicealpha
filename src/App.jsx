@@ -54,6 +54,7 @@ export default function App() {
   const [chatAvailable, setChatAvailable] = useState(false);
   const [renderFallback, setRenderFallback] = useState(false);
   const [localCandidateLoaded, setLocalCandidateLoaded] = useState(false);
+  const [avatarReady, setAvatarReady] = useState(false);
   const [candidateStatus, setCandidateStatus] = useState('');
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState('');
@@ -287,6 +288,7 @@ export default function App() {
       overlayRoot: overlayRef.current,
       onInteract: () => interactRef.current?.(),
       onSessionChange: setMode,
+      onAvatarReady: ({ usable }) => (usable ? setAvatarReady(true) : setRenderFallback(true)),
     });
     world.ready
       .then((loaded) => loaded?.setRepresentation(voiceModeRef.current))
@@ -517,15 +519,18 @@ export default function App() {
   const visualQuery = search;
   const portraitVisual = !localCandidateLoaded && shouldShowPortrait(visualQuery, { sessionMode, renderFallback });
   const live3DVisual = !portraitVisual;
+  // Das Foto dient als Platzhalter, bis das 3D-Modell steht, und blendet dann aus.
+  const posterActive = live3DVisual && sessionMode === 'desktop' && !avatarReady && !localCandidateLoaded;
+  const showPortraitElement = portraitVisual || (sessionMode === 'desktop' && !localCandidateLoaded);
 
   return (
-    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
+    <div className={`alice-app phase-${phase} mode-${sessionMode} ${portraitVisual ? 'visual-canonical' : 'visual-3d'} ${posterActive ? 'poster-on' : ''} ${callMode ? 'call-mode' : ''}`} ref={overlayRef}>
       <div className="stage-arch" aria-hidden="true" />
       <canvas ref={canvasRef} aria-label="Alice als dreidimensionale Begleiterin" />
 
-      {portraitVisual && (
+      {showPortraitElement && (
         <div
-          className="canonical-alice-portrait"
+          className={`canonical-alice-portrait ${portraitVisual || posterActive ? '' : 'poster-out'}`}
           role="button"
           tabIndex={0}
           aria-label="Mit Alice sprechen"
@@ -558,7 +563,7 @@ export default function App() {
               <summary>{demoMode ? 'Visual-Demo' : live3DVisual ? '3D-Ansicht' : 'Porträt-Ansicht'}</summary>
               <div className="view-menu-panel">
                 <a href="?visual=portrait" aria-current={portraitVisual ? 'true' : undefined}>Porträt</a>
-                <a href="?avatar=vrm" aria-current={live3DVisual ? 'true' : undefined}>3D-Avatar testen</a>
+                <a href="./" aria-current={live3DVisual ? 'true' : undefined}>3D-Avatar</a>
                 <label className="view-menu-file">
                   Eigenes Modell laden (.glb oder .vrm)
                   <input
@@ -567,7 +572,7 @@ export default function App() {
                     onChange={importLocalCandidate}
                   />
                 </label>
-                <small>Der 3D-Avatar ist ein Kandidat und noch nicht freigegeben.</small>
+                <small>Standard ist der 3D-Avatar. Das Porträt dient als Platzhalter und Rückfall.</small>
                 {candidateStatus && <small role="status" className="candidate-status">{candidateStatus}</small>}
               </div>
             </details>

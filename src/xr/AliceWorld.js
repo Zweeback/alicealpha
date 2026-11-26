@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { calculatePerspectiveFrame } from './framing.js';
 import { getGLTFLoader } from './loader.js';
-import { resolveAvatarSelection } from './avatarCatalog.js';
+import { isExplicit3DSelection, resolveAvatarSelection } from './avatarCatalog.js';
 import { sampleMicroMotion } from './microMotion.js';
 import { resolveMorphWeight } from './rigExpressions.js';
 import { validateCandidateFile, validateGlbHeader, inspectCandidateScene } from './candidateImport.js';
@@ -425,11 +425,12 @@ async function createAlice() {
 }
 
 export class AliceWorld {
-  constructor(canvas, { overlayRoot, onInteract = () => {}, onSessionChange = () => {} } = {}) {
+  constructor(canvas, { overlayRoot, onInteract = () => {}, onSessionChange = () => {}, onAvatarReady = () => {} } = {}) {
     this.canvas = canvas;
     this.overlayRoot = overlayRoot;
     this.onInteract = onInteract;
     this.onSessionChange = onSessionChange;
+    this.onAvatarReady = onAvatarReady;
     this.clock = new THREE.Clock();
     this.pointer = new THREE.Vector2();
     this.presence = { present: true, x: 0, y: 0, distance: 0.5, expression: 'neutral' };
@@ -497,6 +498,11 @@ export class AliceWorld {
     this.desktopBounds = new THREE.Box3().setFromObject(this.alice.root);
     this.setRepresentation(this.representation);
     this.resize();
+    // usable=false: das Modell ließ sich nicht laden und nur der prozedurale Notkörper steht. Die Oberfläche
+    // zeigt dann das Porträt, statt den Notkörper als Alice auszugeben (außer er wurde ausdrücklich gewählt).
+    this.onAvatarReady({
+      usable: !this.alice.isProcedural || isExplicit3DSelection(globalThis.location?.search || ''),
+    });
   }
 
 

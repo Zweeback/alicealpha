@@ -141,8 +141,18 @@ canvas {
     0 0 calc(30px + var(--voice) * 110px) rgba(185, 166, 240, calc(0.08 + var(--voice) * 0.3));
   cursor: pointer;
   pointer-events: auto;
-  transition: transform 620ms cubic-bezier(.2, .7, .2, 1);
+  transition: transform 620ms cubic-bezier(.2, .7, .2, 1), opacity 700ms ease, visibility 0s;
 }
+
+/* Platzhalter-Foto: blendet aus, sobald das 3D-Modell geladen ist. */
+.canonical-alice-portrait.poster-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 700ms ease, visibility 0s linear 700ms;
+}
+
+.canonical-alice-portrait.poster-out img { animation: none; }
 
 .canonical-alice-portrait::after {
   position: absolute;

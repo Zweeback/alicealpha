@@ -11,7 +11,7 @@ Stand: 2026-11-11. Gilt für Branch `feat/alice-vrm-v0.5`.
 | Avatar-Bild | Ganzkörper, Gesicht klein | Brustbild: Kamera folgt dem Kopfknochen, Kopf ≈ ein Drittel der Höhe |
 | Licht | Labor-Licht (Cyan/Amber) | Studio-Licht aus den Farben der Figur; Labor-Licht bleibt für prozeduralen Körper und GLaDOS |
 | Mund | Takt-Näherung aus der Lautstärke | Vokal-Gewichte aus echtem Audio (LPC-Formanten F1/F2), Rückfall auf die Näherung |
-| Ansichten | Drei beschriftete Knöpfe oben rechts | Ansichts-Menü unter dem Namen: Porträt, 3D-Avatar testen, eigenes Modell laden |
+| Ansichten | Drei beschriftete Knöpfe oben rechts | Ansichts-Menü unter dem Namen: 3D-Avatar, Porträt, eigenes Modell laden |
 
 ## Gestaltung
 
@@ -43,7 +43,23 @@ Grenzen, ehrlich benannt:
 `createLazyWorld()` lädt `AliceWorld` erst nach dem ersten Render. Vor dem Laden werden Aufrufe verworfen; Präsenz und Darstellungsmodus werden gemerkt. Fehlt WebGL, lehnt `ready` ab, die Seite zeigt Porträt und Text (Rückfall wie bisher).
 Der Service Worker cached inhaltsgehashte Dateien unter `/assets/` zuerst aus dem Cache; `/api/` und `/mcp` werden nie gecacht.
 
-## Freigabe des 3D-Avatars
+## Standardansicht (Stand 2026-11-26)
 
-Standardansicht bleibt das Porträt: `canonicalAssetStatus: pending` und der Test „default avatar selection obeys the fail-closed character manifest“ halten das fest. Die Ansicht `?avatar=vrm` ist ein Kandidat. Die Freigabe ist eine Entscheidung des Besitzers; sie läuft über `provenance.approved` im Manifest, nicht über Code.
+Die Standardansicht ist das 3D-Modell (`/alice.vrm`) mit der AliceRuntime (Blinzeln, Blick, Atmung, Mimik). Das Porträt-Foto hat drei Rollen:
+
+- Platzhalter, bis das Modell geladen ist (`poster-on`), danach blendet es aus.
+- Rückfall ohne WebGL oder bei Ladefehler. Steht nur der prozedurale Notkörper, bleibt das Porträt sichtbar, außer er wurde mit `?procedural=1` oder `?avatar=procedural` gewählt.
+- Auf Wunsch über `?visual=portrait`.
+
+Dieser Wechsel erfolgte auf ausdrückliche Anweisung des Besitzers. Das Freigabe-Gate im Manifest (`canonicalAssetStatus: pending`, `approvedAsset: null`) ist unverändert: Das Modell ist die Standardansicht, aber formal nicht als kanonisches Asset freigegeben. Dafür wären Prüfsumme, Zeitstempel und Pfad nötig (siehe `tests/aliceCharacterManifest.test.js`).
 Die VRM-Metadaten der Datei (`allowRedistribution: false`, nur Autor) sollten vor einem öffentlichen Repository geprüft werden.
+
+## Bekannte Grenzen des Modells
+
+Diese Fehler stecken in der Datei, nicht im Code. Sie zeigen sich identisch im neutralen Viewer (`?viewer=vrm`) ohne Runtime und Alice-Licht:
+
+- Textur an der linken Kieferpartie verschmiert, Gesicht wirkt an der Kante wie eine Maske.
+- Haar als glatte Fläche mit Schlieren, keine einzelnen Strähnen.
+- Jackenkragen und Schulter mit zerfließender Textur, Ärmelband links verpixelt.
+
+Behebung nur am Modell: Textur an Kiefer, Hals und Kragen nachmalen, oder Mesh und Textur neu erzeugen (Retexturing mit PBR). Kamera, Licht und Code können das nicht beheben.

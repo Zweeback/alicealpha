@@ -15,8 +15,9 @@ export const AVATAR_CATALOG = Object.freeze({
   vrm: Object.freeze({
     id: 'vrm',
     kind: 'vrm',
-    status: 'candidate',
-    label: 'VRM candidate',
+    // Standardansicht auf Anweisung des Besitzers (2026-11-26). Das Freigabe-Gate im Manifest bleibt davon unberührt.
+    status: 'default',
+    label: 'Alice v0.5 (VRM)',
     url: '/alice.vrm',
   }),
   fbxsource: Object.freeze({
@@ -51,8 +52,8 @@ export const AVATAR_CATALOG = Object.freeze({
 
 export function resolveAvatarSelection(search = '') {
   const params = new URLSearchParams(search);
-  const requested = params.get('avatar') || 'procedural';
-  return AVATAR_CATALOG[requested] || AVATAR_CATALOG.procedural;
+  const requested = params.get('avatar') || 'vrm';
+  return AVATAR_CATALOG[requested] || AVATAR_CATALOG.vrm;
 }
 
 export function isExplicit3DSelection(search = '') {
@@ -70,8 +71,7 @@ export function isPortraitSelection(search = '') {
 export function shouldShowPortrait(search = '', { sessionMode = 'desktop', renderFallback = false } = {}) {
   if (sessionMode !== 'desktop') return false;
   if (renderFallback) return true;
-  // The approved Alice portrait is the default until a faithful 3D avatar is accepted.
-  // Procedural/VRM/GLB remain available only by explicit selection.
-  if (isExplicit3DSelection(search)) return false;
-  return true;
+  // Das 3D-Modell ist die Standardansicht. Das Porträt erscheint nur auf Wunsch (?visual=portrait),
+  // als Rückfall ohne WebGL oder bei Ladefehler und als Platzhalter, bis das Modell geladen ist.
+  return isPortraitSelection(search);
 }

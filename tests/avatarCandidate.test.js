@@ -3,9 +3,11 @@ import { evaluateAvatarManifest } from '../src/xr/avatarQuality.js';
 import { isExplicit3DSelection, isPortraitSelection, resolveAvatarSelection, shouldShowPortrait } from '../src/xr/avatarCatalog.js';
 
 describe('avatar candidate lab', () => {
-  it('keeps TRELLIS explicit while defaulting to the approved-safe procedural avatar', () => {
+  it('keeps TRELLIS explicit while defaulting to the Alice v0.5 VRM', () => {
     expect(resolveAvatarSelection('?avatar=trellis').id).toBe('trellis');
-    expect(resolveAvatarSelection('').id).toBe('procedural');
+    expect(resolveAvatarSelection('').id).toBe('vrm');
+    expect(resolveAvatarSelection('?avatar=unbekannt').id).toBe('vrm');
+    expect(resolveAvatarSelection('?avatar=procedural').id).toBe('procedural');
     expect(isExplicit3DSelection('')).toBe(false);
     expect(isPortraitSelection('')).toBe(false);
     expect(isExplicit3DSelection('?visual=portrait')).toBe(false);
@@ -15,8 +17,8 @@ describe('avatar candidate lab', () => {
     expect(isExplicit3DSelection('?procedural=1')).toBe(true);
   });
 
-  it('uses the approved identity portrait by default until a faithful 3D asset is accepted', () => {
-    expect(shouldShowPortrait('')).toBe(true);
+  it('shows the 3D avatar by default and the portrait only on request or as fallback', () => {
+    expect(shouldShowPortrait('')).toBe(false);
     expect(shouldShowPortrait('?procedural=1')).toBe(false);
     expect(shouldShowPortrait('?avatar=glb')).toBe(false);
     expect(shouldShowPortrait('?visual=portrait')).toBe(true);
