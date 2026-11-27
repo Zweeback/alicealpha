@@ -5,3 +5,6 @@ dist/
 .env.local
 meshy_output/
 *.log
+
+# Codespaces-local 3D tools
+.alice-tools/

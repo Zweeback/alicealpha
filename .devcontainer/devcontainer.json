@@ -1,8 +1,13 @@
 {
-  "name": "Alice Alpha",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
-  "postCreateCommand": "npm ci",
-  "forwardPorts": [5173, 8787],
+  "name": "Alice Alpha — Blender VRM",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "npm ci && bash tools/setup_vrm_resources.sh",
+  "forwardPorts": [
+    5173,
+    8787
+  ],
   "portsAttributes": {
     "5173": {
       "label": "Alice Vite",
