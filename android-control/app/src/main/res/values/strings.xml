@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ALICE Gerätebrücke</string>
+    <string name="service_name">ALICE Navigation</string>
+    <string name="service_description">Erlaubt nach ausdrücklichem Einschalten nur Navigation (Zurück, Home, Übersicht, Benachrichtigungen, Schnelleinstellungen). Keine Bildschirminhalte werden erfasst.</string>
+</resources>

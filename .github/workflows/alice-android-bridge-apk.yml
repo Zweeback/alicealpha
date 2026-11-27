@@ -1,0 +1,41 @@
+name: ALICE Android Bridge APK
+on:
+  push:
+    branches:
+      - alice-android-bridge
+    paths:
+      - 'android-control/**'
+      - '.github/workflows/alice-android-bridge-apk.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'android-control/**'
+      - '.github/workflows/alice-android-bridge-apk.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK platform
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          if [[ -z "$SDKMANAGER" ]]; then echo "sdkmanager missing"; exit 1; fi
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - name: Build debug APK
+        run: gradle -p android-control assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alice-android-bridge-debug-apk
+          path: android-control/app/build/outputs/apk/debug/app-debug.apk
