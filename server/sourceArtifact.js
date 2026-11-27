@@ -17,6 +17,16 @@ const PROVIDERS = new Set([
   'notebooklm',
   'scriptdb',
   'supergrok',
+  // Only evidence sources. Listed here does not activate a connector.
+  'anthropic',
+  'xai',
+  'grokbot',
+  'grok_imagine',
+  'google_drive',
+  'google_colab',
+  'apps_script',
+  'statista',
+  'openclaw',
 ])
 
 const APPROVALS = new Set(['pending', 'accepted', 'rejected'])
@@ -66,5 +76,16 @@ export function createSourceArtifact(input) {
 }
 
 export function mayEnterAliceContext(artifact) {
-  return artifact?.approval === 'accepted' && /^[a-f0-9]{64}$/.test(artifact?.sha256 ?? '')
+  if (artifact?.approval !== 'accepted' || !KINDS.has(artifact.kind) || !PROVIDERS.has(artifact.provider)) return false
+  if (!artifact.artifact_id || typeof artifact.purpose !== 'string' || !artifact.purpose.trim()) return false
+  if (!Array.isArray(artifact.sources) || !artifact.sources.length || artifact.sources.some((value) => typeof value !== 'string' || !value.trim())) return false
+  if (typeof artifact.license !== 'string' || !artifact.license.trim()) return false
+  if (containsSecretField(artifact.payload)) return false
+  if (!/^[a-f0-9]{64}$/.test(artifact.sha256 ?? '')) return false
+  // An "accepted" flag alone is not proof of consent or content integrity.
+  try {
+    return createHash('sha256').update(stableJson(artifact.payload ?? null)).digest('hex') === artifact.sha256
+  } catch {
+    return false
+  }
 }
