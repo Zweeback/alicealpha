@@ -47,6 +47,8 @@ def read_glb(data):
  pos=12
  chunks=[]
  while pos < len(data):
+  if len(data)-pos < 8:
+   raise ValueError('Truncated GLB chunk header')
   size,kind=struct.unpack_from('<I4s',data,pos)
   pos+=8
   if size % 4 or pos+size > len(data):
@@ -74,6 +76,10 @@ def normalized(name):
  return str(name).strip().split(':')[-1].split('|')[-1].split('/')[-1].removesuffix('.001').casefold()
 
 def convert(source,target,report,expected):
+ if source.resolve()==target.resolve():
+  raise ValueError('Source cannot be overwritten')
+ if target.resolve()==report.resolve() or source.resolve()==report.resolve():
+  raise ValueError('Report must not overwrite an avatar or source GLB')
  raw=source.read_bytes()
  source_hash=hashlib.sha256(raw).hexdigest()
  if expected and source_hash != expected:
@@ -96,9 +102,29 @@ def convert(source,target,report,expected):
  absent=sorted(set(REQUIRED)-set(humanoid))
  if absent:
   raise ValueError('Required VRM bones absent: '+','.join(absent))
+ # Every mapped VRM bone must belong to a single real skin, not merely share a name.
+ skin_joints=[]
+ for skin in doc['skins']:
+  joints=skin.get('joints',[])
+  if not joints or any(not isinstance(j,int) or isinstance(j,bool) or j<0 or j>=len(doc.get('nodes',[])) for j in joints):
+   raise ValueError('Skin references invalid or absent joints')
+  skin_joints.append(set(joints))
+ mapped_nodes={b['node'] for b in humanoid.values()}
+ if len(mapped_nodes)!=len(humanoid):
+  raise ValueError('Multiple humanoid semantics use same node')
+ if not any(mapped_nodes.issubset(joints) for joints in skin_joints):
+  raise ValueError('Humanoid bones do not belong to a single GLB skin')
+ rigged_nodes=[(i,n) for i,n in enumerate(doc.get('nodes',[])) if 'skin' in n and 'mesh' in n]
+ if not rigged_nodes:
+  raise ValueError('No skinned mesh nodes; static skeleton only')
+ for i,n in rigged_nodes:
+  if not isinstance(n['skin'],int) or not 0<=n['skin']<len(skin_joints):
+   raise ValueError('Invalid skin index in skinned mesh node '+str(i))
  parent={}
  for i,node in enumerate(doc['nodes']):
   for child in node.get('children',[]):
+   if not isinstance(child,int) or isinstance(child,bool) or not 0<=child<len(doc['nodes']):
+    raise ValueError('Invalid node child index in '+str(i))
    if child in parent:
     raise ValueError('Node has multiple parents')
    parent[child]=i
@@ -125,7 +151,7 @@ def convert(source,target,report,expected):
  meshes=doc.get('meshes',[])
  for n,node in enumerate(doc['nodes']):
   meshidx=node.get('mesh')
-  if not isinstance(meshidx,int) or meshidx >= len(meshes):
+  if not isinstance(meshidx,int) or isinstance(meshidx,bool) or meshidx < 0 or meshidx >= len(meshes):
    continue
   mesh=meshes[meshidx]
   morph_names=mesh.get('extras',{}).get('targetNames') or []
@@ -170,8 +196,6 @@ def convert(source,target,report,expected):
  check,newchunks=read_glb(output)
  if newchunks[1:] != chunks[1:] or check['extensions']['VRMC_vrm']['specVersion']!='1.0':
   raise ValueError('Binary roundtrip mismatch')
- if source.resolve()==target.resolve():
-  raise ValueError('Source cannot be overwritten')
  target.parent.mkdir(parents=True,exist_ok=True)
  target.write_bytes(output)
  result={
@@ -179,11 +203,13 @@ def convert(source,target,report,expected):
   'sourceSha256':source_hash,'outputSha256':hashlib.sha256(output).hexdigest(),
   'originalGlbPayloadPreserved':True,
   'skinCount':len(doc['skins']),'meshCount':len(meshes),
+  'riggedMeshNodeCount':len(rigged_nodes),'humanoidJointCoverageVerified':True,
   'humanoidBoneCount':len(humanoid),
   'presetExpressions':sorted(preset),'customExpressions':sorted(custom),
   'identityVerifiedAgainstReference':False,
   'browserAnimationVerified':False,
   'approvedCanonical':False}
+ report.parent.mkdir(parents=True,exist_ok=True)
  report.write_text(json.dumps(result,indent=2)+'\n',encoding='utf8')
  print(json.dumps(result,indent=2))
 
