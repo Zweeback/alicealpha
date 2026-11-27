@@ -55,6 +55,10 @@ PORT=8787
 ```
 
 
+## Desktop-Gateway (opt-in)
+
+Alice can propose a small allowlist of desktop actions (open an https link, write the clipboard, show a note). A paired local client (`tools/alice-desktop-client.mjs`) asks the person at that desktop before anything runs; every step lands in a hash-chained provenance journal. Off unless `ALICE_DESKTOP_GATEWAY=1` plus two different tokens (`ALICE_DESKTOP_PROPOSER_TOKEN` for proposing, `ALICE_DESKTOP_CLIENT_TOKEN` for the desktop client) are set. See [docs/desktop-gateway.md](docs/desktop-gateway.md).
+
 ## Girl Companion livechat + neural voice
 
 The text fallback is now a real persistent companion chat instead of a one-shot caption box. The last 80 local messages survive reloads in browser storage, while the compact `companion_state` sent to model backends still contains only continuity counters — chat content is not silently added to that payload.
