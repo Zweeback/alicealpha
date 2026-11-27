@@ -8,6 +8,12 @@ import './vrmViewer.css';
 export const BUILT_IN_GLB = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.glb';
 export const BUILT_IN_VRM = import.meta.env.BASE_URL + 'avatars/alice-fbx-source.vrm';
 const SOURCE_GLB = BUILT_IN_GLB;
+const VERSIONED_VRMS = Object.freeze({
+  v04: [import.meta.env.BASE_URL + 'avatars/Alice_v0.4.vrm', 'Alice_v0.4.vrm'],
+  v05: [import.meta.env.BASE_URL + 'avatars/Alice_v0.5.vrm', 'Alice_v0.5.vrm'],
+  v05mobile: [import.meta.env.BASE_URL + 'avatars/Alice_v0.5_pc70k.vrm', 'Alice_v0.5_pc70k.vrm'],
+  v06: [import.meta.env.BASE_URL + 'avatars/alice_v0.6.vrm', 'alice_v0.6.vrm'],
+});
 const DESIGNSHEET_VRM = import.meta.env.BASE_URL + 'avatars/alice-designsheet-candidate.vrm';
 const EXPRESSIONS = [
   'neutral', 'happy', 'cheerful', 'smile', 'curious', 'surprised',
@@ -289,13 +295,13 @@ export default function VRMViewer() {
         webgl.render(scene, camera);
       });
       const selectedModel = new URLSearchParams(globalThis.location.search).get('model');
-      // The repository's verified built-in source asset is GLB. VRM remains an
-      // explicit opt-in only; the default viewer must not request a missing .vrm.
-      const useDesignsheet = selectedModel === 'designsheet';
-      const useVrm = selectedModel === 'vrm';
-      loadBundled(useDesignsheet ? DESIGNSHEET_VRM : useVrm ? BUILT_IN_VRM : BUILT_IN_GLB,
-        useDesignsheet ? 'alice-designsheet-candidate.vrm'
-          : useVrm ? 'alice-fbx-source.vrm' : 'alice-fbx-source.glb');
+      // Preserve the verified legacy default until candidate VRM bytes are
+      // separately committed and visually approved.
+      const chosen = VERSIONED_VRMS[selectedModel]
+        || (selectedModel === 'designsheet' ? [DESIGNSHEET_VRM, 'alice-designsheet-candidate.vrm']
+          : selectedModel === 'vrm' ? [BUILT_IN_VRM, 'alice-fbx-source.vrm']
+            : [BUILT_IN_GLB, 'alice-fbx-source.glb']);
+      loadBundled(chosen[0], chosen[1]);
     } catch (cause) {
       setError('WebGL konnte nicht gestartet werden: ' + String(cause?.message || cause));
       setLoading(false);
@@ -404,6 +410,9 @@ export default function VRMViewer() {
               ? 'DESIGNSHEET WIP: technisch rigged, visuell noch nicht vorlagentreu und nicht freigegeben.'
               : (fileName.endsWith('.glb') ? 'FBX-abgeleiteter GLB-Quellkandidat. Nicht als kanonische ALICE freigegeben.' : 'FBX-abgeleiteter VRM-1.0-Kandidat. Nicht als kanonische ALICE freigegeben.')}</p>
             <div className="vrm-action-grid">
+              {Object.entries(VERSIONED_VRMS).map(([key, [url, name]]) => (
+                <button type="button" key={key} disabled={loading} onClick={() => loadBundled(url, name)}>{key.toUpperCase()}</button>
+              ))}
               <button type="button" disabled={loading} onClick={() => loadBundled(DESIGNSHEET_VRM, 'alice-designsheet-candidate.vrm')}>Designsheet WIP</button>
               <button type="button" disabled={loading} onClick={() => loadBundled(BUILT_IN_VRM, 'alice-fbx-source.vrm')}>Original VRM</button>
               <button type="button" disabled={loading} onClick={() => loadBundled(SOURCE_GLB, 'alice-fbx-source.glb')}>Quell-GLB</button>
